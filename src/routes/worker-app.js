@@ -1,13 +1,13 @@
 const express         = require('express')
 const { createClient } = require('@supabase/supabase-js')
-const { requireAuth } = require('../middleware/auth')
+const { requireWorkerAuth } = require('../middleware/auth')
 const { requireWorker } = require('../middleware/requireRole')
 const router          = express.Router()
 
 // ── Worker 専用ログイン ────────────────────────────────────────
 // GET /worker/login
 router.get('/login', async (req, res) => {
-  const accessToken = req.cookies['sb-access-token']
+  const accessToken = req.cookies['gb-worker-token']   // ワーカー専用Cookie
   if (!accessToken) return res.render('worker-login', { title: 'ログイン' })
 
   // 既存セッションあり → role で振り分け
@@ -40,8 +40,9 @@ router.post('/login', async (req, res) => {
   }
 
   const { access_token, refresh_token } = data.session
-  res.cookie('sb-access-token', access_token, { httpOnly: true, sameSite: 'lax' })
-  res.cookie('sb-refresh-token', refresh_token, { httpOnly: true, sameSite: 'lax' })
+  // 管理者の sb-access-token とは別のCookieに保存（同一ブラウザ共存のため）
+  res.cookie('gb-worker-token',   access_token,  { httpOnly: true, sameSite: 'lax' })
+  res.cookie('gb-worker-refresh', refresh_token, { httpOnly: true, sameSite: 'lax' })
 
   // role 確認
   const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -56,8 +57,8 @@ router.post('/login', async (req, res) => {
 
 // GET /worker/logout
 router.get('/logout', (req, res) => {
-  res.clearCookie('sb-access-token')
-  res.clearCookie('sb-refresh-token')
+  res.clearCookie('gb-worker-token')
+  res.clearCookie('gb-worker-refresh')
   res.redirect('/worker/login')
 })
 
@@ -77,8 +78,8 @@ function fmtDate(d) {
   return String(d).replace(/-/g, '/').slice(0, 10)
 }
 
-// GET /worker  （requireAuth → requireWorker の二重ガード）
-router.get('/', requireAuth, requireWorker, async (req, res) => {
+// GET /worker  （requireWorkerAuth → requireWorker の二重ガード）
+router.get('/', requireWorkerAuth, requireWorker, async (req, res) => {
   const companyId = req.profile?.company_id
   const workerId  = req.profile?.worker_id
 
@@ -221,7 +222,7 @@ function todayJST() {
 }
 
 // GET /worker/api/clock/today — 今日の打刻状況
-router.get('/api/clock/today', requireAuth, requireWorker, async (req, res) => {
+router.get('/api/clock/today', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId = req.profile?.worker_id
   if (!workerId) return res.json({ ok: true, data: null, warn: 'worker_id未設定' })
 
@@ -237,7 +238,7 @@ router.get('/api/clock/today', requireAuth, requireWorker, async (req, res) => {
 })
 
 // POST /worker/api/clock — 出勤 or 退勤打刻
-router.post('/api/clock', requireAuth, requireWorker, async (req, res) => {
+router.post('/api/clock', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
 
@@ -299,7 +300,7 @@ router.post('/api/clock', requireAuth, requireWorker, async (req, res) => {
 
 // ── シフト取得 API ──────────────────────────────────────────────
 // GET /worker/api/shifts?year=2026&month=5
-router.get('/api/shifts', requireAuth, requireWorker, async (req, res) => {
+router.get('/api/shifts', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
   if (!workerId) return res.json({ ok: true, shifts: [] })
@@ -326,7 +327,7 @@ router.get('/api/shifts', requireAuth, requireWorker, async (req, res) => {
 
 // ── 日報 API ────────────────────────────────────────────────────
 // GET /worker/api/daily-reports
-router.get('/api/daily-reports', requireAuth, requireWorker, async (req, res) => {
+router.get('/api/daily-reports', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
   if (!workerId) return res.json({ ok: true, reports: [] })
@@ -344,7 +345,7 @@ router.get('/api/daily-reports', requireAuth, requireWorker, async (req, res) =>
 })
 
 // POST /worker/api/daily-reports
-router.post('/api/daily-reports', requireAuth, requireWorker, async (req, res) => {
+router.post('/api/daily-reports', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
   if (!workerId) return res.json({ ok: false, error: 'worker_id未設定です' })
@@ -371,7 +372,7 @@ router.post('/api/daily-reports', requireAuth, requireWorker, async (req, res) =
 
 // ── メッセージ API ───────────────────────────────────────────────
 // GET /worker/api/messages?after=<ISO>
-router.get('/api/messages', requireAuth, requireWorker, async (req, res) => {
+router.get('/api/messages', requireWorkerAuth, requireWorker, async (req, res) => {
   const companyId = req.profile?.company_id
   const userId    = req.user?.id
   const after     = req.query.after  // 未読チェック用タイムスタンプ
@@ -392,7 +393,7 @@ router.get('/api/messages', requireAuth, requireWorker, async (req, res) => {
 })
 
 // POST /worker/api/messages
-router.post('/api/messages', requireAuth, requireWorker, async (req, res) => {
+router.post('/api/messages', requireWorkerAuth, requireWorker, async (req, res) => {
   const companyId = req.profile?.company_id
   const workerId  = req.profile?.worker_id
   const userId    = req.user?.id
@@ -419,7 +420,7 @@ router.post('/api/messages', requireAuth, requireWorker, async (req, res) => {
 
 // ── シフト申請 API ──────────────────────────────────────────────
 // POST /worker/api/shift-requests
-router.post('/api/shift-requests', requireAuth, requireWorker, async (req, res) => {
+router.post('/api/shift-requests', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
   if (!workerId) return res.json({ ok: false, error: 'worker_id未設定です' })
@@ -444,7 +445,7 @@ router.post('/api/shift-requests', requireAuth, requireWorker, async (req, res) 
 })
 
 // GET /worker/api/shift-requests
-router.get('/api/shift-requests', requireAuth, requireWorker, async (req, res) => {
+router.get('/api/shift-requests', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
   if (!workerId) return res.json({ ok: true, requests: [] })
@@ -463,7 +464,7 @@ router.get('/api/shift-requests', requireAuth, requireWorker, async (req, res) =
 
 // ── SOS API ─────────────────────────────────────────────────────
 // POST /worker/api/sos
-router.post('/api/sos', requireAuth, requireWorker, async (req, res) => {
+router.post('/api/sos', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
 
@@ -482,7 +483,7 @@ router.post('/api/sos', requireAuth, requireWorker, async (req, res) => {
 })
 
 // ── パスワード変更 API ──────────────────────────────────────────
-router.post('/api/change-password', requireAuth, requireWorker, async (req, res) => {
+router.post('/api/change-password', requireWorkerAuth, requireWorker, async (req, res) => {
   const { password, confirm } = req.body
 
   if (!password || password.length < 8) {
