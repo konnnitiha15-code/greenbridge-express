@@ -6,28 +6,41 @@ const router          = express.Router()
 
 // ── Worker 専用ログイン ────────────────────────────────────────
 // GET /worker/login
+// worker session のみ許可。admin session があっても /app にはリダイレクトしない。
 router.get('/login', async (req, res) => {
-  const accessToken = req.cookies['gb-worker-token']   // ワーカー専用Cookie
+  const accessToken = req.cookies['gb-worker-token']
   if (!accessToken) return res.render('worker-login', { title: 'ログイン' })
 
-  // 既存セッションあり → role で振り分け
   try {
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
       { auth: { autoRefreshToken: false, persistSession: false } })
     const { data: { user }, error } = await sb.auth.getUser(accessToken)
-    if (error || !user) return res.render('worker-login', { title: 'ログイン' })
+
+    // トークン無効 → Cookieを消してフォーム表示
+    if (error || !user) {
+      res.clearCookie('gb-worker-token')
+      res.clearCookie('gb-worker-refresh')
+      return res.render('worker-login', { title: 'ログイン' })
+    }
 
     const { data: profile } = await sb
       .from('profiles').select('role').eq('id', user.id).single()
 
-    // worker → /worker、admin → /app（管理者が誤アクセスしても安全に戻す）
-    return res.redirect(profile?.role === 'worker' ? '/worker' : '/app')
+    // worker セッション有効 → /worker へ
+    if (profile?.role === 'worker') return res.redirect('/worker')
+
+    // worker 以外（admin等）の gb-worker-token は無効 → Cookieを消してフォーム表示
+    res.clearCookie('gb-worker-token')
+    res.clearCookie('gb-worker-refresh')
+    return res.render('worker-login', { title: 'ログイン' })
   } catch {
+    res.clearCookie('gb-worker-token')
+    res.clearCookie('gb-worker-refresh')
     return res.render('worker-login', { title: 'ログイン' })
   }
 })
 
-// POST /worker/login
+// POST /worker/login — worker ロールのみ受け付ける
 router.post('/login', async (req, res) => {
   const { email, password } = req.body
   const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
@@ -39,20 +52,23 @@ router.post('/login', async (req, res) => {
     return res.redirect('/worker/login')
   }
 
-  const { access_token, refresh_token } = data.session
-  // 管理者の sb-access-token とは別のCookieに保存（同一ブラウザ共存のため）
-  res.cookie('gb-worker-token',   access_token,  { httpOnly: true, sameSite: 'lax' })
-  res.cookie('gb-worker-refresh', refresh_token, { httpOnly: true, sameSite: 'lax' })
-
   // role 確認
   const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } })
   const { data: profile } = await sbAdmin
     .from('profiles').select('role').eq('id', data.session.user.id).single()
 
-  // role に応じて遷移（worker以外は /app へ）
-  const dest = profile?.role === 'worker' ? '/worker' : '/app'
-  res.redirect(dest)
+  // admin / staff は /worker/login から入れない → /login に誘導
+  if (profile?.role !== 'worker') {
+    req.flash('error', '管理者アカウントは /login からログインしてください')
+    return res.redirect('/worker/login')
+  }
+
+  // worker のみ gb-worker-token を発行して /worker へ
+  const { access_token, refresh_token } = data.session
+  res.cookie('gb-worker-token',   access_token,  { httpOnly: true, sameSite: 'lax' })
+  res.cookie('gb-worker-refresh', refresh_token, { httpOnly: true, sameSite: 'lax' })
+  res.redirect('/worker')
 })
 
 // GET /worker/logout

@@ -40,10 +40,6 @@ router.post('/login', async (req, res) => {
     return res.redirect('/login')
   }
 
-  const { access_token, refresh_token } = data.session
-  res.cookie('sb-access-token', access_token, { httpOnly: true, sameSite: 'lax' })
-  res.cookie('sb-refresh-token', refresh_token, { httpOnly: true, sameSite: 'lax' })
-
   // role 確認は service_role キーで確実に取得
   const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } })
@@ -53,9 +49,17 @@ router.post('/login', async (req, res) => {
     .eq('id', data.session.user.id)
     .single()
 
-  // worker が admin ログインフォームから送信しても /worker に飛ばす
-  const dest = profile?.role === 'worker' ? '/worker' : '/app'
-  res.redirect(dest)
+  // worker は /login から入れない → /worker/login に誘導
+  if (profile?.role === 'worker') {
+    req.flash('error', 'ワーカーアカウントは /worker/login からログインしてください')
+    return res.redirect('/login')
+  }
+
+  // admin / staff のみ Cookie を発行して /app へ
+  const { access_token, refresh_token } = data.session
+  res.cookie('sb-access-token', access_token, { httpOnly: true, sameSite: 'lax' })
+  res.cookie('sb-refresh-token', refresh_token, { httpOnly: true, sameSite: 'lax' })
+  res.redirect('/app')
 })
 
 function logout(req, res) {
