@@ -1,0 +1,27 @@
+# 環境変数（Supabaseキー等・絶対にコミット禁止）
+.env
+.env.local
+.env.*.local
+
+# 依存パッケージ
+node_modules/
+
+# ローカルデータ
+data/
+public/uploads/
+
+# ログ
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# エディタ
+.vscode/
+.idea/
+
+# ビルド成果物
+dist/
+build/

@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>GreenBridge — 管理プラットフォーム</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     サーバー注入データ
+════════════════════════════════════════════════════════════ -->
+<script>
+const WORKERS     = <%- JSON.stringify(workers) %>;
+const DOCS        = <%- JSON.stringify(docs) %>;
+const GB_USER     = <%- JSON.stringify(gbUser) %>;
+const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     トースト・モーダル
+════════════════════════════════════════════════════════════ -->
+<div class="toasts" id="toasts"></div>
+<div class="modal-bg" id="modal-bg" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-title">-</div>
+      <button class="btn btn-sm" onclick="closeModal()">✕ 閉じる</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot" id="modal-foot"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     アプリシェル
+════════════════════════════════════════════════════════════ -->
+<div class="app">
+
+<!-- ─── サイドバー ────────────────────────────────────────── -->
+<nav class="sidebar">
+  <div class="sb-hdr">
+    <div class="sb-logo">
+      <div class="sb-lico"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 1.5L2 5.5v7L9 16.5l7-4v-7L9 1.5z" stroke="#fff" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M9 1.5v9M2 5.5l7 4 7-4" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+      <div><div class="sb-brand">GreenBridge</div><div class="sb-bsub">現場管理プラットフォーム</div></div>
+    </div>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-sec">メイン</div>
+    <div class="sb-item on" id="nav-home" onclick="SP('home')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 7l6-6 6 6v7a1 1 0 01-1 1H3a1 1 0 01-1-1z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 14v-5h4v5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      ホーム
+    </div>
+    <div class="sb-item" id="nav-chat" onclick="SP('chat')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1.5 3A1.5 1.5 0 013 1.5h10A1.5 1.5 0 0114.5 3v7A1.5 1.5 0 0113 11.5H9L6 14v-2.5H3A1.5 1.5 0 011.5 10V3z" stroke="currentColor" fill="none" stroke-width="1.4"/></svg>
+      チャット
+      <span class="sb-bdg" id="chat-bdg" style="display:none">0</span>
+    </div>
+    <div class="sb-item" id="nav-workers" onclick="SP('workers')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="3" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M2 14c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>
+      実習生管理
+    </div>
+    <div class="sb-item" id="nav-docs" onclick="SP('docs')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5 5h6M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      書類・翻訳管理
+    </div>
+    <div class="sb-sec">現場管理</div>
+    <div class="sb-item" id="nav-tasks" onclick="SP('tasks')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="12" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5 6l1.5 1.5L9 4M5 10l1.5 1.5L9 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      タスク管理
+    </div>
+    <div class="sb-item" id="nav-gchat" onclick="SP('gchat')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3a1.5 1.5 0 011.5-1.5h6A1.5 1.5 0 0111 3v5a1.5 1.5 0 01-1.5 1.5H7L5 12V9.5H3.5A1.5 1.5 0 012 8V3z" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M9 7h1.5A1.5 1.5 0 0112 8.5v3L10.5 13V11H9" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>
+      グループチャット
+      <span class="sb-bdg g" id="gchat-bdg" style="display:none">0</span>
+    </div>
+    <div class="sb-item" id="nav-videos" onclick="SP('videos')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M11 6.5l4-2v7l-4-2V6.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="none"/><path d="M4 8l2.5 1.5L4 11V8z" fill="currentColor" opacity=".7"/></svg>
+      動画マニュアル
+    </div>
+    <div class="sb-item" id="nav-nippo" onclick="SP('nippo')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5 5h6M5 8h5M5 11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="12" cy="12" r="3.5" fill="var(--gn)"/><path d="M10.5 12l1 1 2-2" stroke="#fff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      日報・報告
+    </div>
+    <div class="sb-item" id="nav-shift" onclick="SP('shift')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="11" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5 1v4M11 1v4M1 7h14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      シフト管理
+    </div>
+    <div class="sb-item" id="nav-attend" onclick="SP('attend')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="5.5" r="2.5" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M2 13.5c0-2.8 2.2-4.5 5-4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/><circle cx="12.5" cy="11.5" r="3" fill="var(--gn)"/><path d="M11 11.5l1 1 2-2" stroke="#fff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      勤怠管理
+    </div>
+    <div class="sb-item" id="nav-roles" onclick="SP('roles')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><path d="M5.5 8l2 2 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      権限管理
+    </div>
+    <div class="sb-sec">設定</div>
+    <div class="sb-item" id="nav-settings" onclick="SP('settings')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4l1.4-1.4M11 5l1.4-1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      設定
+    </div>
+  </div>
+  <div class="sb-foot">
+    <div class="sb-user" onclick="SP('settings')">
+      <div class="sb-uav" id="sb-uav" style="background:#064e3b;color:#6ee7b7">
+        <%= (profile?.full_name || gbUser?.email || '?')[0].toUpperCase() %>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="sb-uname"><%= profile?.full_name || gbUser?.email || 'ユーザー' %></div>
+        <div class="sb-urole"><%= ({admin:'管理者',manager:'マネージャー',staff:'スタッフ'})[profile?.role] || profile?.role || 'スタッフ' %></div>
+      </div>
+      <% if (profile?.role === 'admin') { %>
+      <span style="font-size:14px" title="管理者">👑</span>
+      <% } %>
+    </div>
+  </div>
+</nav>
+
+<!-- ─── メインエリア ──────────────────────────────────────── -->
+<div class="main">
+  <div class="topbar">
+    <!-- ハンバーガー（モバイル） -->
+    <button class="hamburger" onclick="toggleSidebar()" title="メニュー">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <div class="tb-title" id="tb-title">ホーム</div>
+    <div class="tb-right">
+      <% if (profile?.role === 'admin') { %>
+      <span class="tb-pill admin">👑 管理者</span>
+      <% } %>
+      <span class="tb-pill live"><span class="pulse"></span> 同期中</span>
+      <button class="tb-btn" onclick="showNotif()" title="通知 / Notifications">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5A5 5 0 003 6.5v3L2 11.5h12l-1-2v-3A5 5 0 008 1.5z" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <div class="tb-dot" id="notif-dot" style="display:none"></div>
+      </button>
+      <form action="/logout" method="POST" style="margin:0">
+        <button class="btn btn-sm" type="submit">ログアウト</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="body">
+
+  <!-- ─── HOME ──────────────────────────────────────────── -->
+  <div class="page on" id="page-home"><div class="pscroll">
+    <!-- グリーティング -->
+    <div class="home-header">
+      <div>
+        <h1 class="home-greeting">おはようございます、<%= (profile?.full_name||'ゲスト').split(/[\s　]/)[0] %>さん 👋</h1>
+        <p class="home-sub" id="home-sub">読み込み中...</p>
+      </div>
+      <button class="btn btn-g" onclick="showExpireAlerts()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5A4.5 4.5 0 002.5 6v2.5L1.5 10h11l-1-1.5V6A4.5 4.5 0 007 1.5z" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M5.5 11.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        期限アラート
+      </button>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi gn" onclick="SP('workers')" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--gbg)">👥</div>
+          <span class="badge bg" id="kpi-workers-sub">0名</span>
+        </div>
+        <div class="kpi-val" id="kpi-workers-val">0</div>
+        <div class="kpi-lbl">総実習生数</div>
+        <div class="kpi-sub kpi-sub--gn" id="kpi-workers-detail">-</div>
+      </div>
+      <div class="kpi bl" onclick="SP('chat')" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--bbg)">💬</div>
+          <span class="badge br" id="unread-kpi">0件</span>
+        </div>
+        <div class="kpi-val" id="unread-val">0</div>
+        <div class="kpi-lbl">未読メッセージ</div>
+        <div class="kpi-sub kpi-sub--muted">チャットを確認</div>
+      </div>
+      <div class="kpi am" onclick="SP('docs')" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--abg)">📄</div>
+          <span class="badge bb">書類</span>
+        </div>
+        <div class="kpi-val" id="doc-kpi-val">0</div>
+        <div class="kpi-lbl">登録書類数</div>
+        <div class="kpi-sub kpi-sub--muted" id="doc-kpi-sub">-</div>
+      </div>
+      <div class="kpi rd" onclick="showExpireAlerts()" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--rbg)">⏰</div>
+          <span class="badge br" id="expire-kpi-badge">0件</span>
+        </div>
+        <div class="kpi-val" id="expire-kpi-val">0</div>
+        <div class="kpi-lbl">在留期限通知</div>
+        <div class="kpi-sub kpi-sub--muted" id="expire-kpi-sub">クリックで詳細</div>
+      </div>
+    </div>
+
+    <!-- 勤怠KPIカード（管理者向け） -->
+    <% if (profile?.role === 'admin') { %>
+    <div class="kpi-row" style="margin-top:0">
+      <div class="kpi gn" onclick="SP('attend')" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--gbg)">✅</div>
+          <span class="badge bg">本日</span>
+        </div>
+        <div class="kpi-val" id="home-att-present">-</div>
+        <div class="kpi-lbl">本日の出勤人数</div>
+        <div class="kpi-sub kpi-sub--gn">クリックで勤怠管理へ</div>
+      </div>
+      <div class="kpi rd" onclick="SP('attend')" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--rbg)">❌</div>
+          <span class="badge br">本日</span>
+        </div>
+        <div class="kpi-val" id="home-att-absent">-</div>
+        <div class="kpi-lbl">未出勤人数</div>
+        <div class="kpi-sub kpi-sub--muted">欠勤・未登録</div>
+      </div>
+      <div class="kpi am" onclick="SP('attend')" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--abg)">⏰</div>
+          <span class="badge ba">本日</span>
+        </div>
+        <div class="kpi-val" id="home-att-late">-</div>
+        <div class="kpi-lbl">遅刻人数</div>
+        <div class="kpi-sub kpi-sub--muted">本日の遅刻者</div>
+      </div>
+      <div class="kpi bl" onclick="SP('attend')" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--bbg)">📊</div>
+          <span class="badge bb">本日</span>
+        </div>
+        <div class="kpi-val" id="home-att-rate">-%</div>
+        <div class="kpi-lbl">出勤率</div>
+        <div class="kpi-sub kpi-sub--muted">出勤＋遅刻含む</div>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- メインコンテンツグリッド -->
+    <div class="home-grid">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">⏰ 在留期限アラート</span>
+          <button class="btn btn-sm" onclick="SP('workers')">一覧 →</button>
+        </div>
+        <div id="home-expire-list" class="card-body">
+          <div class="empty-state" style="padding:24px 0">
+            <p>期限切れ・期限間近の実習生がいません ✅</p>
+          </div>
+        </div>
+      </div>
+      <div class="home-side">
+        <% if (profile?.role === 'admin') { %>
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">🕐 最近の勤怠記録</span>
+            <button class="btn btn-sm" onclick="SP('attend')">一覧 →</button>
+          </div>
+          <div id="home-att-recent" class="card-body">
+            <div class="skeleton" style="height:40px;margin-bottom:8px"></div>
+            <div class="skeleton" style="height:40px;width:90%"></div>
+          </div>
+        </div>
+        <% } %>
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">📊 ステータス</span></div>
+          <div id="home-status-list" class="card-body card-list">
+            <div class="skeleton" style="height:18px;margin-bottom:8px"></div>
+            <div class="skeleton" style="height:18px;width:70%"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">🌏 国籍分布</span></div>
+          <div id="home-lang-list" class="card-body card-list">
+            <div class="skeleton" style="height:18px;margin-bottom:8px"></div>
+            <div class="skeleton" style="height:18px;width:80%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+  <!-- ─── CHAT ──────────────────────────────────────────── -->
+  <div class="page" id="page-chat">
+    <div class="two-panel">
+      <div class="left-panel" style="width:280px">
+        <div class="panel-hdr"><span class="panel-title">メッセージ</span><div style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--gn)"><span class="pulse"></span>同期中</div></div>
+        <div class="panel-search"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.4"/><path d="M9 9l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><input placeholder="実習生を検索..." oninput="renderCL(this.value)"></div>
+        <div class="panel-list" id="cl-items"></div>
+      </div>
+      <div class="chat-wall">
+        <div class="chat-welcome" id="chat-welcome">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none"><path d="M5 9a4 4 0 014-4h26a4 4 0 014 4v18a4 4 0 01-4 4H25l-8 6v-6H9a4 4 0 01-4-4V9z" stroke="var(--gn)" stroke-width="2" fill="none"/></svg>
+          <div style="font-size:16px;font-weight:700;color:var(--t2)">実習生を選んでください</div>
+          <div style="font-size:13px;color:var(--t3)">左リストをクリックするとチャットが開きます</div>
+        </div>
+        <div id="chat-active" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+          <div class="chat-topbar">
+            <div class="chat-av" id="ch-av"></div>
+            <div style="flex:1;min-width:0"><div class="chat-name" id="ch-name">-</div><div class="chat-sub" id="ch-sub">-</div></div>
+            <div style="display:flex;gap:6px"><button class="btn btn-g btn-sm" onclick="doApprove()">✓ 承認</button><button class="btn btn-sm" onclick="openWorkerProfile()">👤 詳細</button></div>
+          </div>
+          <div class="msgs" id="msgs"></div>
+          <div class="chat-inp">
+            <div class="chat-toolbar">
+              <span style="font-size:12px;color:var(--t3)">翻訳先:</span>
+              <select class="lang-sel" id="tgt-lang"><option value="vi">🇻🇳 ベトナム語</option><option value="id">🇮🇩 インドネシア語</option><option value="tl">🇵🇭 フィリピン語</option><option value="zh">🇨🇳 中国語</option><option value="my">🇲🇲 ミャンマー語</option></select>
+              <div class="ai-pill"><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.1"/><path d="M3.5 5.5l1.5 1.5 2.5-2.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>AI翻訳オン</div>
+              <button class="quick-btn" onclick="insertQuick('お疲れ様です。')">定型: お疲れ様</button>
+              <button class="quick-btn" onclick="insertQuick('確認しました。')">定型: 確認</button>
+              <button class="quick-btn" onclick="insertQuick('申請を承認しました。')">定型: 承認</button>
+            </div>
+            <div class="inp-row">
+              <textarea class="msg-inp" id="msg-inp" rows="1" placeholder="日本語で入力 → AIが実習生の言語に自動翻訳して送信" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}" oninput="autoH(this)"></textarea>
+              <button class="send-btn" id="send-btn" onclick="sendMsg()"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.5L14 1.5l-5 12-2.5-4.5L2 7.5z" fill="white"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WORKERS ────────────────────────────────────────── -->
+  <div class="page" id="page-workers">
+    <div class="two-panel">
+      <div class="left-panel" style="width:280px">
+        <div class="panel-hdr">
+          <span class="panel-title">実習生管理</span>
+          <button class="btn btn-g btn-sm" id="add-worker-btn" onclick="openAddWorker()">+ 追加</button>
+        </div>
+        <div class="panel-search"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.4"/><path d="M9 9l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><input placeholder="名前・職種で検索..." oninput="renderWL(this.value)"></div>
+        <div class="panel-filters" id="wl-filters">
+          <div class="fc on" onclick="setWF('all',this)">すべて</div>
+          <div class="fc" onclick="setWF('active',this)">在籍中</div>
+          <div class="fc" onclick="setWF('issue',this)">要確認</div>
+          <div class="fc" onclick="setWF('vi',this)">🇻🇳</div>
+          <div class="fc" onclick="setWF('id',this)">🇮🇩</div>
+        </div>
+        <div class="panel-list" id="wl-items"></div>
+      </div>
+      <div class="right-panel" style="padding:20px" id="wd-panel">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--t3)">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none"><circle cx="22" cy="14" r="9" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 40c0-9.4 7.6-17 17-17s17 7.6 17 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+          <div style="font-size:16px;font-weight:700">実習生を選んでください</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── DOCS ──────────────────────────────────────────── -->
+  <div class="page" id="page-docs">
+    <div class="two-panel">
+      <!-- 左パネル: フィルタ + 書類リスト -->
+      <div class="left-panel" style="width:300px;display:flex;flex-direction:column">
+        <div class="panel-hdr">
+          <span class="panel-title">書類管理</span>
+          <button class="btn btn-g btn-sm" id="add-doc-btn" onclick="openAddDoc()">+ 追加</button>
+        </div>
+        <!-- 検索 -->
+        <div class="panel-search">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.4"/><path d="M9 9l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <input id="doc-search" placeholder="書類名・内容で検索..." oninput="filterDocs()">
+        </div>
+        <!-- カテゴリフィルタ -->
+        <div id="doc-cat-filters" style="padding:7px 10px;border-bottom:1px solid var(--bd);display:flex;gap:5px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch">
+          <div class="fc on" onclick="setDocCat('all',this)" style="white-space:nowrap;flex-shrink:0">すべて</div>
+          <div class="fc" onclick="setDocCat('contract',this)" style="white-space:nowrap;flex-shrink:0">📋 契約</div>
+          <div class="fc" onclick="setDocCat('visa',this)" style="white-space:nowrap;flex-shrink:0">🪪 在留</div>
+          <div class="fc" onclick="setDocCat('passport',this)" style="white-space:nowrap;flex-shrink:0">📘 旅券</div>
+          <div class="fc" onclick="setDocCat('insurance',this)" style="white-space:nowrap;flex-shrink:0">🏥 保険</div>
+          <div class="fc" onclick="setDocCat('salary',this)" style="white-space:nowrap;flex-shrink:0">💴 給与</div>
+          <div class="fc" onclick="setDocCat('safety',this)" style="white-space:nowrap;flex-shrink:0">📒 安全</div>
+          <div class="fc" onclick="setDocCat('technical_intern',this)" style="white-space:nowrap;flex-shrink:0">🏭 技実</div>
+          <div class="fc" onclick="setDocCat('specified_skilled',this)" style="white-space:nowrap;flex-shrink:0">⭐ 特技</div>
+          <div class="fc" onclick="setDocCat('tax',this)" style="white-space:nowrap;flex-shrink:0">🧾 税務</div>
+          <div class="fc" onclick="setDocCat('other',this)" style="white-space:nowrap;flex-shrink:0">📄 その他</div>
+        </div>
+        <!-- 従業員・ステータスフィルタ -->
+        <div style="padding:7px 10px;border-bottom:1px solid var(--bd);display:flex;gap:5px">
+          <select id="doc-worker-filter" class="form-inp" style="flex:1;font-size:11.5px;padding:5px 6px;min-width:0" onchange="filterDocs()">
+            <option value="">👤 全従業員</option>
+          </select>
+          <select id="doc-status-filter" class="form-inp" style="flex:1;font-size:11.5px;padding:5px 6px;min-width:0" onchange="filterDocs()">
+            <option value="">🔖 全状態</option>
+            <option value="active">✅ 有効</option>
+            <option value="expiring">⚠️ 期限間近</option>
+            <option value="expired">❌ 期限切れ</option>
+            <option value="nofile">📭 未添付</option>
+          </select>
+        </div>
+        <!-- 件数表示 -->
+        <div style="padding:5px 12px;font-size:11px;color:var(--t3);border-bottom:1px solid var(--bd);background:var(--bg2)">
+          <span id="doc-count-label">0件</span>
+        </div>
+        <!-- 書類リスト -->
+        <div class="panel-list" id="dl-items"></div>
+      </div>
+      <!-- 右パネル: 書類詳細（既存のまま） -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden" id="dd-panel">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--t3);background:var(--bg)">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none"><rect x="7" y="3" width="30" height="38" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M13 13h18M13 21h18M13 29h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <div style="font-size:16px;font-weight:700">書類を選んでください</div>
+          <div style="font-size:13px;color:var(--t3)">左リストから書類を選択してください</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TASKS (KANBAN) ────────────────────────────────── -->
+  <div class="page" id="page-tasks">
+    <div class="kanban-wrap">
+      <div class="kanban-side">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <div style="font-size:14px;font-weight:700;color:var(--tx)">タスク管理</div>
+          <button class="btn btn-g btn-sm" id="add-task-btn" onclick="openAddTask()">+ 追加</button>
+        </div>
+
+        <!-- 期間フィルタ -->
+        <div style="display:flex;gap:5px;margin-bottom:4px">
+          <button class="btn btn-xs" style="flex:1;justify-content:center" onclick="setTaskMode('all')">すべて</button>
+          <button class="btn btn-xs" style="flex:1;justify-content:center" onclick="setTaskMode('month')">月別</button>
+        </div>
+
+        <!-- 月ナビ -->
+        <div id="task-month-nav" style="display:flex;align-items:center;gap:4px">
+          <button class="btn btn-xs" style="padding:4px 8px" onclick="taskPrevMonth()">←</button>
+          <div id="task-month-title" style="flex:1;text-align:center;font-size:12.5px;font-weight:700">すべてのタスク</div>
+          <button class="btn btn-xs" style="padding:4px 8px" onclick="taskNextMonth()">→</button>
+        </div>
+
+        <!-- 完了率 -->
+        <div style="border-top:1px solid var(--bd);padding-top:10px;margin-top:4px">
+          <div style="font-size:11.5px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-bottom:6px">完了率</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;height:6px;background:var(--s2);border-radius:99px;overflow:hidden">
+              <div id="task-progress-bar" style="width:0%;height:100%;background:var(--gn);border-radius:99px;transition:width .3s"></div>
+            </div>
+            <span id="task-progress-pct" style="font-size:12.5px;font-weight:600">0%</span>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-board" id="kanban-board"></div>
+    </div>
+  </div>
+
+  <!-- ─── GROUP CHAT ────────────────────────────────────── -->
+  <div class="page" id="page-gchat">
+    <div class="two-panel">
+      <div class="left-panel" style="width:280px">
+        <div class="panel-hdr">
+          <span class="panel-title">グループチャット</span>
+          <button class="btn btn-g btn-sm" id="create-group-btn" onclick="openCreateGroup()">+ 作成</button>
+        </div>
+        <div class="panel-search"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.4"/><path d="M9 9l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><input placeholder="グループを検索..."></div>
+        <div class="panel-list" id="gc-list"></div>
+      </div>
+      <div class="chat-wall">
+        <div class="chat-welcome" id="gchat-welcome">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none"><path d="M4 8a4 4 0 014-4h16a4 4 0 014 4v14a4 4 0 01-4 4H17l-6 5v-5H8a4 4 0 01-4-4V8z" stroke="var(--gn)" stroke-width="2" fill="none"/><path d="M22 18h14a4 4 0 014 4v10a4 4 0 01-4 4h-4v5l-6-5h-4a4 4 0 01-4-4v-2" stroke="var(--gn)" stroke-width="2" fill="none"/></svg>
+          <div style="font-size:16px;font-weight:700;color:var(--t2)">グループを選んでください</div>
+        </div>
+        <div id="gchat-active" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+          <div class="chat-topbar">
+            <div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0" id="gch-ico"></div>
+            <div style="flex:1;min-width:0"><div class="chat-name" id="gch-name">-</div><div class="chat-sub" id="gch-sub">-</div></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm" id="manage-group-btn" onclick="openManageGroup()">👥 メンバー管理</button>
+              <button class="btn btn-sm" id="edit-group-btn" onclick="openEditGroup()">⚙️ 設定</button>
+            </div>
+          </div>
+          <div class="msgs" id="gchat-msgs" style="background:#e8ede4"></div>
+          <div class="chat-inp">
+            <div class="chat-toolbar">
+              <span style="font-size:12px;color:var(--t3)">一斉翻訳:</span>
+              <select class="lang-sel" id="gchat-lang"><option value="all">全言語に自動翻訳</option><option value="vi">🇻🇳 ベトナム語のみ</option><option value="id">🇮🇩 インドネシア語のみ</option></select>
+              <div class="ai-pill"><span class="pulse"></span>一斉翻訳オン</div>
+              <button class="quick-btn" onclick="insertGQuick('本日の作業内容を確認してください。')">作業確認</button>
+              <button class="quick-btn" onclick="insertGQuick('安全確認をお願いします。')">安全確認</button>
+              <button class="quick-btn" onclick="insertGQuick('お疲れ様でした。')">お疲れ様</button>
+            </div>
+            <div class="inp-row">
+              <textarea class="msg-inp" id="gchat-inp" rows="1" placeholder="メッセージを入力 → 全メンバーの言語に一斉翻訳して送信" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendGChat()}" oninput="autoH(this)"></textarea>
+              <button class="send-btn" onclick="sendGChat()"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.5L14 1.5l-5 12-2.5-4.5L2 7.5z" fill="white"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── VIDEOS ────────────────────────────────────────── -->
+  <div class="page" id="page-videos">
+    <div class="two-panel">
+      <div class="left-panel" style="width:300px">
+        <div class="panel-hdr">
+          <span class="panel-title">動画マニュアル</span>
+          <button class="btn btn-g btn-sm" id="upload-video-btn" onclick="openUploadVideo()">+ 追加</button>
+        </div>
+        <div class="panel-filters" id="v-cats">
+          <div class="fc on" onclick="filterVideos('all',this)">すべて</div>
+          <div class="fc" onclick="filterVideos('safety',this)">安全</div>
+          <div class="fc" onclick="filterVideos('work',this)">作業</div>
+          <div class="fc" onclick="filterVideos('training',this)">研修</div>
+        </div>
+        <div class="panel-list" id="v-list"></div>
+      </div>
+      <div class="right-panel" style="padding:0" id="vd-panel">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--t3);background:var(--bg)">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect x="4" y="8" width="30" height="22" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M34 19l10-5v20l-10-5V19z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><path d="M13 16l10 5-10 5v-10z" fill="currentColor" opacity=".4"/></svg>
+          <div style="font-size:16px;font-weight:700">動画を選んでください</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── NIPPO ─────────────────────────────────────────── -->
+  <div class="page" id="page-nippo">
+    <div class="two-panel">
+      <div class="left-panel" style="width:280px">
+        <div class="panel-hdr">
+          <span class="panel-title">日報・報告</span>
+          <button class="btn btn-g btn-sm" onclick="openNewNippo()">+ 作成</button>
+        </div>
+        <div class="panel-filters">
+          <div class="fc on" onclick="this.parentElement.querySelectorAll('.fc').forEach(d=>d.classList.remove('on'));this.classList.add('on');renderNPL()">すべて</div>
+          <div class="fc" onclick="this.parentElement.querySelectorAll('.fc').forEach(d=>d.classList.remove('on'));this.classList.add('on');renderNPL('review')">確認待ち</div>
+          <div class="fc" onclick="this.parentElement.querySelectorAll('.fc').forEach(d=>d.classList.remove('on'));this.classList.add('on');renderNPL('daily')">日報</div>
+          <div class="fc" onclick="this.parentElement.querySelectorAll('.fc').forEach(d=>d.classList.remove('on'));this.classList.add('on');renderNPL('hayari')">ヒヤリ</div>
+        </div>
+        <div class="panel-list" id="np-list"></div>
+      </div>
+      <div class="right-panel" style="padding:0" id="np-detail">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--t3);background:var(--bg)">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none"><rect x="7" y="3" width="30" height="38" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M13 13h18M13 21h18M13 29h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <div style="font-size:16px;font-weight:700">日報を選んでください</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SHIFT ─────────────────────────────────────────── -->
+  <div class="page" id="page-shift">
+    <div class="shift-wrap">
+      <div class="shift-bar">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:15px;font-weight:700">シフト管理</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="btn btn-sm" style="padding:5px 10px" onclick="shiftPrevMonth()">←</button>
+            <div id="shift-month-title" style="font-size:14px;font-weight:700;min-width:90px;text-align:center">読込中...</div>
+            <button class="btn btn-sm" style="padding:5px 10px" onclick="shiftNextMonth()">→</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-sm" onclick="openShiftRequest()">📅 シフト申請</button>
+          <div style="width:1px;height:20px;background:var(--bd)"></div>
+          <% if (profile?.role === 'admin') { %>
+          <button class="btn btn-g btn-sm" id="edit-shift-btn" onclick="openEditShift()">✏️ 編集モード</button>
+          <% } %>
+          <button class="btn btn-sm" onclick="exportShiftCSV()">📥 CSV出力</button>
+        </div>
+      </div>
+      <div class="shift-body">
+        <!-- 凡例 -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;align-items:center">
+          <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;background:#dcfce7;border-radius:2px;border:1px solid #86efac"></div>早番（7-16時）</div>
+          <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;background:#dbeafe;border-radius:2px;border:1px solid #93c5fd"></div>日勤（8-17時）</div>
+          <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;background:#fef3c7;border-radius:2px;border:1px solid #fcd34d"></div>遅番（13-22時）</div>
+          <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;background:#f3f4f6;border-radius:2px;border:1px solid #d1d5db"></div>休み</div>
+          <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;background:#e0e7ff;border-radius:2px;border:1px solid #a5b4fc"></div>有休</div>
+          <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;background:#fee2e2;border-radius:2px;border:1px solid #fca5a5"></div>欠勤</div>
+          <% if (profile?.role === 'admin') { %>
+          <span style="font-size:11.5px;color:var(--gn);margin-left:4px">✏️ セルをクリックして編集</span>
+          <% } %>
+        </div>
+        <!-- シフトテーブル -->
+        <div style="overflow-x:auto;border-radius:var(--rl);box-shadow:var(--sh)">
+          <div id="shift-table-container">
+            <div style="color:var(--t3);padding:40px;text-align:center">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style="opacity:.3;margin-bottom:8px"><rect x="2" y="6" width="28" height="22" rx="3" stroke="currentColor" stroke-width="2" fill="none"/><path d="M10 2v8M22 2v8M2 14h28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <div>シフトデータを読み込み中...</div>
+            </div>
+          </div>
+        </div>
+        <!-- 申請一覧 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-hdr">
+            <span class="card-title">シフト希望申請</span>
+            <span id="shift-req-count" class="badge ba" style="display:none">0件 処理待ち</span>
+          </div>
+          <div id="shift-requests" style="padding:0 16px">
+            <div style="padding:20px 0;text-align:center;color:var(--t3)">申請はありません</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── ATTEND ────────────────────────────────────────── -->
+  <div class="page" id="page-attend">
+    <div style="flex:1;overflow-y:auto;padding:20px;background:var(--bg)">
+      <div style="max-width:1100px">
+
+        <!-- ヘッダー -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <div>
+            <div style="font-size:18px;font-weight:700">勤怠管理</div>
+            <div style="font-size:13px;color:var(--t3);margin-top:3px">従業員の出退勤を記録・管理します（管理者専用）</div>
+          </div>
+          <% if (profile?.role === 'admin') { %>
+          <button class="btn btn-g" onclick="openAddAttend()">+ 勤怠登録</button>
+          <% } %>
+        </div>
+
+        <% if (profile?.role !== 'admin') { %>
+        <div class="admin-lock-bar" style="margin-bottom:18px">
+          <span class="lock-ico">🔒</span><span>勤怠管理の操作は<strong>管理者のみ</strong>可能です。</span>
+        </div>
+        <% } %>
+
+        <!-- 統計カード -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+          <div class="card" style="padding:16px">
+            <div style="font-size:12px;color:var(--t3);margin-bottom:4px">本日の出勤</div>
+            <div style="font-size:28px;font-weight:700;color:var(--gn)" id="att-present-count">-</div>
+            <div style="font-size:12px;color:var(--t3)" id="att-present-sub">読み込み中</div>
+          </div>
+          <div class="card" style="padding:16px">
+            <div style="font-size:12px;color:var(--t3);margin-bottom:4px">未出勤</div>
+            <div style="font-size:28px;font-weight:700;color:var(--red)" id="att-absent-count">-</div>
+            <div style="font-size:12px;color:var(--t3)" id="att-absent-sub">読み込み中</div>
+          </div>
+          <div class="card" style="padding:16px">
+            <div style="font-size:12px;color:var(--t3);margin-bottom:4px">遅刻</div>
+            <div style="font-size:28px;font-weight:700;color:var(--amb)" id="att-late-count">-</div>
+            <div style="font-size:12px;color:var(--t3)" id="att-late-sub">読み込み中</div>
+          </div>
+          <div class="card" style="padding:16px">
+            <div style="font-size:12px;color:var(--t3);margin-bottom:4px">出勤率（本日）</div>
+            <div style="font-size:28px;font-weight:700;color:var(--blu)" id="att-rate-count">-%</div>
+            <div style="font-size:12px;color:var(--t3)" id="att-rate-sub">出勤＋遅刻含む</div>
+          </div>
+        </div>
+
+        <!-- フィルタ -->
+        <div class="card" style="padding:14px;margin-bottom:14px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input type="date" id="att-filter-date" class="form-inp" style="width:160px" onchange="loadAttendance()">
+            <select id="att-filter-worker" class="form-inp" style="width:200px" onchange="loadAttendance()">
+              <option value="">すべての従業員</option>
+            </select>
+            <select id="att-filter-status" class="form-inp" style="width:150px" onchange="loadAttendance()">
+              <option value="">すべてのステータス</option>
+              <option value="present">✅ 出勤</option>
+              <option value="late">⏰ 遅刻</option>
+              <option value="absent">❌ 欠勤</option>
+              <option value="holiday">🏖️ 休日</option>
+            </select>
+            <button class="btn btn-sm" onclick="clearAttendFilters()">リセット</button>
+            <button class="btn btn-sm btn-g" onclick="loadAttendance()">🔍 検索</button>
+          </div>
+        </div>
+
+        <!-- テーブル -->
+        <div class="card" style="overflow:hidden">
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+              <thead>
+                <tr style="background:var(--bg2);border-bottom:1px solid var(--bd)">
+                  <th style="padding:10px 14px;text-align:left;font-weight:600;white-space:nowrap">日付</th>
+                  <th style="padding:10px 14px;text-align:left;font-weight:600">従業員</th>
+                  <th style="padding:10px 14px;text-align:left;font-weight:600">出勤時間</th>
+                  <th style="padding:10px 14px;text-align:left;font-weight:600">退勤時間</th>
+                  <th style="padding:10px 14px;text-align:left;font-weight:600">勤務時間</th>
+                  <th style="padding:10px 14px;text-align:left;font-weight:600">ステータス</th>
+                  <th style="padding:10px 14px;text-align:left;font-weight:600">メモ</th>
+                  <th style="padding:10px 14px;text-align:right;font-weight:600">操作</th>
+                </tr>
+              </thead>
+              <tbody id="attend-tbody">
+                <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--t3)">読み込み中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── ROLES ─────────────────────────────────────────── -->
+  <div class="page" id="page-roles">
+    <div style="flex:1;overflow-y:auto;padding:20px;background:var(--bg)">
+      <div style="max-width:960px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <div><div style="font-size:18px;font-weight:700">権限管理</div><div style="font-size:13px;color:var(--t3);margin-top:3px">ロール定義とユーザーごとの権限を管理します</div></div>
+        </div>
+
+        <% if (profile?.role !== 'admin') { %>
+        <div class="admin-lock-bar" style="margin-bottom:18px">
+          <span class="lock-ico">🔒</span><span>権限設定の変更は<strong>管理者のみ</strong>可能です。</span>
+        </div>
+        <% } %>
+
+        <!-- ロールカード 2×2 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+          <div class="role-card">
+            <div class="role-hdr-row"><div class="role-ico" style="background:#fee2e2">👑</div><div><div style="font-size:14px;font-weight:700">管理者</div><div style="font-size:12px;color:var(--t3)">全機能フルアクセス</div></div></div>
+            <div style="padding:12px 16px;font-size:13px;color:var(--t2);line-height:1.7">すべての機能にフルアクセス。実習生・書類・シフトの編集・削除、権限設定の変更が可能。</div>
+          </div>
+          <div class="role-card">
+            <div class="role-hdr-row"><div class="role-ico" style="background:#dbeafe">🎯</div><div><div style="font-size:14px;font-weight:700">マネージャー</div><div style="font-size:12px;color:var(--t3)">一部管理機能あり</div></div></div>
+            <div style="padding:12px 16px;font-size:13px;color:var(--t2);line-height:1.7">チャット・タスク承認・日報確認・書類閲覧が可能。実習生削除・権限変更は不可。</div>
+          </div>
+          <div class="role-card">
+            <div class="role-hdr-row"><div class="role-ico" style="background:#ecfdf5">👤</div><div><div style="font-size:14px;font-weight:700">スタッフ</div><div style="font-size:12px;color:var(--t3)">基本機能のみ</div></div></div>
+            <div style="padding:12px 16px;font-size:13px;color:var(--t2);line-height:1.7">チャット・シフト確認・動画視聴・書類閲覧が可能。編集・削除・権限変更は不可。</div>
+          </div>
+          <div class="role-card">
+            <div class="role-hdr-row"><div class="role-ico" style="background:#fef3c7">🌏</div><div><div style="font-size:14px;font-weight:700">技能実習生</div><div style="font-size:12px;color:var(--t3)">実習生向け限定アクセス</div></div></div>
+            <div style="padding:12px 16px;font-size:13px;color:var(--t2);line-height:1.7">実習生専用チャット・書類確認・シフト閲覧・SOS機能のみ使用可能。管理機能は一切不可。</div>
+          </div>
+        </div>
+
+        <!-- 権限マトリクス -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-hdr"><span class="card-title">機能別アクセス権限マトリクス</span></div>
+          <div style="overflow-x:auto"><table class="perm-table">
+            <thead><tr><th>機能</th><th>👑 管理者</th><th>🎯 マネージャー</th><th>👤 スタッフ</th><th>🌏 技能実習生</th></tr></thead>
+            <tbody>
+              <tr><td>チャット（送受信）</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td></tr>
+              <tr><td>書類閲覧</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td></tr>
+              <tr><td>シフト閲覧</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td></tr>
+              <tr><td>書類編集・追加 🔒</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td></tr>
+              <tr><td>タスク作成 🔒</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td></tr>
+              <tr><td>日報承認 🔒</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td></tr>
+              <tr><td>シフト編集 🔒</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td></tr>
+              <tr><td>実習生管理 🔒</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">✅</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td></tr>
+              <tr><td>実習生削除 🔒</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td></tr>
+              <tr><td>権限変更 🔒</td><td><span class="perm-check">✅</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td><td><span class="perm-check">❌</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+
+        <!-- ユーザー一覧（ロール変更） -->
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">ユーザー一覧 · ロール変更</span>
+            <span style="font-size:12px;color:var(--t3)">「変更」ボタンで即時反映</span>
+          </div>
+          <div id="role-user-list">
+            <div style="padding:20px;text-align:center;color:var(--t3)">読み込み中...</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SETTINGS ──────────────────────────────────────── -->
+  <div class="page" id="page-settings">
+    <div class="settings-wrap">
+      <div class="sn-panel">
+        <div class="sn-title">設定</div>
+        <div class="sn-item on" id="sni-account" onclick="setST('account')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M1.5 13c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/></svg>アカウント</div>
+        <div class="sn-item" id="sni-display" onclick="setST('display')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M4 12h6M7 10v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>言語・表示</div>
+        <div class="sn-item" id="sni-notif" onclick="setST('notif')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5A4.5 4.5 0 002.5 6v2.5L1.5 10h11l-1-1.5V6A4.5 4.5 0 007 1.5z" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M5.5 11.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>通知</div>
+        <div class="sn-item" id="sni-privacy" onclick="setST('privacy')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L2 3.5v4.5c0 3 2 5 5 5.5 3-.5 5-2.5 5-5.5V3.5L7 1z" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/><path d="M5 7l1.5 1.5L9 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>プライバシー</div>
+        <div class="sn-item" id="sni-support" onclick="setST('support')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M7 9.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 4.5a1.5 1.5 0 011.5 1.5c0 .9-1.5 1.5-1.5 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>サポート</div>
+        <div class="sn-item" id="sni-legal" onclick="setST('legal')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M4.5 4.5h5M4.5 7h5M4.5 9.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>利用規約・情報</div>
+      </div>
+      <div class="sc-panel">
+        <div class="stab on" id="stab-account">
+          <div class="ss-section"><div class="ss-hdr"><div class="ss-title">アカウント情報</div><div class="ss-sub">担当者のプロフィールと認証情報</div></div>
+            <div class="ss-row" style="gap:14px;align-items:flex-start">
+              <div style="width:56px;height:56px;border-radius:50%;background:#064e3b;color:#6ee7b7;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0">
+                <%= (profile?.full_name || gbUser?.email || '?')[0].toUpperCase() %>
+              </div>
+              <div style="flex:1">
+                <div style="font-size:16px;font-weight:700"><%= profile?.full_name || '未設定' %></div>
+                <div style="font-size:13px;color:var(--t2);margin-top:2px"><%= gbUser?.email || '' %></div>
+                <div style="margin-top:7px;display:flex;gap:6px">
+                  <% if (profile?.role === 'admin') { %><span class="badge bg">👑 管理者</span><% } %>
+                  <% if (profile?.role === 'manager') { %><span class="badge bb">🎯 マネージャー</span><% } %>
+                  <% if (profile?.role === 'staff') { %><span class="badge bgray">👤 スタッフ</span><% } %>
+                  <span class="badge bb">認証済み</span>
+                </div>
+              </div>
+            </div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">所属企業</div></div><div class="ss-val"><%= companyName || '未設定' %></div></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">ロール</div></div><div class="ss-val"><%= ({admin:'管理者',manager:'マネージャー',staff:'スタッフ'})[profile?.role] || profile?.role || '—' %></div></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">パスワード</div></div>
+              <form action="/logout" method="POST" style="margin:0"><button class="btn btn-sm btn-r" type="submit">ログアウト</button></form>
+            </div>
+          </div>
+        </div>
+        <div class="stab" id="stab-display">
+          <div class="ss-section"><div class="ss-hdr"><div class="ss-title">言語・表示設定</div></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">デフォルト翻訳言語</div><div class="ss-desc">チャットで最初に選択される言語</div></div><select class="ss-sel"><option>🇻🇳 ベトナム語</option><option>🇮🇩 インドネシア語</option><option>🇵🇭 フィリピン語</option></select></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">AIモデル</div></div><div class="ss-val">Claude Sonnet 4</div></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">タイムゾーン</div></div><select class="ss-sel"><option>Asia/Tokyo (JST +9:00)</option></select></div>
+          </div>
+        </div>
+        <div class="stab" id="stab-notif">
+          <div class="ss-section"><div class="ss-hdr"><div class="ss-title">通知設定</div></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">新着メッセージ</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">申請（休み・残業など）</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">書類確認完了</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">SOS緊急通知</div><div class="ss-desc">常に有効・変更不可</div></div><button class="tgl on" style="opacity:.5;cursor:not-allowed"></button></div>
+          </div>
+        </div>
+        <div class="stab" id="stab-privacy">
+          <div class="ss-section"><div class="ss-hdr"><div class="ss-title">プライバシー・セキュリティ</div></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">チャット履歴の保存</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">データ保持期間</div></div><select class="ss-sel"><option>3ヶ月</option><option>6ヶ月</option><option>1年</option></select></div>
+          </div>
+        </div>
+        <div class="stab" id="stab-support">
+          <div class="ss-section"><div class="ss-hdr"><div class="ss-title">サポート・ヘルプ</div></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">メールサポート</div><div class="ss-desc">support@greenbridge.jp</div></div><button class="btn btn-sm">送信</button></div>
+            <div class="ss-row"><div class="ss-l"><div class="ss-lbl">バグ報告</div></div><button class="btn btn-sm" onclick="toast('送信','開発チームに送信しました','g')">報告する</button></div>
+          </div>
+        </div>
+        <div class="stab" id="stab-legal">
+          <div class="ss-section"><div class="ss-hdr"><div class="ss-title">利用規約・情報</div></div>
+            <div class="ss-row"><span>サービス名</span><span class="ss-val">GreenBridge v1.0</span></div>
+            <div class="ss-row"><span>AIエンジン</span><span class="ss-val">Anthropic Claude Sonnet 4</span></div>
+            <div class="ss-row"><span>最終更新</span><span class="ss-val">2025年5月</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /body -->
+</div><!-- /main -->
+</div><!-- /app -->
+
+<script src="/js/services/storage.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

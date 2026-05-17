@@ -1,0 +1,3090 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>GreenBridge</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════
+   TOKENS
+═══════════════════════════════════ */
+:root{
+  --bg:#f0f2f6;
+  --white:#ffffff;
+  --bd:#d8dce6;        /* 枠線 — しっかり見える */
+  --bd2:#b8bece;       /* 強調枠線 */
+  --tx:#0d1117;
+  --t2:#4a5568;
+  --t3:#8a94a8;
+  --gn:#00b050;
+  --gd:#009040;
+  --gbg:#e6f9f0;
+  --glt:#99e5c0;
+  --red:#e53e3e;
+  --rbg:#fff0f0;
+  --amb:#d97706;
+  --abg:#fffbeb;
+  --blu:#2563eb;
+  --bbg:#eff6ff;
+  --me:#d4f5e2;
+  --r:12px;
+  --r2:16px;
+  --nav:62px;
+}
+/* ═══════════════════════════════════
+   RESET
+═══════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-size:14px}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--tx);
+     display:flex;flex-direction:column;max-width:430px;margin:0 auto;height:100dvh}
+input,textarea,select,button{font-family:inherit}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:4px}
+
+/* ═══════════════════════════════════
+   STATUSBAR
+═══════════════════════════════════ */
+.sbar{
+  background:var(--white);
+  border-bottom:1.5px solid var(--bd);
+  padding:10px 18px 6px;
+  display:flex;justify-content:space-between;align-items:center;
+  flex-shrink:0;
+}
+.stime{font-size:15px;font-weight:600}
+.sbar-r{display:flex;gap:4px;align-items:center;color:var(--t3)}
+
+/* ═══════════════════════════════════
+   SCREENS
+═══════════════════════════════════ */
+.screens{flex:1;position:relative;overflow:hidden}
+.scr{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden;background:var(--bg)}
+.scr.on{display:flex}
+
+/* ═══════════════════════════════════
+   PAGE HEADER
+═══════════════════════════════════ */
+.pg-top{
+  background:var(--white);
+  border-bottom:2px solid var(--bd);
+  padding:13px 18px;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.pg-title{font-size:18px;font-weight:700;letter-spacing:-.3px}
+.pg-sub{font-size:12px;color:var(--t3);margin-top:2px}
+
+/* ═══════════════════════════════════
+   SCROLL
+═══════════════════════════════════ */
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.scroll.pb{padding-bottom:var(--nav)}
+
+/* ═══════════════════════════════════
+   CARD  ← 枠線が核心
+═══════════════════════════════════ */
+.card{
+  background:var(--white);
+  border-radius:var(--r2);
+  border:1.5px solid var(--bd);   /* ← 見える枠 */
+  overflow:hidden;
+  margin-bottom:12px;
+}
+.card-hdr{
+  padding:12px 15px;
+  border-bottom:1.5px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;
+  background:#fafbfd;
+}
+.card-title{font-size:13.5px;font-weight:700}
+.card-row{
+  padding:12px 15px;
+  border-bottom:1.5px solid var(--bd);
+  display:flex;align-items:center;gap:12px;
+}
+.card-row:last-child{border-bottom:none}
+.card-row.tap{cursor:pointer;transition:background .1s}
+.card-row.tap:active{background:#f5f8ff}
+
+/* ═══════════════════════════════════
+   BADGE
+═══════════════════════════════════ */
+.bdg{display:inline-flex;align-items:center;font-size:11px;padding:3px 9px;border-radius:99px;font-weight:600;border:1px solid transparent}
+.bg{background:var(--gbg);color:var(--gn);border-color:var(--glt)}
+.ba{background:var(--abg);color:var(--amb);border-color:#fcd34d}
+.br{background:var(--rbg);color:var(--red);border-color:#fca5a5}
+.bb{background:var(--bbg);color:var(--blu);border-color:#93c5fd}
+.bgr{background:#f0f2f6;color:var(--t2);border-color:var(--bd)}
+
+/* ═══════════════════════════════════
+   BUTTON
+═══════════════════════════════════ */
+.btn{width:100%;padding:13px;border:2px solid transparent;border-radius:var(--r);
+     font-size:14px;font-weight:700;cursor:pointer;
+     display:flex;align-items:center;justify-content:center;gap:9px;
+     font-family:inherit;transition:all .14s}
+.btn:active{transform:scale(.97)}
+.btn-g{background:var(--gn);color:#fff;border-color:var(--gd)}
+.btn-g:hover{background:var(--gd)}
+.btn-b{background:var(--bbg);color:var(--blu);border-color:#93c5fd}
+.btn-r{background:var(--rbg);color:var(--red);border-color:#fca5a5}
+.btn-ghost{background:var(--white);color:var(--t2);border:2px solid var(--bd)}
+.btn-sm{width:auto;padding:6px 14px;font-size:12.5px;border-radius:9px}
+.btn-xs{width:auto;padding:4px 11px;font-size:12px;border-radius:8px;
+        border:1.5px solid var(--bd);background:var(--white);color:var(--t2);cursor:pointer;font-family:inherit}
+
+/* ═══════════════════════════════════
+   FORM INPUTS
+═══════════════════════════════════ */
+.finp{width:100%;padding:11px 13px;border:2px solid var(--bd);border-radius:10px;
+      font-size:13.5px;font-family:inherit;color:var(--tx);background:#fafbfd;
+      outline:none;transition:border-color .15s;resize:none;line-height:1.6}
+.finp:focus{border-color:var(--gn);background:var(--white)}
+.flbl{font-size:11.5px;font-weight:700;color:var(--t2);text-transform:uppercase;
+      letter-spacing:.05em;margin-bottom:5px;display:block}
+
+/* ═══════════════════════════════════
+   FILTER CHIPS
+═══════════════════════════════════ */
+.chips{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:12px 16px}
+.chips::-webkit-scrollbar{display:none}
+.chip{padding:6px 14px;border-radius:99px;font-size:12.5px;font-weight:600;
+      border:1.5px solid var(--bd);background:var(--white);color:var(--t2);
+      cursor:pointer;white-space:nowrap;transition:all .12s}
+.chip.on{background:var(--gbg);color:var(--gn);border-color:var(--glt)}
+
+/* ═══════════════════════════════════
+   PULSE
+═══════════════════════════════════ */
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--gn);
+       animation:pulse 2s infinite;display:inline-block}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ═══════════════════════════════════
+   ── HOME ──
+═══════════════════════════════════ */
+.hero{
+  background:var(--gn);
+  border-bottom:2px solid var(--gd);
+  padding:18px 18px 20px;
+  flex-shrink:0;
+}
+.hero-name{font-size:21px;font-weight:700;color:#fff;letter-spacing:-.3px}
+.hero-sub{font-size:12.5px;color:rgba(255,255,255,.8);margin-top:3px}
+.hero-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.hstat{
+  background:rgba(255,255,255,.18);
+  border:1.5px solid rgba(255,255,255,.35);
+  border-radius:12px;padding:11px 13px;
+}
+.hstat-val{font-size:21px;font-weight:700;color:#fff;line-height:1}
+.hstat-lbl{font-size:11.5px;color:rgba(255,255,255,.8);margin-top:4px}
+
+/* Quick access */
+.qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px 14px 4px}
+.qa-item{display:flex;flex-direction:column;align-items:center;gap:6px;
+         cursor:pointer;padding:4px 2px;transition:transform .14s}
+.qa-item:active{transform:scale(.9)}
+.qa-ico{
+  width:52px;height:52px;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  border:2px solid var(--bd);           /* ← アイコン枠 */
+  background:var(--white);
+  box-shadow:0 1px 4px rgba(0,0,0,.08);
+}
+.qa-lbl{font-size:10.5px;font-weight:600;color:var(--t2);text-align:center;line-height:1.3}
+
+/* Notice rows */
+.n-ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;
+       justify-content:center;font-size:17px;flex-shrink:0;border:1.5px solid var(--bd)}
+.n-body{flex:1;min-width:0}
+.n-title{font-size:13px;font-weight:600}
+.n-sub{font-size:11.5px;color:var(--t3);margin-top:2px}
+.n-arr{font-size:18px;color:var(--bd2)}
+
+/* SOS strip */
+.sos-strip{
+  margin:4px 14px 14px;
+  background:var(--red);
+  border:2px solid #c92a2a;
+  border-radius:var(--r2);
+  padding:13px 16px;
+  display:flex;align-items:center;gap:12px;
+  cursor:pointer;transition:transform .14s;
+}
+.sos-strip:active{transform:scale(.97)}
+.sos-strip-lbl{font-size:15px;font-weight:700;color:#fff}
+.sos-strip-sub{font-size:11.5px;color:rgba(255,255,255,.8);margin-top:2px}
+
+/* ═══════════════════════════════════
+   ── CHAT ──
+═══════════════════════════════════ */
+#s-chat{flex-direction:row}
+.cl-panel{
+  width:115px;
+  background:var(--white);
+  border-right:2px solid var(--bd);
+  display:flex;flex-direction:column;flex-shrink:0;
+}
+.clp-top{
+  padding:10px 8px 7px;
+  border-bottom:1.5px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;
+  background:#fafbfd;
+}
+.clp-title{font-size:11.5px;font-weight:700}
+.cl-add{
+  width:24px;height:24px;border-radius:7px;
+  background:var(--gbg);border:1.5px solid var(--glt);
+  color:var(--gn);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;line-height:1;
+}
+.cl-sec{
+  font-size:9.5px;font-weight:700;color:var(--t3);
+  text-transform:uppercase;letter-spacing:.08em;
+  padding:7px 8px 3px;
+  background:#f7f9fc;
+  border-bottom:1px solid var(--bd);
+}
+.cl-items{flex:1;overflow-y:auto}
+.cl-item{
+  display:flex;flex-direction:column;align-items:center;
+  padding:10px 5px;gap:5px;
+  border-bottom:1.5px solid var(--bd);
+  cursor:pointer;transition:background .1s;position:relative;
+}
+.cl-item:hover{background:#f5fffe}
+.cl-item.on{background:var(--gbg)}
+.cl-av{
+  width:40px;height:40px;border-radius:50%;
+  border:2px solid var(--bd);           /* ← アバター枠 */
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;flex-shrink:0;position:relative;
+}
+.cl-av.grp{border-radius:11px}
+.cl-dot{position:absolute;bottom:0;right:0;width:10px;height:10px;
+        border-radius:50%;border:2px solid var(--white)}
+.cl-name{font-size:10px;font-weight:600;color:var(--t2);text-align:center;line-height:1.3}
+.cl-item.on .cl-name{color:var(--gn)}
+.cl-unread{
+  position:absolute;top:5px;right:5px;
+  background:var(--red);color:#fff;font-size:9px;font-weight:700;
+  min-width:15px;height:15px;border-radius:8px;
+  padding:0 3px;display:flex;align-items:center;justify-content:center;
+}
+
+/* Chat window */
+.chat-wall{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.chat-welcome{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:12px;padding:24px;text-align:center;
+  border-left:2px solid var(--bd);
+}
+.chat-welcome svg{opacity:.25}
+.cw-title{font-size:15px;font-weight:700;color:var(--t2)}
+.cw-sub{font-size:12.5px;color:var(--t3);line-height:1.6}
+.chat-pane{flex:1;display:none;flex-direction:column;overflow:hidden}
+.chat-hdr{
+  background:var(--white);
+  border-bottom:2px solid var(--bd);
+  padding:10px 14px;
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+.ch-av{
+  width:36px;height:36px;border-radius:50%;
+  border:2px solid var(--bd);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;flex-shrink:0;
+}
+.ch-name{font-size:14px;font-weight:700}
+.ch-sub{font-size:11px;color:var(--t3);margin-top:1px}
+
+/* Messages */
+.msgs{flex:1;overflow-y:auto;padding:10px 11px;
+      display:flex;flex-direction:column;gap:3px;background:#e5e9f0}
+.sys-msg{align-self:center;background:rgba(0,0,0,.1);color:rgba(0,0,0,.5);
+         font-size:11.5px;padding:3px 12px;border-radius:10px;margin:4px 0;font-weight:500}
+.mrow{display:flex;gap:7px;max-width:82%}
+.mrow.r{align-self:flex-end;flex-direction:row-reverse}
+.mav{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--bd);
+     display:flex;align-items:center;justify-content:center;
+     font-size:9px;font-weight:700;flex-shrink:0;align-self:flex-end}
+.mcol{display:flex;flex-direction:column;gap:2px}
+.msender{font-size:10.5px;color:var(--t2);padding:0 4px;margin-bottom:1px;font-weight:600}
+.bub{padding:9px 13px;font-size:13.5px;line-height:1.6;word-break:break-word}
+.bub.other{
+  background:var(--white);
+  border:1.5px solid var(--bd);        /* ← 吹き出し枠 */
+  border-radius:4px 16px 16px 16px;
+}
+.bub.me{
+  background:var(--me);
+  border:1.5px solid #7dd8aa;          /* ← 自分の吹き出し枠 */
+  border-radius:16px 16px 4px 16px;
+}
+.bub.ai{
+  background:#e8f9f0;
+  border:1.5px solid var(--glt);       /* ← AI吹き出し枠 */
+  border-radius:4px 16px 16px 16px;
+  font-size:12.5px;color:#065f46;
+}
+.ai-lbl{display:block;font-size:10px;font-weight:700;color:var(--gn);margin-bottom:2px;opacity:.8}
+.mtime{font-size:10px;color:rgba(0,0,0,.3);padding:0 4px;align-self:flex-end}
+
+/* Typing */
+.typing-r{display:flex;gap:7px;align-items:flex-end}
+.typing-b{display:flex;gap:4px;align-items:center;padding:9px 13px;
+          background:var(--white);border:1.5px solid var(--bd);
+          border-radius:4px 16px 16px 16px;}
+.typing-b span{width:6px;height:6px;border-radius:50%;background:var(--t3);animation:td 1.3s infinite}
+.typing-b span:nth-child(2){animation-delay:.2s}
+.typing-b span:nth-child(3){animation-delay:.4s}
+@keyframes td{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+
+/* Quick replies */
+.qrow{
+  display:flex;gap:6px;padding:7px 10px;overflow-x:auto;scrollbar-width:none;
+  background:var(--white);border-bottom:1.5px solid var(--bd);flex-shrink:0;
+}
+.qrow::-webkit-scrollbar{display:none}
+.qbtn{padding:5px 12px;border-radius:99px;font-size:12px;font-weight:600;
+      border:1.5px solid var(--bd);background:var(--white);color:var(--t2);
+      cursor:pointer;white-space:nowrap;transition:all .12s}
+.qbtn:active{background:var(--gbg);color:var(--gn);border-color:var(--glt)}
+
+/* Chat input bar */
+.cinp-bar{
+  background:var(--white);border-top:2px solid var(--bd);
+  padding:9px 11px;display:flex;gap:8px;align-items:flex-end;flex-shrink:0;
+}
+.cinp{
+  flex:1;padding:10px 13px;
+  border:2px solid var(--bd);          /* ← 入力枠 */
+  border-radius:22px;font-size:13.5px;font-family:inherit;
+  background:#f8f9fc;color:var(--tx);
+  outline:none;resize:none;max-height:100px;line-height:1.45;
+  transition:border-color .15s;
+}
+.cinp:focus{border-color:var(--gn);background:var(--white)}
+.csend{
+  width:40px;height:40px;border-radius:50%;
+  background:var(--gn);border:2px solid var(--gd);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .14s;
+}
+.csend:active{transform:scale(.92)}
+.csend:disabled{opacity:.4;cursor:not-allowed}
+
+/* ═══════════════════════════════════
+   ── DOCS overlay ──
+═══════════════════════════════════ */
+.overlay{position:absolute;inset:0;z-index:80;display:none;flex-direction:column;
+         overflow:hidden;background:var(--bg)}
+.overlay.on{display:flex}
+.ov-hdr{
+  background:var(--white);border-bottom:2px solid var(--bd);
+  padding:11px 15px;display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+.back-btn{
+  padding:6px 13px;border-radius:99px;
+  border:1.5px solid var(--bd);background:var(--white);
+  font-size:13px;cursor:pointer;font-family:inherit;color:var(--t2);font-weight:500;
+}
+.back-btn:active{background:var(--bg)}
+.ov-scroll{flex:1;overflow-y:auto;padding:13px;display:flex;flex-direction:column;gap:10px}
+
+/* TTS bar */
+.tts-bar{
+  background:var(--white);border:2px solid var(--bd);border-radius:var(--r);
+  padding:11px 13px;display:flex;align-items:center;gap:10px;
+}
+.tts-play{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--gn);border:2px solid var(--gd);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.tts-prog{flex:1;height:5px;background:#e5e9f0;border-radius:99px;overflow:hidden}
+.tts-fill{height:100%;background:var(--gn);border-radius:99px;width:0%;transition:width .3s}
+
+.doc-body-box{
+  background:var(--white);border:2px solid var(--bd);
+  border-radius:var(--r);padding:15px;
+  font-size:13.5px;line-height:1.9;color:var(--tx);white-space:pre-wrap;
+}
+.confirm-box{
+  background:var(--gbg);border:2px solid var(--glt);
+  border-radius:var(--r);padding:15px;
+}
+
+/* ═══════════════════════════════════
+   ── TEMPLATES ──
+═══════════════════════════════════ */
+.tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:13px}
+.tpl-card{
+  background:var(--white);
+  border:2px solid var(--bd);          /* ← テンプレートカード枠 */
+  border-radius:var(--r2);
+  padding:15px 10px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;
+  transition:all .14s;
+}
+.tpl-card:active{transform:scale(.95);border-color:var(--glt);background:var(--gbg)}
+.tpl-ico{
+  width:46px;height:46px;border-radius:13px;
+  border:1.5px solid var(--bd);
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+}
+.tpl-name{font-size:13px;font-weight:700;line-height:1.3}
+.tpl-sub{font-size:11px;color:var(--t3)}
+.tpl-form{
+  background:var(--white);border:2px solid var(--bd);
+  border-radius:var(--r2);margin:0 13px 13px;padding:15px;
+  display:none;flex-direction:column;gap:11px;
+}
+.tpl-form.on{display:flex}
+.result-box{
+  background:var(--gbg);border:2px solid var(--glt);
+  border-radius:var(--r);padding:13px;
+  font-size:13.5px;color:#065f46;line-height:1.7;display:none;white-space:pre-wrap;
+}
+.result-box.on{display:block}
+
+/* ═══════════════════════════════════
+   ── VIDEOS ──
+═══════════════════════════════════ */
+.vid-row{
+  background:var(--white);border:2px solid var(--bd);
+  border-radius:var(--r);padding:12px;
+  display:flex;gap:12px;align-items:center;cursor:pointer;
+  transition:all .14s;margin-bottom:8px;
+}
+.vid-row:active{transform:scale(.98);border-color:var(--glt)}
+.vid-thumb{
+  width:70px;height:46px;border-radius:9px;
+  background:#1a1d2e;border:2px solid #2d3148;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;flex-shrink:0;position:relative;overflow:hidden;
+}
+.vid-dur{position:absolute;bottom:3px;right:4px;background:rgba(0,0,0,.75);
+         color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;font-family:monospace}
+.vid-title{font-size:13px;font-weight:600;line-height:1.4}
+.vid-info{font-size:11.5px;color:var(--t2);margin-top:3px}
+.vid-watched{font-size:11px;color:var(--gn);font-weight:700;margin-top:3px}
+.vid-player{
+  background:#1a1d2e;aspect-ratio:16/9;
+  border-bottom:2px solid var(--bd);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;position:relative;flex-shrink:0;
+}
+.play-circle{
+  width:56px;height:56px;border-radius:50%;
+  background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.5);
+  display:flex;align-items:center;justify-content:center;transition:all .2s;
+}
+.vid-player:active .play-circle{transform:scale(1.08);background:rgba(255,255,255,.22)}
+
+/* ═══════════════════════════════════
+   ── NIPPO ──
+═══════════════════════════════════ */
+.np-row{
+  background:var(--white);border:2px solid var(--bd);
+  border-radius:var(--r);padding:13px;cursor:pointer;
+  transition:all .14s;margin-bottom:8px;
+}
+.np-row:active{transform:scale(.98);border-color:var(--glt)}
+.np-date{font-size:13px;font-weight:700}
+.np-prev{font-size:12.5px;color:var(--t2);line-height:1.5;
+         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+
+/* ═══════════════════════════════════
+   ── SHIFT ──
+═══════════════════════════════════ */
+.shift-days{
+  display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
+  padding:13px 13px 4px;flex-shrink:0;
+}
+.shift-days::-webkit-scrollbar{display:none}
+.sday{
+  flex-shrink:0;width:78px;
+  background:var(--white);border:2px solid var(--bd);  /* ← シフト枠 */
+  border-radius:var(--r);padding:11px 7px;text-align:center;
+  transition:border-color .14s;
+}
+.sday.today{border-color:var(--gn);border-width:2.5px;background:var(--gbg)}
+.sday-dw{font-size:11px;color:var(--t3);margin-bottom:2px}
+.sday-date{font-size:18px;font-weight:700;margin-bottom:6px}
+.sday.today .sday-dw,.sday.today .sday-date{color:var(--gn)}
+.sday-label{font-size:11.5px;font-weight:700;padding:4px 2px;border-radius:7px}
+
+.shift-card{
+  background:var(--white);border:2px solid var(--bd);
+  border-radius:var(--r2);margin:10px 13px 0;padding:15px;
+}
+.shift-card-title{font-size:14px;font-weight:700;margin-bottom:12px}
+.shift-hist{
+  background:var(--white);border:2px solid var(--bd);
+  border-radius:var(--r2);margin:10px 13px 14px;overflow:hidden;
+}
+.sh-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 13px;border-bottom:1.5px solid var(--bd);
+}
+.sh-row:last-child{border-bottom:none}
+.sh-main{font-size:13px;font-weight:600}
+.sh-date{font-size:11.5px;color:var(--t3);margin-top:2px}
+
+/* ═══════════════════════════════════
+   ── SOS ──
+═══════════════════════════════════ */
+.sos-page{flex:1;display:flex;flex-direction:column;align-items:center;
+          justify-content:flex-start;gap:15px;padding:22px 18px}
+.sos-desc{font-size:13.5px;color:var(--t2);text-align:center;line-height:1.7}
+.sos-ring{
+  width:136px;height:136px;border-radius:50%;
+  background:var(--white);
+  border:4px solid var(--red);          /* ← SOSボタン枠 */
+  box-shadow:0 0 0 6px var(--rbg);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  cursor:pointer;user-select:none;transition:all .15s;
+}
+.sos-ring.pressing{transform:scale(.93);background:var(--rbg)}
+.sos-ring-label{font-size:16px;font-weight:700;color:var(--red);margin-top:5px}
+.sos-cnt{font-size:52px;font-weight:300;color:var(--red)}
+.sos-ok{
+  width:100%;background:var(--gbg);border:2px solid var(--glt);
+  border-radius:var(--r2);padding:16px;text-align:center;
+}
+.sos-ok-title{font-size:17px;font-weight:700;color:var(--gn)}
+.contact-card{
+  width:100%;background:var(--white);border:2px solid var(--bd);
+  border-radius:var(--r);padding:13px;display:flex;gap:12px;align-items:center;
+}
+.cc-ico{width:40px;height:40px;border-radius:50%;background:var(--rbg);
+        border:2px solid #fca5a5;display:flex;align-items:center;justify-content:center;
+        font-size:18px;flex-shrink:0}
+
+/* ═══════════════════════════════════
+   ── SETTINGS ──
+═══════════════════════════════════ */
+.profile-hdr{
+  background:var(--gn);border-bottom:2px solid var(--gd);
+  padding:18px;display:flex;align-items:center;gap:14px;flex-shrink:0;
+}
+.pav{width:52px;height:52px;border-radius:50%;
+     background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.5);
+     display:flex;align-items:center;justify-content:center;
+     font-size:18px;font-weight:700;color:#fff;flex-shrink:0}
+.pname{font-size:16px;font-weight:700;color:#fff;letter-spacing:-.2px}
+.psub{font-size:12px;color:rgba(255,255,255,.8);margin-top:2px}
+.pbdg{display:inline-flex;align-items:center;margin-top:7px;
+      background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);
+      color:#fff;font-size:11.5px;padding:3px 10px;border-radius:99px;font-weight:600}
+
+.ss-section{
+  background:var(--white);border:2px solid var(--bd);  /* ← 設定セクション枠 */
+  border-radius:var(--r2);margin:0 13px 12px;overflow:hidden;
+}
+.ss-hdr{padding:12px 14px;border-bottom:1.5px solid var(--bd);background:#fafbfd}
+.ss-hdr-title{font-size:13.5px;font-weight:700}
+.ss-hdr-sub{font-size:11.5px;color:var(--t3);margin-top:2px}
+.ss-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 14px;border-bottom:1.5px solid var(--bd);gap:12px;
+}
+.ss-row:last-child{border-bottom:none}
+.ss-l{flex:1;min-width:0}
+.ss-lbl{font-size:13.5px;font-weight:500}
+.ss-desc{font-size:12px;color:var(--t3);margin-top:2px}
+.ss-val{font-size:13px;color:var(--t2)}
+.tgl{
+  width:44px;height:26px;border-radius:13px;
+  position:relative;cursor:pointer;flex-shrink:0;
+  transition:background .2s;border:2px solid transparent;outline:none;
+}
+.tgl::after{
+  content:'';position:absolute;
+  width:18px;height:18px;border-radius:50%;background:#fff;
+  top:2px;right:2px;transition:right .15s;
+  box-shadow:0 1px 4px rgba(0,0,0,.25);
+}
+.tgl.on{background:var(--gn);border-color:var(--gd)}
+.tgl.off{background:#c0c8d8;border-color:#a0a8b8}
+.tgl.off::after{right:22px}
+
+.lang-opt{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;border-bottom:1.5px solid var(--bd);
+  cursor:pointer;transition:background .1s;
+}
+.lang-opt:last-child{border-bottom:none}
+.lang-opt:active{background:var(--gbg)}
+.lang-opt.sel{background:#f0fdf5}
+.lang-check{margin-left:auto;color:var(--gn);font-size:18px}
+.lang-name{font-size:13.5px;font-weight:600}
+.lang-native{font-size:11.5px;color:var(--t3);margin-top:1px}
+
+/* ═══════════════════════════════════
+   ── NAVBAR ──
+═══════════════════════════════════ */
+.navbar{
+  height:var(--nav);background:var(--white);
+  border-top:2px solid var(--bd);      /* ← ナビ上枠 */
+  display:flex;flex-shrink:0;
+}
+.ni{flex:1;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:3px;cursor:pointer;padding:6px 2px;position:relative}
+.ni.on .ni-ico,.ni.on .ni-lbl{color:var(--gn)}
+.ni-ico{color:var(--t3);transition:color .12s}
+.ni-lbl{font-size:10px;color:var(--t3);font-weight:600;transition:color .12s}
+.ni-badge{position:absolute;top:5px;right:calc(50% - 14px);
+          background:var(--red);color:#fff;font-size:9px;font-weight:700;
+          min-width:16px;height:16px;border-radius:8px;
+          display:flex;align-items:center;justify-content:center;padding:0 3px}
+
+/* ═══════════════════════════════════
+   ── BOTTOM SHEET (Add Contact) ──
+═══════════════════════════════════ */
+.bs-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;
+       display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
+.bs-bg.on{display:flex}
+.bs{
+  background:var(--white);width:100%;max-width:430px;
+  border-radius:20px 20px 0 0;
+  border:2px solid var(--bd);border-bottom:none;  /* ← シート枠 */
+  overflow:hidden;max-height:80vh;
+  display:flex;flex-direction:column;animation:slideUp .22s ease;
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.bs-hdr{
+  padding:13px 16px;
+  border-bottom:2px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;
+  background:#fafbfd;
+}
+.bs-title{font-size:16px;font-weight:700}
+.bs-close{
+  width:28px;height:28px;border-radius:8px;
+  background:var(--bg);border:1.5px solid var(--bd);
+  cursor:pointer;font-size:18px;color:var(--t3);
+  display:flex;align-items:center;justify-content:center;line-height:1;
+}
+.bs-body{flex:1;overflow-y:auto}
+
+/* QR section */
+.qr-sec{padding:14px 16px;border-bottom:2px solid var(--bd)}
+.qr-sec-title{font-size:11.5px;font-weight:700;color:var(--t2);
+              text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.qr-box{
+  background:var(--bg);border:2px solid var(--bd);  /* ← QR枠 */
+  border-radius:var(--r);padding:14px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+}
+.qr-wrap{
+  width:140px;height:140px;background:var(--white);
+  border:2px solid var(--bd);border-radius:12px;  /* ← QRコード枠 */
+  display:flex;align-items:center;justify-content:center;padding:10px;
+}
+.qr-url-row{display:flex;gap:6px;width:100%}
+.qr-url{
+  flex:1;padding:9px 11px;border-radius:8px;
+  background:var(--white);border:1.5px solid var(--bd);
+  font-size:12px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.qr-copy{
+  padding:9px 13px;border-radius:8px;
+  border:2px solid var(--glt);background:var(--gbg);
+  color:var(--gn);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;
+}
+.qr-copy:active{background:var(--gn);color:#fff}
+
+/* Contact list in sheet */
+.ci{display:flex;align-items:center;gap:12px;padding:12px 16px;
+    border-bottom:1.5px solid var(--bd);cursor:pointer;transition:background .1s}
+.ci:last-child{border-bottom:none}
+.ci:active{background:var(--gbg)}
+.ci-av{width:44px;height:44px;border-radius:50%;border:2px solid var(--bd);
+       display:flex;align-items:center;justify-content:center;
+       font-size:14px;font-weight:700;flex-shrink:0;position:relative}
+.ci-dot{position:absolute;bottom:0;right:0;width:11px;height:11px;
+        border-radius:50%;border:2px solid var(--white)}
+.ci-body{flex:1;min-width:0}
+.ci-name{font-size:14px;font-weight:700}
+.ci-role{font-size:12px;color:var(--t2);margin-top:2px}
+.ci-add{
+  width:32px;height:32px;border-radius:50%;
+  background:var(--gbg);border:2px solid var(--glt);
+  color:var(--gn);font-size:20px;font-weight:300;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;
+  transition:all .14s;
+}
+.ci-add:active{background:var(--gn);color:#fff;transform:scale(.9)}
+
+/* ═══════════════════════════════════
+   TOAST
+═══════════════════════════════════ */
+.toasts{position:fixed;top:56px;left:50%;transform:translateX(-50%);
+        width:calc(100% - 28px);max-width:400px;z-index:600;
+        display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{
+  background:var(--white);
+  border:2px solid var(--bd);          /* ← トースト枠 */
+  border-radius:12px;padding:11px 13px;
+  display:flex;gap:10px;align-items:center;
+  box-shadow:0 6px 24px rgba(0,0,0,.12);
+  pointer-events:all;animation:tin .2s ease;
+}
+@keyframes tin{from{transform:translateY(-12px) translateX(-50%);opacity:0}to{transform:translateY(0) translateX(-50%);opacity:1}}
+@keyframes tout{to{transform:translateY(-12px) translateX(-50%);opacity:0}}
+.toast.out{animation:tout .18s ease forwards}
+.t-ico{width:28px;height:28px;border-radius:8px;border:1.5px solid transparent;
+       display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+
+/* VOICE BUTTON */
+.voice-btn{width:36px;height:36px;border-radius:50%;border:2px solid var(--bd);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t2);transition:all .14s;flex-shrink:0}
+.voice-btn.listening{background:var(--red);border-color:var(--red);color:#fff;animation:pulse-red 1s infinite}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(229,62,62,.4)}50%{box-shadow:0 0 0 8px rgba(229,62,62,0)}}
+</style>
+</head>
+<body>
+
+<div class="sbar">
+  <span class="stime" id="stime">9:41</span>
+  <div class="sbar-r">
+    <svg width="15" height="11" viewBox="0 0 15 11" fill="none"><rect x="0" y="4" width="2.5" height="7" rx="1" fill="currentColor" opacity=".4"/><rect x="3.5" y="2.5" width="2.5" height="8.5" rx="1" fill="currentColor" opacity=".6"/><rect x="7" y="1" width="2.5" height="10" rx="1" fill="currentColor" opacity=".8"/><rect x="10.5" y="0" width="2.5" height="11" rx="1" fill="currentColor"/></svg>
+    <svg width="22" height="11" viewBox="0 0 22 11" fill="none"><rect x=".5" y=".5" width="19" height="10" rx="3" stroke="currentColor" stroke-opacity=".3"/><rect x="2" y="2" width="14" height="7" rx="1.5" fill="currentColor"/></svg>
+  </div>
+</div>
+
+<div class="screens">
+
+<!-- HOME -->
+<div class="scr on" id="s-home">
+  <div class="hero">
+    <div class="hero-name" id="h-greet">こんにちは</div>
+    <div class="hero-sub" id="w-hero-sub">Nguyen Thi Giang · 溶接 · 1年目</div>
+    <div class="hero-stats">
+      <div class="hstat"><div class="hstat-val">8日</div><div class="hstat-lbl" id="h-leave-l">有給残日数</div></div>
+      <div class="hstat"><div class="hstat-val">日勤</div><div class="hstat-lbl" id="h-today-shift">今日のシフト</div></div>
+    </div>
+  </div>
+  <div class="scroll pb">
+
+    <!-- ── 打刻カード ── -->
+    <div style="margin:12px 13px 4px">
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">今日の打刻</span>
+          <span id="cw-date" style="font-size:12px;color:var(--t3)"></span>
+        </div>
+        <div style="padding:16px 14px;display:flex;flex-direction:column;align-items:center;gap:13px">
+          <!-- 出勤・退勤時刻 -->
+          <div style="display:flex;gap:28px;align-items:flex-end">
+            <div style="text-align:center">
+              <div style="font-size:11.5px;color:var(--t3);margin-bottom:3px">出勤</div>
+              <div id="cw-in" style="font-size:28px;font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums;letter-spacing:-.5px">--:--</div>
+            </div>
+            <div style="font-size:20px;color:var(--bd2);margin-bottom:8px">→</div>
+            <div style="text-align:center">
+              <div style="font-size:11.5px;color:var(--t3);margin-bottom:3px">退勤</div>
+              <div id="cw-out" style="font-size:28px;font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums;letter-spacing:-.5px">--:--</div>
+            </div>
+          </div>
+          <!-- ステータスバッジ -->
+          <span class="bdg ba" id="cw-status">未出勤</span>
+          <!-- 打刻ボタン（出勤・退勤 2ボタン） -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%">
+            <button class="btn btn-g" id="cw-btn-in" onclick="clockIn()"
+              style="padding:14px;font-size:15px;flex-direction:column;gap:5px">
+              <span style="font-size:22px">🟢</span>
+              <span>出勤打刻</span>
+            </button>
+            <button class="btn btn-r" id="cw-btn-out" onclick="clockOut()" disabled
+              style="padding:14px;font-size:15px;flex-direction:column;gap:5px;opacity:.4">
+              <span style="font-size:22px">🔴</span>
+              <span>退勤打刻</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="qa-grid">
+      <div class="qa-item" onclick="go('s-chat')">
+        <div class="qa-ico" style="background:#e8f4ff"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3 5a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H13l-5 4v-4H5a2 2 0 01-2-2V5z" stroke="#2563eb" stroke-width="1.7" fill="none"/></svg></div>
+        <span class="qa-lbl" id="nl-chat-qa">チャット</span>
+      </div>
+      <div class="qa-item" onclick="go('s-tpl')">
+        <div class="qa-ico" style="background:#f0fdf5"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="3" width="16" height="5" rx="2" stroke="#00b050" stroke-width="1.7" fill="none"/><rect x="3" y="12" width="10" height="5" rx="2" stroke="#00b050" stroke-width="1.7" fill="none"/></svg></div>
+        <span class="qa-lbl" id="nl-tpl-qa">申請</span>
+      </div>
+      <div class="qa-item" onclick="go('s-docs')">
+        <div class="qa-ico" style="background:#fefce8"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="4" y="2" width="14" height="18" rx="3" stroke="#d97706" stroke-width="1.7" fill="none"/><path d="M7 8h8M7 12h8M7 16h5" stroke="#d97706" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <span class="qa-lbl" id="h-doc-l">書類</span>
+      </div>
+      <div class="qa-item" onclick="go('s-shift')">
+        <div class="qa-ico" style="background:#fdf4ff"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="4" width="18" height="16" rx="3" stroke="#9333ea" stroke-width="1.7" fill="none"/><path d="M7 2v4M15 2v4M2 10h18" stroke="#9333ea" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <span class="qa-lbl" id="nl-shift-qa">シフト</span>
+      </div>
+      <div class="qa-item" onclick="go('s-nippo')">
+        <div class="qa-ico" style="background:#fff7ed"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="2" width="16" height="18" rx="3" stroke="#ea580c" stroke-width="1.7" fill="none"/><path d="M7 8h8M7 12h6M7 16h4" stroke="#ea580c" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <span class="qa-lbl" id="h-nippo-l">日報</span>
+      </div>
+      <div class="qa-item" onclick="go('s-videos')">
+        <div class="qa-ico" style="background:#fff0f0"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="5" width="13" height="12" rx="3" stroke="#e53e3e" stroke-width="1.7" fill="none"/><path d="M15 9l6-3v10l-6-3V9z" stroke="#e53e3e" stroke-width="1.6" stroke-linejoin="round" fill="none"/><path d="M5.5 9.5l4 2.5-4 2.5V9.5z" fill="#e53e3e" opacity=".6"/></svg></div>
+        <span class="qa-lbl" id="h-video-l">動画</span>
+      </div>
+      <div class="qa-item" onclick="go('s-settings')">
+        <div class="qa-ico" style="background:#f6f7fa"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3" stroke="#64748b" stroke-width="1.7" fill="none"/><path d="M11 2.5v3M11 16.5v3M2.5 11h3M16.5 11h3M5.6 5.6l2 2M14.4 14.4l2 2M5.6 16.4l2-2M14.4 7.6l2-2" stroke="#64748b" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+        <span class="qa-lbl" id="nl-settings-qa">設定</span>
+      </div>
+      <div class="qa-item" onclick="go('s-sos')">
+        <div class="qa-ico" style="background:#fff0f0"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="#e53e3e" stroke-width="1.7" fill="none"/><path d="M11 7v6M11 16v.5" stroke="#e53e3e" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <span class="qa-lbl" id="h-sos-l">SOS</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin:4px 13px 0">
+      <div class="card-hdr"><span class="card-title" id="h-notice-l">お知らせ</span><span class="bdg ba">2件</span></div>
+      <div class="card-row tap" id="approval-notice" style="display:none">
+        <div class="n-ico" style="background:#e6f9f0">✅</div>
+        <div class="n-body"><div class="n-title" id="h-approved-l">申請が承認されました</div><div class="n-sub">担当者から通知が届きました</div></div>
+        <div class="n-arr">›</div>
+      </div>
+      <div class="card-row tap" onclick="go('s-docs')">
+        <div class="n-ico" style="background:#fefce8">📄</div>
+        <div class="n-body"><div class="n-title" id="h-n1-t">就業規則が更新されました</div><div class="n-sub" id="h-n1-s">書類タブで確認してください</div></div>
+        <div class="n-arr">›</div>
+      </div>
+      <div class="card-row tap" onclick="go('s-chat')">
+        <div class="n-ico" style="background:#e8f4ff">💬</div>
+        <div class="n-body"><div class="n-title" id="h-n2-t">担当者からメッセージ</div><div class="n-sub">タップしてチャットを開く</div></div>
+        <div class="n-arr">›</div>
+      </div>
+    </div>
+
+    <div class="sos-strip" onclick="go('s-sos')">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="12" stroke="rgba(255,255,255,.5)" stroke-width="2" fill="none"/><path d="M14 8v8M14 19.5v.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <div><div class="sos-strip-lbl" id="h-sos-l2">緊急 SOS</div><div class="sos-strip-sub">3秒長押しで担当者に緊急通知</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT -->
+<div class="scr" id="s-chat">
+  <div class="cl-panel">
+    <div class="clp-top">
+      <span class="clp-title">チャット</span>
+      <button class="cl-add" onclick="openAddContactModal()" title="関係者を追加">＋</button>
+    </div>
+    <div class="cl-items" id="cl-items"></div>
+  </div>
+  <div class="chat-wall">
+    <div class="chat-welcome" id="chat-welcome-pane">
+      <svg width="46" height="46" viewBox="0 0 46 46" fill="none"><path d="M5 9a4 4 0 014-4h28a4 4 0 014 4v20a4 4 0 01-4 4H26l-9 7v-7H9a4 4 0 01-4-4V9z" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+      <div class="cw-title">会話を選んでください</div>
+      <div class="cw-sub">担当者またはグループを<br>左のリストから選択</div>
+    </div>
+    <div class="chat-pane" id="chat-active-pane">
+      <div class="chat-hdr">
+        <div class="ch-av" id="chat-top-av"></div>
+        <div style="flex:1;min-width:0"><div class="ch-name" id="chat-top-name">-</div><div class="ch-sub" id="chat-top-sub">-</div></div>
+        <div id="chat-top-badge"></div>
+      </div>
+      <div class="qrow">
+        <button class="qbtn" id="qb-yoroshiku" onclick="insertActiveQ('yoroshiku')">よろしく</button>
+        <button class="qbtn" id="qb-kakunin"   onclick="insertActiveQ('kakunin')">確認</button>
+        <button class="qbtn" id="qb-arigato"   onclick="insertActiveQ('arigato')">ありがとう</button>
+        <button class="qbtn" id="qb-wakari"    onclick="insertActiveQ('wakari')">わかりました</button>
+        <button class="qbtn" id="qb-otsukare"  onclick="insertActiveQ('otsukare')">お疲れ様</button>
+      </div>
+      <div class="msgs" id="active-msgs"></div>
+      <div class="cinp-bar">
+        <button class="voice-btn" id="voice-btn" onclick="toggleVoice()" title="音声入力">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="1" width="6" height="9" rx="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2 8a6 6 0 0012 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M8 14v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <textarea class="cinp" id="active-inp" rows="1"
+          placeholder="メッセージを入力..."
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendActive()}"
+          oninput="autoSz(this)"></textarea>
+        <button class="csend" id="active-send" onclick="sendActive()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L14 2l-5 12-2.5-4.5L2 8z" fill="white"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TEMPLATES -->
+<div class="scr" id="s-tpl" style="position:relative">
+  <div class="pg-top"><div><div class="pg-title" id="tp-title">申請・報告</div><div class="pg-sub" id="tp-sub">母国語で入力 → AI が日本語に変換</div></div></div>
+  <div class="scroll pb" id="tpl-list-view">
+    <div style="margin:14px 13px 10px;padding:13px 14px;background:var(--gbg);border:2px solid var(--glt);border-radius:var(--r);display:flex;align-items:center;gap:10px">
+      <div style="font-size:22px">🌐</div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--gn)">AI自動翻訳で送信</div><div style="font-size:12px;color:var(--t2);margin-top:2px">母国語で書くとAIが日本語に変換します</div></div>
+    </div>
+    <div style="padding:0 13px 13px;display:flex;flex-direction:column;gap:10px" id="tgrid"></div>
+  </div>
+  <div class="overlay" id="tpl-form-overlay">
+    <div class="ov-hdr">
+      <button class="back-btn" onclick="closeTplForm()">← 戻る</button>
+      <div style="flex:1;font-size:14px;font-weight:700;padding-left:8px" id="tf-header-title">申請フォーム</div>
+    </div>
+    <div class="ov-scroll">
+      <div style="background:var(--white);border:2px solid var(--bd);border-radius:var(--r2);padding:14px;display:flex;align-items:center;gap:12px">
+        <div id="tf-ico-display" style="width:50px;height:50px;border-radius:14px;border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:16px;font-weight:700" id="tf-title"></div>
+          <div style="font-size:12.5px;color:var(--t2);margin-top:3px" id="tf-desc"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title" id="tf-label">詳しく書いてください</span>
+          <span style="font-size:11.5px;background:var(--gbg);color:var(--gn);border:1px solid var(--glt);border-radius:99px;padding:2px 9px;font-weight:600">母国語OK</span>
+        </div>
+        <div style="padding:13px">
+          <textarea class="finp" id="tf-inp" rows="5" style="min-height:120px"></textarea>
+          <div style="display:flex;justify-content:space-between;margin-top:8px">
+            <div style="font-size:11.5px;color:var(--t3)">具体的に書くほど正確に翻訳されます</div>
+            <div style="font-size:11.5px;color:var(--t3)"><span id="tf-char-count">0</span>文字</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">送信先</span></div>
+        <div class="card-row">
+          <div style="width:38px;height:38px;border-radius:50%;background:#064e3b;color:#6ee7b7;border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">田</div>
+          <div style="flex:1"><div style="font-size:13.5px;font-weight:600">田中 誠（担当責任者）</div><div style="font-size:12px;color:var(--t3);margin-top:2px">AI翻訳して日本語で届きます</div></div>
+          <div style="width:26px;height:26px;border-radius:50%;background:var(--gbg);border:2px solid var(--glt);display:flex;align-items:center;justify-content:center;color:var(--gn);font-size:14px;font-weight:700">✓</div>
+        </div>
+      </div>
+      <button class="btn btn-g" id="tf-btn" onclick="submitTpl()">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.5L13 2l-4.5 11-2-4.5L2 7.5z" fill="white"/></svg>
+        <span id="tf-send-l">AIで日本語に変換して送信</span>
+      </button>
+      <div class="result-box" id="tf-result"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DOCUMENTS -->
+<div class="scr" id="s-docs" style="position:relative">
+  <div class="pg-top">
+    <div>
+      <div class="pg-title" id="d-title">書類</div>
+      <div class="pg-sub" id="d-sub">確認済みは緑で表示されます</div>
+    </div>
+  </div>
+
+  <!-- フィルターチップ -->
+  <div style="padding:10px 13px 6px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex-shrink:0">
+    <button class="chip on" id="dchip-all"      onclick="filterWDocs('all',this)">すべて</button>
+    <button class="chip"    id="dchip-contract" onclick="filterWDocs('contract',this)">契約・規則</button>
+    <button class="chip"    id="dchip-safety"   onclick="filterWDocs('safety',this)">安全</button>
+    <button class="chip"    id="dchip-salary"   onclick="filterWDocs('salary',this)">給与</button>
+  </div>
+
+  <div class="scroll pb">
+    <!-- 進捗カード -->
+    <div class="card" style="margin:0 13px 10px">
+      <div class="card-hdr">
+        <span class="card-title" id="d-prog-l">確認の進捗</span>
+        <span style="font-size:13px;font-weight:700" id="prog-txt">0/0</span>
+      </div>
+      <div style="padding:12px 14px">
+        <div style="height:8px;background:#e5e9f0;border-radius:99px;overflow:hidden;margin-bottom:6px;border:1px solid var(--bd)">
+          <div style="height:100%;background:var(--gn);border-radius:99px;transition:width .4s" id="prog-fill" style="width:0%"></div>
+        </div>
+        <div style="font-size:12px;color:var(--t3)" id="prog-sub">書類を確認してください</div>
+      </div>
+    </div>
+
+    <!-- 書類リスト（動的生成） -->
+    <div style="padding:0 13px 13px;display:flex;flex-direction:column;gap:8px" id="wdoc-list"></div>
+  </div>
+
+  <!-- 書類詳細オーバーレイ -->
+  <div class="overlay" id="ddover">
+    <div class="ov-hdr">
+      <button class="back-btn" onclick="closeDoc()">← <span id="d-back-l">戻る</span></button>
+      <div style="flex:1;font-size:14px;font-weight:700;padding-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="dd-title"></div>
+    </div>
+    <div class="ov-scroll">
+      <!-- 音声読み上げ -->
+      <div class="tts-bar">
+        <button class="tts-play" onclick="ttsToggle()" id="tts-btn">
+          <svg id="tts-ico" width="14" height="14" viewBox="0 0 14 14" fill="none"><polygon points="3,2 12,7 3,12" fill="white"/></svg>
+        </button>
+        <div class="tts-prog"><div class="tts-fill" id="tts-fill"></div></div>
+        <span style="font-size:11px;color:var(--t3);font-family:monospace;min-width:30px" id="tts-time">0:00</span>
+        <span style="font-size:12px;color:var(--t3)" id="d-tts-l">音声で聞く</span>
+      </div>
+
+      <!-- 翻訳ステータス -->
+      <div style="font-size:12px;color:var(--gn);display:flex;align-items:center;gap:4px" id="tr-status-lbl"></div>
+
+      <!-- 期限・公開情報 -->
+      <div id="dd-meta-bar" style="display:none"></div>
+
+      <!-- 本文 -->
+      <div class="doc-body-box" id="dd-body"></div>
+
+      <!-- 確認ボックス -->
+      <div class="confirm-box" id="cbox" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- VIDEOS -->
+<div class="scr" id="s-videos" style="position:relative">
+  <div class="pg-top"><div class="pg-title" id="vid-title">動画マニュアル</div></div>
+  <div class="scroll pb">
+    <div class="chips" id="vid-chips">
+      <div class="chip on" onclick="filterV('all',this)">すべて</div>
+      <div class="chip" onclick="filterV('safety',this)">安全</div>
+      <div class="chip" onclick="filterV('work',this)">作業</div>
+      <div class="chip" onclick="filterV('training',this)">研修</div>
+    </div>
+    <div style="padding:0 13px 13px" id="v-list-items"></div>
+  </div>
+  <div class="overlay" id="vdov">
+    <div class="ov-hdr">
+      <button class="back-btn" onclick="closeVideo()">← <span id="v-back-l">戻る</span></button>
+      <div style="flex:1;font-size:14px;font-weight:700;padding-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="vd-title"></div>
+    </div>
+    <div class="vid-player" onclick="toast('再生','動画を再生します','g')">
+      <div style="position:absolute;font-size:54px;opacity:.2" id="vd-emoji"></div>
+      <div class="play-circle"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><polygon points="6,4 18,10 6,17" fill="white"/></svg></div>
+      <div style="position:absolute;bottom:10px;right:14px;color:rgba(255,255,255,.7);font-size:12px;font-family:monospace" id="vd-dur"></div>
+    </div>
+    <div class="ov-scroll">
+      <div class="card"><div style="padding:13px;font-size:13.5px;line-height:1.7;color:var(--t2)" id="vd-desc"></div><div style="padding:0 13px 13px;display:flex;gap:6px;flex-wrap:wrap" id="vd-langs"></div></div>
+      <button class="btn btn-g" id="watch-confirm-btn" onclick="markWatched()">✓ <span id="vd-watched-l">視聴完了としてマーク</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- NIPPO -->
+<div class="scr" id="s-nippo" style="position:relative">
+  <div class="pg-top"><div class="pg-title" id="np-title">日報・報告</div><button class="btn-xs" onclick="openNewNippo()" id="np-new-btn">＋ 新規</button></div>
+  <div class="scroll pb">
+    <div class="chips">
+      <div class="chip on" onclick="filterNP('all',this)">すべて</div>
+      <div class="chip" onclick="filterNP('daily',this)">日報</div>
+      <div class="chip" onclick="filterNP('hayari',this)">ヒヤリハット</div>
+    </div>
+    <div style="padding:0 13px 13px" id="np-list-items"></div>
+  </div>
+  <div class="overlay" id="npov">
+    <div class="ov-hdr"><button class="back-btn" onclick="closeNippo()">← 戻る</button><div style="flex:1;font-size:14px;font-weight:700;padding-left:8px" id="np-ov-title">日報詳細</div></div>
+    <div class="ov-scroll"><div class="card" id="np-ov-body"></div></div>
+  </div>
+  <div class="overlay" id="npov-new">
+    <div class="ov-hdr"><button class="back-btn" onclick="document.getElementById('npov-new').classList.remove('on')">← 戻る</button><div style="flex:1;font-size:14px;font-weight:700;padding-left:8px">日報を作成</div></div>
+    <div class="ov-scroll">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">種別</span></div>
+        <div style="padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="chip on" id="np-type-daily" onclick="selectNpType('daily')" style="padding:10px;border-radius:10px;font-size:13px;font-weight:700">📋 日報</button>
+          <button class="chip" id="np-type-hayari" onclick="selectNpType('hayari')" style="padding:10px;border-radius:10px;font-size:13px;font-weight:700">⚠️ ヒヤリハット</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title" id="np-form-title">内容</span></div>
+        <div style="padding:12px"><textarea class="finp" id="np-inp" rows="5" placeholder="本日の作業内容などを記入..."></textarea>
+          <div style="margin-top:10px">
+            <div style="border:2px dashed var(--bd);border-radius:10px;padding:16px;text-align:center;cursor:pointer;color:var(--t3);font-size:13px" onclick="toast('写真','本番環境ではカメラから追加できます','b')">📷 写真を追加</div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-g" onclick="submitNippo()">AIで翻訳して送信</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHIFT -->
+<div class="scr" id="s-shift">
+  <div class="pg-top">
+    <div class="pg-title" id="sh-title">シフト</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn-xs" onclick="shiftPrevWeek()">‹ 前週</button>
+      <button class="btn-xs" onclick="shiftWeekOffset=0;renderShift()" style="border-color:var(--glt);color:var(--gn)">今週</button>
+      <button class="btn-xs" onclick="shiftNextWeek()">次週 ›</button>
+    </div>
+  </div>
+  <div class="scroll pb">
+    <div style="padding:10px 13px 4px;font-size:12.5px;font-weight:600;color:var(--t2)" id="sh-period"></div>
+    <div class="shift-days" id="shift-week"></div>
+    <div class="shift-card">
+      <div class="shift-card-title" id="sh-request-l">シフト希望申請</div>
+      <span class="flbl" id="sh-date-lbl">希望日</span><input type="date" class="finp" style="margin-bottom:10px">
+      <span class="flbl" id="sh-type-lbl">種別</span>
+      <select class="finp" id="sh-type-sel" style="margin-bottom:12px">
+        <option id="sh-opt1">有給休暇</option><option id="sh-opt2">早番希望</option><option id="sh-opt3">遅番希望</option><option id="sh-opt4">残業申請</option>
+      </select>
+      <button class="btn btn-g" onclick="submitShiftReq()" id="sh-submit-btn">申請する</button>
+    </div>
+    <div class="shift-hist" style="margin-top:10px">
+      <div style="padding:12px 13px;font-size:13.5px;font-weight:700;border-bottom:2px solid var(--bd);background:#fafbfd" id="sh-history-l">申請履歴</div>
+      <div class="sh-row"><div><div class="sh-main" id="sh-h1">5/10 有給休暇</div><div class="sh-date" id="sh-h1d">2025/04/28 申請</div></div><span class="bdg ba" id="sh-h1-bdg">審査中</span></div>
+      <div class="sh-row"><div><div class="sh-main" id="sh-h2">5/3 休み</div><div class="sh-date" id="sh-h2d">2025/04/20 申請</div></div><span class="bdg bg" id="sh-h2-bdg">承認済</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- SOS -->
+<div class="scr" id="s-sos">
+  <div class="pg-top"><div><div class="pg-title" style="color:var(--red)" id="sos-title">緊急 SOS</div><div class="pg-sub">Khẩn cấp / Emergency</div></div></div>
+  <div class="sos-page">
+    <div class="sos-desc" id="sos-desc">赤いボタンを3秒長押しすると<br>担当者に緊急連絡が届きます</div>
+    <div class="sos-ring" id="sos-ring" onpointerdown="startSOS(event)" onpointerup="stopSOS()" onpointercancel="stopSOS()">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="15" stroke="var(--red)" stroke-width="2.2" fill="none"/><path d="M18 11v8M18 23v.5" stroke="var(--red)" stroke-width="2.8" stroke-linecap="round"/></svg>
+      <div class="sos-ring-label">SOS</div>
+    </div>
+    <div id="sos-cnt" style="display:none" class="sos-cnt">3</div>
+    <div id="sos-done" style="display:none" class="sos-ok"><div class="sos-ok-title" id="sos-sent-l">SOS 送信完了</div><div style="font-size:13px;color:var(--gn);margin-top:4px">担当者に通知しました</div></div>
+    <div class="contact-card"><div class="cc-ico">📞</div><div><div style="font-size:14px;font-weight:700">田中さん（担当者）</div><div style="font-size:12px;color:var(--t3);margin-top:2px">090-XXXX-XXXX</div></div></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="scr" id="s-settings">
+  <div class="profile-hdr">
+    <div class="pav" id="w-pav">NG</div>
+    <div><div class="pname" id="w-pname">Nguyen Thi Giang</div><div class="psub" id="w-psub">溶接 · 1年目 · 製造第1課</div><div class="pbdg" id="curr-lang">🇻🇳 ベトナム語</div></div>
+  </div>
+  <div class="scroll pb" style="padding:13px 0">
+    <div class="ss-section">
+      <div class="ss-hdr"><div class="ss-hdr-title" id="st-lang-l">表示言語</div><div class="ss-hdr-sub">Display Language</div></div>
+      <div id="lang-opts">
+        <div class="lang-opt sel" data-code="vi" onclick="setLang(this,'vi','🇻🇳','ベトナム語')"><span style="font-size:22px">🇻🇳</span><div><div class="lang-name">Tiếng Việt</div><div class="lang-native">ベトナム語</div></div><span class="lang-check">✓</span></div>
+        <div class="lang-opt" data-code="id" onclick="setLang(this,'id','🇮🇩','インドネシア語')"><span style="font-size:22px">🇮🇩</span><div><div class="lang-name">Bahasa Indonesia</div><div class="lang-native">インドネシア語</div></div></div>
+        <div class="lang-opt" data-code="tl" onclick="setLang(this,'tl','🇵🇭','フィリピン語')"><span style="font-size:22px">🇵🇭</span><div><div class="lang-name">Filipino</div><div class="lang-native">フィリピン語</div></div></div>
+        <div class="lang-opt" data-code="zh" onclick="setLang(this,'zh','🇨🇳','中国語')"><span style="font-size:22px">🇨🇳</span><div><div class="lang-name">中文</div><div class="lang-native">中国語</div></div></div>
+        <div class="lang-opt" data-code="my" onclick="setLang(this,'my','🇲🇲','ミャンマー語')"><span style="font-size:22px">🇲🇲</span><div><div class="lang-name">မြန်မာဘာသာ</div><div class="lang-native">ミャンマー語</div></div></div>
+        <div class="lang-opt" data-code="ja" onclick="setLang(this,'ja','🇯🇵','日本語')" style="border-bottom:none"><span style="font-size:22px">🇯🇵</span><div><div class="lang-name">日本語</div><div class="lang-native">Japanese</div></div></div>
+      </div>
+    </div>
+    <div class="ss-section">
+      <div class="ss-hdr"><div class="ss-hdr-title" id="st-account-l">アカウント</div></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-name-lbl">名前</div></div><div class="ss-val" id="w-st-name">Nguyen Thi Giang</div></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-email-lbl">メールアドレス</div></div><div class="ss-val" id="w-st-email" style="word-break:break-all">—</div></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-company-lbl">所属企業</div></div><div class="ss-val" id="w-st-company">グリーンブリッジ</div></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-manager-lbl">担当者</div></div><div class="ss-val" id="w-st-manager">田中 誠</div></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-tenure-lbl">在籍</div></div><div class="ss-val" id="st-tenure-val">1年目（2024年4月〜）</div></div>
+    </div>
+
+    <!-- パスワード変更 -->
+    <div class="ss-section">
+      <div class="ss-hdr">
+        <div class="ss-hdr-title" id="st-pw-title">パスワード変更</div>
+        <div class="ss-hdr-sub" id="st-pw-sub">Change Password</div>
+      </div>
+      <div style="padding:14px;display:flex;flex-direction:column;gap:10px" id="pw-form">
+        <div>
+          <label class="flbl" id="st-pw-new-lbl">新しいパスワード（8文字以上）</label>
+          <input type="password" class="finp" id="pw-new" autocomplete="new-password" placeholder="••••••••">
+        </div>
+        <div>
+          <label class="flbl" id="st-pw-confirm-lbl">確認（もう一度）</label>
+          <input type="password" class="finp" id="pw-confirm" autocomplete="new-password" placeholder="••••••••">
+        </div>
+        <div id="pw-msg" style="font-size:12.5px;min-height:18px"></div>
+        <button class="btn btn-g" id="pw-btn" onclick="changePassword()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="6" width="10" height="7" rx="2" stroke="white" stroke-width="1.4" fill="none"/><path d="M4 6V4a3 3 0 016 0v2" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <span id="st-pw-btn">パスワードを変更</span>
+        </button>
+      </div>
+    </div>
+    <div class="ss-section">
+      <div class="ss-hdr"><div class="ss-hdr-title" id="st-notif-l">機能設定</div></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-ai-l">AI自動翻訳</div><div class="ss-desc">メッセージを自動翻訳</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-tts-l">音声読み上げ</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-push-notif">プッシュ通知</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl">SOS通知</div><div class="ss-desc" id="st-sos-always">常に有効</div></div><button class="tgl on" style="opacity:.5;cursor:not-allowed"></button></div>
+    </div>
+    <div class="ss-section">
+      <div class="ss-hdr"><div class="ss-hdr-title">サポート・情報</div></div>
+      <div class="ss-row"><span class="ss-lbl" id="st-app-name">アプリ名</span><span class="ss-val">GreenBridge v4</span></div>
+      <div class="ss-row"><span class="ss-lbl" id="st-ai-engine">AIエンジン</span><span class="ss-val">Claude Sonnet 4</span></div>
+      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-help-lbl">ヘルプ・FAQ</div></div><button class="btn-xs" id="st-help-btn" onclick="toast('ヘルプ','マニュアルを開きます','b')">開く</button></div>
+    </div>
+
+    <!-- ログアウト -->
+    <div style="padding:16px 14px 32px">
+      <button onclick="confirmLogout()" style="width:100%;padding:13px;border:1.5px solid #fca5a5;border-radius:12px;background:#fff5f5;color:#dc2626;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6.5 3H3a1 1 0 00-1 1v10a1 1 0 001 1h3.5" stroke="#dc2626" stroke-width="1.6" stroke-linecap="round"/><path d="M12 5.5L15.5 9 12 12.5" stroke="#dc2626" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 9h8.5" stroke="#dc2626" stroke-width="1.6" stroke-linecap="round"/></svg>
+        ログアウト
+      </button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /screens -->
+
+<nav class="navbar">
+  <div class="ni on" id="n-home" onclick="go('s-home')">
+    <svg class="ni-ico" width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3 10l8-8 8 8v9a1 1 0 01-1 1H4a1 1 0 01-1-1z" stroke="currentColor" fill="none" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 21v-6h6v6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+    <span class="ni-lbl" id="nl-home">ホーム</span>
+  </div>
+  <div class="ni" id="n-chat" onclick="go('s-chat')">
+    <svg class="ni-ico" width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3 5a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H13l-5 4v-4H5a2 2 0 01-2-2V5z" stroke="currentColor" fill="none" stroke-width="1.7"/></svg>
+    <span class="ni-lbl" id="nl-chat">チャット</span>
+    <div class="ni-badge" id="chat-badge" style="display:none">1</div>
+  </div>
+  <div class="ni" id="n-tpl" onclick="go('s-tpl')">
+    <svg class="ni-ico" width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="3" width="16" height="5" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="12" width="10" height="5" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+    <span class="ni-lbl" id="nl-tpl">申請</span>
+  </div>
+  <div class="ni" id="n-shift" onclick="go('s-shift')">
+    <svg class="ni-ico" width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="4" width="18" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 2v4M15 2v4M2 10h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <span class="ni-lbl" id="nl-shift">シフト</span>
+  </div>
+  <div class="ni" id="n-docs" onclick="go('s-docs')">
+    <svg class="ni-ico" width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="4" y="2" width="14" height="18" rx="3" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="M7 8h8M7 12h8M7 16h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <span class="ni-lbl" id="nl-docs-nav">書類</span>
+    <div class="ni-badge" id="docs-badge" style="display:none">1</div>
+  </div>
+  <div class="ni" id="n-settings" onclick="go('s-settings')">
+    <svg class="ni-ico" width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="M11 3v2.5M11 16.5V19M3 11h2.5M16.5 11H19M5.6 5.6l1.8 1.8M14.6 14.6l1.8 1.8M5.6 16.4l1.8-1.8M14.6 7.4l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <span class="ni-lbl" id="nl-settings">設定</span>
+  </div>
+</nav>
+
+<!-- ADD CONTACT BOTTOM SHEET -->
+<div class="bs-bg" id="add-contact-bg" onclick="closeAddContactSheet(event)">
+  <div class="bs">
+    <div class="bs-hdr"><div class="bs-title">関係者を追加</div><button class="bs-close" onclick="closeAddContactSheet()">×</button></div>
+    <div class="bs-body">
+      <div class="qr-sec">
+        <div class="qr-sec-title">QR・URLで追加</div>
+        <div class="qr-box">
+          <div class="qr-wrap">
+            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+              <rect width="120" height="120" fill="white"/>
+              <rect x="8" y="8" width="30" height="30" rx="3" fill="#111"/><rect x="13" y="13" width="20" height="20" rx="1.5" fill="white"/><rect x="17" y="17" width="12" height="12" rx="1" fill="#111"/>
+              <rect x="82" y="8" width="30" height="30" rx="3" fill="#111"/><rect x="87" y="13" width="20" height="20" rx="1.5" fill="white"/><rect x="91" y="17" width="12" height="12" rx="1" fill="#111"/>
+              <rect x="8" y="82" width="30" height="30" rx="3" fill="#111"/><rect x="13" y="87" width="20" height="20" rx="1.5" fill="white"/><rect x="17" y="91" width="12" height="12" rx="1" fill="#111"/>
+              <rect x="50" y="50" width="20" height="20" rx="4" fill="#00b050"/><path d="M55 60l3 3 7-7" stroke="white" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="48" y="8" width="4" height="4" rx="1" fill="#111"/><rect x="56" y="8" width="4" height="4" rx="1" fill="#111"/><rect x="64" y="8" width="4" height="4" rx="1" fill="#111"/>
+              <rect x="8" y="48" width="4" height="4" rx="1" fill="#111"/><rect x="8" y="56" width="4" height="4" rx="1" fill="#111"/><rect x="16" y="56" width="4" height="4" rx="1" fill="#111"/>
+              <rect x="108" y="48" width="4" height="4" rx="1" fill="#111"/><rect x="108" y="56" width="4" height="4" rx="1" fill="#111"/><rect x="108" y="64" width="4" height="4" rx="1" fill="#111"/>
+              <rect x="48" y="108" width="4" height="4" rx="1" fill="#111"/><rect x="60" y="100" width="4" height="4" rx="1" fill="#111"/><rect x="72" y="108" width="4" height="4" rx="1" fill="#111"/>
+            </svg>
+          </div>
+          <div style="font-size:12.5px;color:var(--t2);text-align:center">このQRコードをスキャンすると<br>チャットに参加できます</div>
+          <div class="qr-url-row">
+            <div class="qr-url" id="invite-url">https://gb.app/chat/ng-12345</div>
+            <button class="qr-copy" onclick="copyInviteUrl()">コピー</button>
+          </div>
+        </div>
+      </div>
+      <div style="padding:9px 16px 5px;font-size:11.5px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;border-bottom:1.5px solid var(--bd)">リストから追加</div>
+      <div id="contact-list-items"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+
+
+<script>
+// ── サーバーデータ（EJS注入）────────────────────────────────────────────────
+window.SERVER_DATA = <%- JSON.stringify(serverData) %>;
+
+
+// ── DATA ─────────────────────────────────────────────────────────────────────
+const DOC_CONTENT={
+  contract:`第1条（雇用）\n甲（会社）は乙（実習生）を技能実習生として雇用する。実習期間は1年間。\n\n第2条（労働時間）\n1日8時間、週40時間とする。\n\n第3条（給与）\n月額180,000円。毎月25日払い。\n\n第4条（保険）\n社会保険・雇用保険に加入する。\n\n第5条（有給休暇）\n法定通り付与する。初年度10日。`,
+  rules:`第1条（出退勤）\n所定時間は8:00〜17:00とする。\n\n第2条（服装）\n作業着・安全靴を着用すること。\n\n第3条（禁止事項）\n職場での飲酒・喫煙は禁止。\n\n第4条（欠勤）\n欠勤の場合は前日までに申請すること。\n\n第5条（ハラスメント防止）\nあらゆるハラスメントを禁止する。違反者は厳正に処分する。`,
+  safety:`第1章　安全の基本\n\n安全第一の原則：すべての作業において安全を最優先とすること。\n\nヒヤリ・ハット：危険を感じた場合は必ず担当者に報告すること。\n\n第2章　作業別安全基準\n機械操作時は保護具（手袋・安全靴・ゴーグル）を必ず着用する。\n\n第3章　緊急時対応\n火災発見時は「発見→通報→消火→避難」の順で対応。`
+};
+
+// ══════════════════════════════════════════════════════
+// スマホアプリ書類タブ
+// ══════════════════════════════════════════════════════
+
+// 管理者側から届いた書類（Supabase → SERVER_DATA.docs、なければサンプル）
+// 書類は Supabase から取得したもののみ表示（サンプルデータなし）
+const W_DOCS = window.SERVER_DATA?.docs || [];
+
+let wDocFilter = 'all';
+
+function filterWDocs(cat, btn){
+  wDocFilter = cat;
+  document.querySelectorAll('#s-docs .chip').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderWDocs();
+}
+
+function renderWDocs(){
+  const el = document.getElementById('wdoc-list');
+  if(!el) return;
+  el.innerHTML = '';
+  const L = LS[LANG]||LS.vi;
+  const now = new Date();
+
+  const visible = W_DOCS.filter(doc => {
+    if(wDocFilter === 'all') return true;
+    return doc.category === wDocFilter;
+  });
+
+  // 進捗更新
+  const total = W_DOCS.length;
+  const done  = confirmedDocs.size;
+  const pct   = total ? Math.round(done/total*100) : 0;
+  const pf = document.getElementById('prog-fill');
+  if(pf) pf.style.width = pct + '%';
+  const pt = document.getElementById('prog-txt');
+  if(pt) pt.textContent = done + '/' + total;
+  const ps = document.getElementById('prog-sub');
+  if(ps) ps.textContent = L.progRemain || (total-done) + '件を確認してください';
+
+  // 未確認バッジをナビに反映
+  const unconf = total - done;
+  const db = document.getElementById('docs-badge');
+  if(db){ db.textContent = unconf; db.style.display = unconf > 0 ? '' : 'none'; }
+
+  if(!visible.length){
+    el.innerHTML = '<div style="padding:24px;text-align:center;color:#9ca3af;font-size:13px">書類がありません</div>';
+    return;
+  }
+
+  visible.forEach(doc => {
+    const isDone = confirmedDocs.has(doc.id);
+    const lflags = {vi:'🇻🇳',id:'🇮🇩',tl:'🇵🇭',my:'🇲🇲',zh:'🇨🇳',km:'🇰🇭'};
+    const langStr = doc.langs.map(l=>lflags[l]||l).join(' ');
+
+    // 期限警告
+    let expWarn = '';
+    if(doc.expireDate){
+      const diff = (new Date(doc.expireDate)-now)/(1000*60*60*24);
+      if(diff < 0)
+        expWarn = '<div style="margin-top:4px;font-size:11px;color:var(--red);font-weight:600">⚠ 期限切れ: '+doc.expireDate+'</div>';
+      else if(diff <= 7)
+        expWarn = '<div style="margin-top:4px;font-size:11px;color:var(--amb);font-weight:600">⏰ 期限まで'+Math.ceil(diff)+'日</div>';
+    }
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cursor = 'pointer';
+    card.style.transition = 'transform .14s';
+    card.addEventListener('click', ()=>openDoc(doc.id));
+    card.addEventListener('mousedown', ()=>card.style.transform='scale(.98)');
+    card.addEventListener('mouseup', ()=>card.style.transform='');
+
+    card.innerHTML = `
+      <div class="card-row" style="padding:14px;gap:12px;border-bottom:${isDone?'none':'1px solid var(--bd)'}">
+        <div style="width:46px;height:46px;border-radius:12px;background:${doc.icoBg};border:2px solid ${isDone?'var(--glt)':'var(--bd)'};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${doc.ico}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;color:var(--tx)">${doc.name}</div>
+          <div style="font-size:12px;color:var(--t2);margin-top:3px">${langStr} · 更新: ${doc.updated}</div>
+          ${doc.fileName?'<div style="margin-top:3px;font-size:11px;color:var(--blu)">📎 '+doc.fileName+'</div>':''}
+          ${expWarn}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+          <span class="bdg ${isDone?'bg':'ba'}">${isDone?(L.docConfirmed||'確認済'):(L.docUnconfirmed||'未確認')}</span>
+          <span style="font-size:18px;color:var(--t3)">›</span>
+        </div>
+      </div>`;
+    el.appendChild(card);
+  });
+}
+
+
+
+const VIDEOS=[
+  {id:'v1',title:'溶接作業 安全確認手順',emoji:'🎬',cat:'safety',dur:'8:32',langs:['vi','ja'],desc:'溶接ライン作業における安全確認の手順を解説します。保護具の着用から作業開始前チェックリストまで網羅。【対象】溶接担当の実習生全員',watched:true},
+  {id:'v2',title:'プレス機 操作マニュアル',emoji:'🔧',cat:'work',dur:'12:05',langs:['vi','id','ja'],desc:'プレス機（1〜3号機）の基本操作と注意事項を解説。エラーコードの見方、緊急停止手順も含まれます。',watched:false},
+  {id:'v3',title:'緊急時対応フロー',emoji:'🚨',cat:'safety',dur:'5:20',langs:['vi','id','tl','my','ja'],desc:'火災・負傷・設備事故など緊急事態が発生した際の対応フローを全言語字幕付きで解説します。',watched:true},
+  {id:'v4',title:'入社オリエンテーション',emoji:'📋',cat:'training',dur:'22:10',langs:['vi','id','tl','ja'],desc:'入社時に必ず視聴する動画です。会社の基本方針、就業規則の概要、日本でのマナーについて解説します。',watched:true},
+  {id:'v5',title:'5S清掃手順（製造ライン）',emoji:'🧹',cat:'work',dur:'6:45',langs:['vi','ja'],desc:'整理・整頓・清掃・清潔・しつけ（5S）の実践手順を現場映像で解説します。',watched:false},
+];
+
+// 関係者マスター（追加可能）
+// ── CONTACTS: SERVER_DATA から取得（admin/staff のみ）────────────
+const CONTACTS = (window.SERVER_DATA?.contacts || []);
+
+// ── DM_CHATS: 空で開始（セッション中のみメモリ保持）────────────
+const DM_CHATS = [];
+
+// ── GROUPS: 空で開始（将来 DB 移行予定）─────────────────────────
+const GROUPS = [];
+
+// Helpers
+function getContact(id){ return CONTACTS.find(x=>x.id===id); }
+function getDM(contactId){ return DM_CHATS.find(x=>x.contactId===contactId); }
+function getOrCreateDM(contactId){
+  let dm = getDM(contactId);
+  if(!dm){
+    dm = {id:'dm_'+contactId, contactId, msgs:[{t:'sys',txt:'チャット開始 — AI翻訳が有効です'}]};
+    DM_CHATS.push(dm);
+  }
+  return dm;
+}
+
+
+// ── NIPPOS: 空で開始（将来 DB 移行予定）─────────────────────────
+const NIPPOS = [];
+
+// SHIFT_DATA を現在日付から動的生成
+// 週オフセット（0=今週、-1=先週、+1=来週）
+let shiftWeekOffset = 0;
+// DBから取得したシフト { '2026-05-19': 'niku', ... }
+let workerShifts = {};
+
+function buildShiftData(offset){
+  const now=new Date();
+  const dw_ja=['日','月','火','水','木','金','土'];
+  // 今週月曜 + offset週
+  const monday=new Date(now);
+  monday.setDate(now.getDate()-((now.getDay()+6)%7)+(offset||0)*7);
+  return Array.from({length:7},(_,i)=>{
+    const d=new Date(monday);d.setDate(monday.getDate()+i);
+    return {
+      dw:   dw_ja[d.getDay()],
+      date: d.getDate(),
+      month:d.getMonth()+1,
+      year: d.getFullYear(),
+      type: 'tbd',    // 未定（DBからシフトが届いた場合に上書き）
+      label:'未定',
+      today:d.toDateString()===now.toDateString()
+    };
+  });
+}
+const SHIFT_COLORS={
+  niku:   {bg:'#dbeafe',border:'#93c5fd',color:'#1e40af'},  // 日勤
+  hayaban:{bg:'#dcfce7',border:'#86efac',color:'#166534'},  // 早番
+  osoi:   {bg:'#fef3c7',border:'#fcd34d',color:'#92400e'},  // 遅番
+  rest:   {bg:'#fee2e2',border:'#fca5a5',color:'#991b1b'},  // 休み
+  yukyuu: {bg:'#e0e7ff',border:'#a5b4fc',color:'#3730a3'},  // 有休
+  absent: {bg:'#fce7f3',border:'#f9a8d4',color:'#9d174d'},  // 欠勤
+  tbd:    {bg:'#f1f5f9',border:'#cbd5e1',color:'#94a3b8'},  // 未定
+};
+
+const TPL_JP={leave:'休み申請',sick:'体調不良報告',mistake:'作業ミス報告',ot:'残業申請',machine:'設備故障報告',consult:'相談・困りごと'};
+const docTranslateCache={};
+let LANG='vi';
+let confirmedDocs=new Set(); // 確認済みはセッション中のみ保持
+let currentDoc=null,ttsOn=false,ttsTimer=null,ttsCnt=0,activeTplKey=null;
+let currentVideo=null,currentGroup=null,npFilter='all',npType='daily';
+
+// ── LS (language strings) ─────────────────────────────────────────────────────
+const LS={
+  vi:{greet:'Xin chào',leave:'Ngày phép còn lại',todayShift:'Ca hôm nay',notice:'Thông báo',tplBtn:'Đơn & Báo cáo',docBtn:'Xác nhận tài liệu',sosBtn:'Khẩn cấp SOS',nippoBtn:'Nhật ký',videoBtn:'Video hướng dẫn',
+    tplTitle:'Đơn & Báo cáo',tplSub:'Nhập tiếng mẹ đẻ → AI dịch sang tiếng Nhật',tplSend:'Dịch AI và gửi',detail:'Viết chi tiết',
+    docTitle:'Tài liệu',docSub:'Tài liệu đã xác nhận hiển thị màu xanh',progL:'Tiến độ',confirmQ:'Bạn đã hiểu nội dung tài liệu chưa?',understood:'Tôi đã hiểu · Xác nhận',back:'Quay lại',ttsL:'Nghe to',
+    sosTitle:'Khẩn cấp SOS',sosDesc:'Giữ nút đỏ 3 giây\nđể gửi liên lạc khẩn cấp',sosSent:'Đã gửi SOS',
+    chatName:'Tanaka (Phụ trách)',chatStatus:'● Online · AI dịch bật',chatStart:'Bắt đầu chat — AI dịch thuật đang bật',
+    shiftTitle:'Lịch làm việc',shiftReq:'Yêu cầu lịch làm việc',shiftHistory:'Lịch sử yêu cầu',shiftLegend:'Chú thích',
+    vidTitle:'Video hướng dẫn',vidBack:'Quay lại',vidWatched:'Đánh dấu đã xem',vidSubLbl:'Phụ đề',
+    npTitle:'Nhật ký & Báo cáo',npNew:'Tạo mới',npFormTitle:'Nội dung nhật ký',
+    gcListTitle:'Chat nhóm',
+    stTitle:'Cài đặt',stLang:'Ngôn ngữ',stAccount:'Tài khoản',stNotif:'Thông báo',stAI:'Tự động dịch AI',stTTS:'Đọc to',
+    approved:'Đơn đã được phê duyệt',
+    navHome:'Trang chủ',navChat:'Chat',navGchat:'Nhóm',navTpl:'Đơn',navShift:'Lịch',navSettings:'Cài đặt',
+    tpls:[{ico:'📅',n:'Xin nghỉ',s:'休み申請',k:'leave'},{ico:'🤒',n:'Báo bệnh',s:'体調不良',k:'sick'},{ico:'⚠️',n:'Báo lỗi',s:'作業ミス',k:'mistake'},{ico:'🕐',n:'Tăng ca',s:'残業申請',k:'ot'},{ico:'🔧',n:'Hỏng hóc',s:'設備故障',k:'machine'},{ico:'💬',n:'Tư vấn',s:'相談',k:'consult'}],
+    cInp:'Nhập tin nhắn...',tInp:'Viết chi tiết bằng tiếng Việt...',    navChatQa:'Chat',
+    navTplQa:'Đơn',
+    navShiftQa:'Lịch',
+    navSettingsQa:'Cài đặt',
+    notice1Title:'Nội quy lao động đã được cập nhật',
+    notice1Sub:'Vui lòng kiểm tra trong tab Tài liệu',
+    notice2Title:'Có tin nhắn từ người phụ trách',
+    sosBtnHome:'Khẩn cấp SOS',
+    tplFormTitle:'Đơn xin',
+    docContract:'Hợp đồng lao động',
+    docContractSub:'Lao động hợp đồng',
+    docConfirmed:'Đã xác nhận',
+    docRules:'Nội quy lao động (mới)',
+    docRulesSub:'Đã cập nhật',
+    docUnconfirmed:'Chưa xác nhận',
+    docSafety:'Hướng dẫn an toàn lao động',
+    docSafetySub:'Tài liệu an toàn',
+    progRemain:'Còn 1 tài liệu cần xác nhận',
+    npTypeDaily:'📋 Nhật ký',
+    npTypeHayari:'⚠️ Sự cố',
+    nlTpl:'Đơn',
+    nlShift:'Lịch',
+    nlSettings:'Cài đặt',
+    qYoroshiku:'Xin chào, nhờ bạn giúp đỡ.',
+    qKakunin:'Tôi đã xác nhận.',
+    qArigato:'Cảm ơn bạn.',
+    qWakari:'Tôi hiểu rồi.',
+    qOtsukare:'Bạn đã vất vả rồi.',
+    shiftPeriod:'Tháng 5 năm 2025 Tuần 1',
+    shiftDateLabel:'Ngày mong muốn',
+    shiftTypeLabel:'Loại',
+    shiftOpt1:'Nghỉ phép năm',
+    shiftOpt2:'Ca sớm',
+    shiftOpt3:'Ca muộn',
+    shiftOpt4:'Tăng ca',
+    shiftSubmitBtn:'Gửi đơn',
+    shiftPending:'Đang xử lý',
+    shiftApproved:'Đã duyệt',
+    shiftH1:'5/10 Nghỉ phép',
+    shiftH1d:'Nộp ngày 28/04/2025',
+    shiftH2:'5/3 Nghỉ',
+    shiftH2d:'Nộp ngày 20/04/2025',
+    langChangedTitle:'Đã thay đổi ngôn ngữ',
+    langChangedBody:'Tất cả màn hình đã được dịch.',
+    stPushNotif:'Thông báo đẩy',
+    stSosAlways:'Luôn bật',
+    stAppName:'Tên ứng dụng',
+    stAIEngine:'Công cụ AI',
+    stHelp:'Trợ giúp & FAQ',
+    stHelpBtn:'Mở',
+    stName:'Tên',
+    stCompany:'Công ty',
+    stManager:'Người phụ trách',
+    stTenure:'Thời gian làm việc',
+    stTenureVal:'Năm 1 (Tháng 4/2024〜)',
+    langChangedMsg:'Đã đổi ngôn ngữ',
+    shiftNiku:'Ca ngày',
+    shiftHayaban:'Ca sáng',
+    shiftOsoi:'Ca chiều',
+    shiftRest:'Nghỉ',
+    docNav:'Tài liệu',
+lLabel:'ベトナム語'},
+  id:{greet:'Halo',leave:'Sisa cuti',todayShift:'Jadwal hari ini',notice:'Pemberitahuan',tplBtn:'Permohonan',docBtn:'Dokumen',sosBtn:'SOS Darurat',nippoBtn:'Laporan Harian',videoBtn:'Video Manual',
+    tplTitle:'Permohonan & Laporan',tplSub:'Masukkan bahasa ibu → AI terjemahkan',tplSend:'Terjemahkan & kirim',detail:'Tulis detail',
+    docTitle:'Dokumen',docSub:'Dokumen terkonfirmasi berwarna hijau',progL:'Progres',confirmQ:'Apakah Anda mengerti isi dokumen ini?',understood:'Saya mengerti · Konfirmasi',back:'Kembali',ttsL:'Bacakan',
+    sosTitle:'SOS Darurat',sosDesc:'Tahan tombol merah 3 detik\nuntuk mengirim darurat',sosSent:'SOS berhasil terkirim',
+    chatName:'Tanaka (Penanggung jawab)',chatStatus:'● Online · Terjemahan AI aktif',chatStart:'Chat dimulai — AI terjemahan aktif',
+    shiftTitle:'Jadwal Kerja',shiftReq:'Permintaan Jadwal',shiftHistory:'Riwayat Permintaan',shiftLegend:'Keterangan',
+    vidTitle:'Video Manual',vidBack:'Kembali',vidWatched:'Tandai sudah ditonton',vidSubLbl:'Subtitle',
+    npTitle:'Laporan Harian',npNew:'Buat Baru',npFormTitle:'Isi Laporan',
+    gcListTitle:'Chat Grup',
+    stTitle:'Pengaturan',stLang:'Bahasa',stAccount:'Akun',stNotif:'Notifikasi',stAI:'Terjemahan AI otomatis',stTTS:'Baca nyaring',
+    approved:'Permohonan disetujui',
+    navHome:'Beranda',navChat:'Chat',navGchat:'Grup',navTpl:'Permohonan',navShift:'Jadwal',navSettings:'Pengaturan',
+    tpls:[{ico:'📅',n:'Izin',s:'休み申請',k:'leave'},{ico:'🤒',n:'Sakit',s:'体調不良',k:'sick'},{ico:'⚠️',n:'Laporan kesalahan',s:'作業ミス',k:'mistake'},{ico:'🕐',n:'Lembur',s:'残業申請',k:'ot'},{ico:'🔧',n:'Kerusakan',s:'設備故障',k:'machine'},{ico:'💬',n:'Konsultasi',s:'相談',k:'consult'}],
+    cInp:'Tulis pesan...',tInp:'Tulis detail dalam Bahasa Indonesia...',    navChatQa:'Chat',
+    navTplQa:'Permohonan',
+    navShiftQa:'Jadwal',
+    navSettingsQa:'Pengaturan',
+    notice1Title:'Peraturan kerja telah diperbarui',
+    notice1Sub:'Silakan periksa di tab Dokumen',
+    notice2Title:'Ada pesan dari penanggung jawab',
+    sosBtnHome:'SOS Darurat',
+    tplFormTitle:'Formulir permohonan',
+    docContract:'Kontrak kerja',
+    docContractSub:'Perjanjian kerja',
+    docConfirmed:'Dikonfirmasi',
+    docRules:'Peraturan kerja (baru)',
+    docRulesSub:'Diperbarui',
+    docUnconfirmed:'Belum dikonfirmasi',
+    docSafety:'Manual keselamatan kerja',
+    docSafetySub:'Panduan keselamatan',
+    progRemain:'Masih 1 dokumen perlu dikonfirmasi',
+    npTypeDaily:'📋 Laporan',
+    npTypeHayari:'⚠️ Insiden',
+    nlTpl:'Permohonan',
+    nlShift:'Jadwal',
+    nlSettings:'Pengaturan',
+    qYoroshiku:'Mohon kerja samanya.',
+    qKakunin:'Sudah saya konfirmasi.',
+    qArigato:'Terima kasih.',
+    qWakari:'Saya mengerti.',
+    qOtsukare:'Terima kasih atas kerja kerasnya.',
+    shiftPeriod:'Mei 2025 Minggu 1',
+    shiftDateLabel:'Tanggal yang diinginkan',
+    shiftTypeLabel:'Jenis',
+    shiftOpt1:'Cuti tahunan',
+    shiftOpt2:'Shift pagi',
+    shiftOpt3:'Shift malam',
+    shiftOpt4:'Lembur',
+    shiftSubmitBtn:'Kirim permohonan',
+    shiftPending:'Sedang diproses',
+    shiftApproved:'Disetujui',
+    shiftH1:'10/5 Cuti',
+    shiftH1d:'Diajukan 28/04/2025',
+    shiftH2:'3/5 Libur',
+    shiftH2d:'Diajukan 20/04/2025',
+    langChangedTitle:'Bahasa diubah',
+    langChangedBody:'Semua layar telah diterjemahkan.',
+    stPushNotif:'Notifikasi push',
+    stSosAlways:'Selalu aktif',
+    stAppName:'Nama aplikasi',
+    stAIEngine:'Mesin AI',
+    stHelp:'Bantuan & FAQ',
+    stHelpBtn:'Buka',
+    stName:'Nama',
+    stCompany:'Perusahaan',
+    stManager:'Penanggung jawab',
+    stTenure:'Lama kerja',
+    stTenureVal:'Tahun ke-1 (April 2024〜)',
+    langChangedMsg:'Bahasa telah diubah',
+    shiftNiku:'Shift siang',
+    shiftHayaban:'Shift pagi',
+    shiftOsoi:'Shift sore',
+    shiftRest:'Libur',
+    docNav:'Dokumen',
+lLabel:'インドネシア語'},
+  tl:{greet:'Kumusta',leave:'Natitirang leave',todayShift:'Shift ngayon',notice:'Mga abiso',tplBtn:'Kahilingan',docBtn:'Mga Dokumento',sosBtn:'SOS Emergency',nippoBtn:'Daily Report',videoBtn:'Video Manual',
+    tplTitle:'Kahilingan & Ulat',tplSub:'I-input sa sariling wika → AI isalin sa Japanese',tplSend:'Isalin ng AI at ipadala',detail:'Isulat ang detalye',
+    docTitle:'Mga Dokumento',docSub:'Ang nakumpirmang dokumento ay berde',progL:'Progreso',confirmQ:'Naiintindihan mo ba ang dokumento?',understood:'Naiintindihan · Kumpirmahin',back:'Bumalik',ttsL:'Basahin',
+    sosTitle:'SOS Emergency',sosDesc:'Pindutin ang pulang pindutan 3 segundo\npara magpadala ng emergency',sosSent:'SOS naipadala na',
+    chatName:'Tanaka (Tagapangasiwa)',chatStatus:'● Online · AI pagsasalin naka-on',chatStart:'Nagsimula ang chat — AI pagsasalin aktibo',
+    shiftTitle:'Iskedyul ng Trabaho',shiftReq:'Kahilingan sa Iskedyul',shiftHistory:'Kasaysayan',shiftLegend:'Paliwanag',
+    vidTitle:'Video Manual',vidBack:'Bumalik',vidWatched:'Markahan bilang napanood',vidSubLbl:'Subtitle',
+    npTitle:'Daily Report',npNew:'Gumawa ng Bago',npFormTitle:'Nilalaman ng Ulat',
+    gcListTitle:'Group Chat',
+    stTitle:'Mga Setting',stLang:'Wika',stAccount:'Account',stNotif:'Mga Abiso',stAI:'Awtomatikong pagsasalin',stTTS:'Malakas na basahin',
+    approved:'Ang kahilingan ay naaprubahan',
+    navHome:'Home',navChat:'Chat',navGchat:'Grupo',navTpl:'Kahilingan',navShift:'Iskedyul',navSettings:'Settings',
+    tpls:[{ico:'📅',n:'Magpahinga',s:'休み申請',k:'leave'},{ico:'🤒',n:'Maysakit',s:'体調不良',k:'sick'},{ico:'⚠️',n:'Ulat ng error',s:'作業ミス',k:'mistake'},{ico:'🕐',n:'Overtime',s:'残業申請',k:'ot'},{ico:'🔧',n:'Sira',s:'設備故障',k:'machine'},{ico:'💬',n:'Konsultasyon',s:'相談',k:'consult'}],
+    cInp:'Isulat ang mensahe...',tInp:'Isulat ang detalye sa Filipino...',    navChatQa:'Chat',
+    navTplQa:'Kahilingan',
+    navShiftQa:'Iskedyul',
+    navSettingsQa:'Settings',
+    notice1Title:'Na-update ang mga panuntunan sa trabaho',
+    notice1Sub:'Pakitingnan sa tab ng Dokumento',
+    notice2Title:'May mensahe mula sa tagapamahala',
+    sosBtnHome:'SOS Emergency',
+    tplFormTitle:'Form ng kahilingan',
+    docContract:'Kontrata sa trabaho',
+    docContractSub:'Kasunduan sa trabaho',
+    docConfirmed:'Nakumpirma',
+    docRules:'Mga panuntunan (bago)',
+    docRulesSub:'Na-update',
+    docUnconfirmed:'Hindi pa nakumpirma',
+    docSafety:'Manwal ng kaligtasan',
+    docSafetySub:'Gabay sa kaligtasan',
+    progRemain:'1 dokumento pa ang kailangang kumpirmahin',
+    npTypeDaily:'📋 Ulat',
+    npTypeHayari:'⚠️ Insidente',
+    nlTpl:'Kahilingan',
+    nlShift:'Iskedyul',
+    nlSettings:'Settings',
+    qYoroshiku:'Umaasa sa iyong tulong.',
+    qKakunin:'Nakumpirma ko na.',
+    qArigato:'Salamat.',
+    qWakari:'Naiintindihan ko.',
+    qOtsukare:'Magpahinga ka na.',
+    shiftPeriod:'Mayo 2025 Linggo 1',
+    shiftDateLabel:'Petsa na gusto',
+    shiftTypeLabel:'Uri',
+    shiftOpt1:'Bakasyon',
+    shiftOpt2:'Umaga shift',
+    shiftOpt3:'Gabi shift',
+    shiftOpt4:'Overtime',
+    shiftSubmitBtn:'Mag-apply',
+    shiftPending:'Isinasaalang-alang',
+    shiftApproved:'Naaprubahan',
+    shiftH1:'5/10 Bakasyon',
+    shiftH1d:'Inihain 28/04/2025',
+    shiftH2:'5/3 Pahinga',
+    shiftH2d:'Inihain 20/04/2025',
+    langChangedTitle:'Nabago ang wika',
+    langChangedBody:'Naisalin na ang lahat ng screen.',
+    stPushNotif:'Push notification',
+    stSosAlways:'Laging aktibo',
+    stAppName:'Pangalan ng app',
+    stAIEngine:'AI engine',
+    stHelp:'Tulong & FAQ',
+    stHelpBtn:'Buksan',
+    stName:'Pangalan',
+    stCompany:'Kumpanya',
+    stManager:'Tagapamahala',
+    stTenure:'Tagal ng trabaho',
+    stTenureVal:'Taon 1 (Abril 2024〜)',
+    langChangedMsg:'Nabago ang wika',
+    shiftNiku:'Araw shift',
+    shiftHayaban:'Umaga shift',
+    shiftOsoi:'Hapon shift',
+    shiftRest:'Pahinga',
+    docNav:'Mga Dokumento',
+lLabel:'フィリピン語'},
+  zh:{greet:'你好',leave:'剩余年假',todayShift:'今天班次',notice:'通知',tplBtn:'申请·报告',docBtn:'文件确认',sosBtn:'紧急SOS',nippoBtn:'日报',videoBtn:'视频手册',
+    tplTitle:'申请·报告',tplSub:'用母语输入 → AI翻译成日语',tplSend:'AI翻译后发送',detail:'请详细填写',
+    docTitle:'文件',docSub:'已确认的文件显示为绿色',progL:'确认进度',confirmQ:'您理解该文件的内容了吗？',understood:'我已理解 · 确认',back:'返回',ttsL:'朗读',
+    sosTitle:'紧急SOS',sosDesc:'长按红色按钮3秒\n发送紧急联系',sosSent:'SOS发送成功',
+    chatName:'田中（负责人）',chatStatus:'● 在线 · AI翻译开启',chatStart:'聊天开始 — AI翻译已启动',
+    shiftTitle:'排班',shiftReq:'排班申请',shiftHistory:'申请历史',shiftLegend:'图例',
+    vidTitle:'视频手册',vidBack:'返回',vidWatched:'标记为已观看',vidSubLbl:'字幕',
+    npTitle:'日报',npNew:'创建新报告',npFormTitle:'报告内容',
+    gcListTitle:'群组聊天',
+    stTitle:'设置',stLang:'显示语言',stAccount:'账户',stNotif:'通知',stAI:'AI自动翻译',stTTS:'语音朗读',
+    approved:'您的申请已获批准',
+    navHome:'主页',navChat:'聊天',navGchat:'群组',navTpl:'申请',navShift:'排班',navSettings:'设置',
+    tpls:[{ico:'📅',n:'请假',s:'休み申請',k:'leave'},{ico:'🤒',n:'病假',s:'体調不良',k:'sick'},{ico:'⚠️',n:'失误报告',s:'作業ミス',k:'mistake'},{ico:'🕐',n:'加班',s:'残業申請',k:'ot'},{ico:'🔧',n:'设备故障',s:'設備故障',k:'machine'},{ico:'💬',n:'咨询',s:'相談',k:'consult'}],
+    cInp:'输入消息...',tInp:'请用中文详细填写...',    navChatQa:'聊天',
+    navTplQa:'申请',
+    navShiftQa:'排班',
+    navSettingsQa:'设置',
+    notice1Title:'就业规则已更新',
+    notice1Sub:'请在文件选项卡中确认',
+    notice2Title:'负责人发来消息',
+    sosBtnHome:'紧急SOS',
+    tplFormTitle:'申请表',
+    docContract:'劳动合同',
+    docContractSub:'雇用合同',
+    docConfirmed:'已确认',
+    docRules:'就业规则（新版）',
+    docRulesSub:'已更新',
+    docUnconfirmed:'未确认',
+    docSafety:'安全教育手册',
+    docSafetySub:'安全手册',
+    progRemain:'还有1件文件需要确认',
+    npTypeDaily:'📋 日报',
+    npTypeHayari:'⚠️ 险情',
+    nlTpl:'申请',
+    nlShift:'排班',
+    nlSettings:'设置',
+    qYoroshiku:'请多关照。',
+    qKakunin:'已确认。',
+    qArigato:'谢谢。',
+    qWakari:'明白了。',
+    qOtsukare:'辛苦了。',
+    shiftPeriod:'2025年5月 第1周',
+    shiftDateLabel:'希望日期',
+    shiftTypeLabel:'类型',
+    shiftOpt1:'年假',
+    shiftOpt2:'早班',
+    shiftOpt3:'晚班',
+    shiftOpt4:'加班',
+    shiftSubmitBtn:'提交申请',
+    shiftPending:'审核中',
+    shiftApproved:'已批准',
+    shiftH1:'5/10 年假',
+    shiftH1d:'2025/04/28 申请',
+    shiftH2:'5/3 休息',
+    shiftH2d:'2025/04/20 申请',
+    langChangedTitle:'语言已更改',
+    langChangedBody:'所有画面已翻译完成。',
+    stPushNotif:'推送通知',
+    stSosAlways:'始终启用',
+    stAppName:'应用名称',
+    stAIEngine:'AI引擎',
+    stHelp:'帮助与FAQ',
+    stHelpBtn:'打开',
+    stName:'姓名',
+    stCompany:'公司',
+    stManager:'负责人',
+    stTenure:'入职时间',
+    stTenureVal:'第1年（2024年4月〜）',
+    langChangedMsg:'语言已更改',
+    shiftNiku:'白班',
+    shiftHayaban:'早班',
+    shiftOsoi:'晚班',
+    shiftRest:'休息',
+    docNav:'文件',
+lLabel:'中国語'},
+  my:{greet:'မင်္ဂလာပါ',leave:'ကျန်ရှိသောနားရက်',todayShift:'ယနေ့ အချိန်',notice:'သတိပေးချက်',tplBtn:'လျှောက်လွှာ',docBtn:'စာရွက်',sosBtn:'SOS',nippoBtn:'နေ့စဉ်အစီရင်ခံ',videoBtn:'ဗီဒီယိုလမ်းညွှန်',
+    tplTitle:'လျှောက်လွှာ',tplSub:'မိခင်ဘာသာ → AI ဘာသာပြန်',tplSend:'AI ပို့ပါ',detail:'အသေးစိတ်ရေးပါ',
+    docTitle:'စာရွက်',docSub:'အတည်ပြုပြီး → အစိမ်းရောင်',progL:'တိုးတက်မှု',confirmQ:'နားလည်ပြီးပြီလား?',understood:'နားလည်ပြီ',back:'နောက်သို့',ttsL:'ဖတ်ပြ',
+    sosTitle:'SOS',sosDesc:'3 စက္ကန့် ဖိထား\nSOS ပို့ပါ',sosSent:'SOS ပေးပို့ပြီး',
+    chatName:'Tanaka',chatStatus:'● Online',chatStart:'Chat စတင်',
+    shiftTitle:'အချိန်ဇယား',shiftReq:'အချိန်ဇယားတောင်းဆို',shiftHistory:'မှတ်တမ်း',shiftLegend:'ရှင်းလင်းချက်',
+    vidTitle:'ဗီဒီယိုလမ်းညွှန်',vidBack:'နောက်သို့',vidWatched:'ကြည့်ပြီးဟု မှတ်သား',vidSubLbl:'စာတန်းထိုး',
+    npTitle:'နေ့စဉ်အစီရင်ခံ',npNew:'အသစ်ဖန်တီး',npFormTitle:'အစီရင်ခံချက်',
+    gcListTitle:'Group Chat',
+    stTitle:'ဆက်တင်',stLang:'ဘာသာစကား',stAccount:'အကောင့်',stNotif:'အကြောင်းကြားချက်',stAI:'AI ဘာသာပြန်',stTTS:'အသံဖတ်ပြ',
+    approved:'ခွင့်ပြုလိုက်သည်',
+    navHome:'ပင်မ',navChat:'Chat',navGchat:'အဖွဲ့',navTpl:'လျှောက်လွှာ',navShift:'အချိန်ဇယား',navSettings:'ဆက်တင်',
+    tpls:[{ico:'📅',n:'ခွင့်',s:'休み申請',k:'leave'},{ico:'🤒',n:'နာမကျန်း',s:'体調不良',k:'sick'},{ico:'⚠️',n:'အမှား',s:'作業ミス',k:'mistake'},{ico:'🕐',n:'နာရီပို',s:'残業申請',k:'ot'},{ico:'🔧',n:'ကိရိယာပျက်',s:'設備故障',k:'machine'},{ico:'💬',n:'တိုင်ပင်',s:'相談',k:'consult'}],
+    cInp:'မက်ဆေ့ချ်...',tInp:'အသေးစိတ်ရေးပါ...',    navChatQa:'Chat',
+    navTplQa:'လျှောက်',
+    navShiftQa:'အချိန်',
+    navSettingsQa:'ဆက်တင်',
+    notice1Title:'အလုပ်ကန့်သတ်ချက် အပ်ဒိတ်လုပ်ပြီး',
+    notice1Sub:'စာရွက်တဘ်တွင် စစ်ဆေးပါ',
+    notice2Title:'တာဝန်ခံထံမှ မက်ဆေ့ချ် ရှိသည်',
+    sosBtnHome:'အရေးပေါ် SOS',
+    tplFormTitle:'လျှောက်လွှာ',
+    docContract:'အလုပ်သဘောတူညီချက်',
+    docContractSub:'သဘောတူညီချက်',
+    docConfirmed:'အတည်ပြုပြီး',
+    docRules:'အလုပ်ကန့်သတ်ချက် (အသစ်)',
+    docRulesSub:'အပ်ဒိတ်လုပ်ပြီး',
+    docUnconfirmed:'မသေချာသေး',
+    docSafety:'ဘေးကင်းရေးလမ်းညွှန်',
+    docSafetySub:'ဘေးကင်းရေးစာရွက်',
+    progRemain:'1 ခု ကျန်သေးသည်',
+    npTypeDaily:'📋 နေ့စဉ်',
+    npTypeHayari:'⚠️ ဖြစ်ရပ်',
+    nlTpl:'လျှောက်',
+    nlShift:'အချိန်',
+    nlSettings:'ဆက်တင်',
+    qYoroshiku:'ကူညီပေးပါ။',
+    qKakunin:'အတည်ပြုပြီးပါပြီ။',
+    qArigato:'ကျေးဇူးတင်ပါတယ်။',
+    qWakari:'နားလည်ပါပြီ။',
+    qOtsukare:'ကြိုးစားလိုက်ပါ။',
+    shiftPeriod:'2025 မေလ ပတ်1',
+    shiftDateLabel:'ရက်စွဲ',
+    shiftTypeLabel:'အမျိုးအစား',
+    shiftOpt1:'နှစ်ပတ်လည်ခွင့်',
+    shiftOpt2:'မနက်ပိုင်းအချိန်',
+    shiftOpt3:'ညပိုင်းအချိန်',
+    shiftOpt4:'အချိန်ပိုလုပ်',
+    shiftSubmitBtn:'လျှောက်ထားမည်',
+    shiftPending:'လုပ်ဆောင်နေသည်',
+    shiftApproved:'အတည်ပြုပြီး',
+    shiftH1:'5/10 ခွင့်',
+    shiftH1d:'2025/04/28 လျှောက်',
+    shiftH2:'5/3 ရက်',
+    shiftH2d:'2025/04/20 လျှောက်',
+    langChangedTitle:'ဘာသာစကား ပြောင်းပြီး',
+    langChangedBody:'မျက်နှာပြင်အားလုံး ဘာသာပြန်ပြီးပါပြီ။',
+    stPushNotif:'အသိပေးချက်',
+    stSosAlways:'အမြဲဖွင့်ထား',
+    stAppName:'App အမည်',
+    stAIEngine:'AI စနစ်',
+    stHelp:'အကူအညီ',
+    stHelpBtn:'ဖွင့်မည်',
+    stName:'နာမည်',
+    stCompany:'ကုမ္ပဏီ',
+    stManager:'တာဝန်ခံ',
+    stTenure:'အလုပ်ကြာချိန်',
+    stTenureVal:'1နှစ်（2024ဧပြီ〜）',
+    langChangedMsg:'ဘာသာစကား ပြောင်းပြီ',
+    shiftNiku:'နေ့ဆိုင်း',
+    shiftHayaban:'နံနက်ဆိုင်း',
+    shiftOsoi:'ညနေဆိုင်း',
+    shiftRest:'နားရက်',
+    docNav:'ဆောင်ရွက်',
+lLabel:'ミャンマー語'},
+  ja:{greet:'こんにちは',leave:'有給残日数',todayShift:'今日のシフト',notice:'お知らせ',tplBtn:'申請・報告',docBtn:'書類確認',sosBtn:'緊急SOS',nippoBtn:'日報・報告',videoBtn:'動画マニュアル',
+    tplTitle:'申請・報告',tplSub:'母国語で入力 → AI が日本語に変換して送信',tplSend:'AIで日本語に変換して送信',detail:'詳しく書いてください',
+    docTitle:'書類',docSub:'確認済みの書類は緑色になります',progL:'確認の進捗',confirmQ:'この書類の内容を理解しましたか？',understood:'理解した・確認完了',back:'戻る',ttsL:'音声で聞く',
+    sosTitle:'緊急 SOS',sosDesc:'赤いボタンを3秒長押しすると\n担当者に緊急連絡が届きます',sosSent:'SOS 送信完了',
+    chatName:'田中さん（担当者）',chatStatus:'● オンライン · AI翻訳オン',chatStart:'チャット開始 — AI翻訳が有効です',
+    shiftTitle:'シフト管理',shiftReq:'シフト希望申請',shiftHistory:'申請履歴',shiftLegend:'シフト凡例',
+    vidTitle:'動画マニュアル',vidBack:'戻る',vidWatched:'視聴完了としてマーク',vidSubLbl:'字幕・言語',
+    npTitle:'日報・報告',npNew:'+ 新規作成',npFormTitle:'日報の内容',
+    gcListTitle:'グループチャット',
+    stTitle:'設定',stLang:'表示言語',stAccount:'アカウント',stNotif:'通知',stAI:'AI自動翻訳',stTTS:'音声読み上げ',
+    approved:'申請が承認されました',
+    navHome:'ホーム',navChat:'チャット',navGchat:'グループ',navTpl:'申請',navShift:'シフト',navSettings:'設定',
+    tpls:[{ico:'📅',n:'休み申請',s:'Xin nghỉ',k:'leave'},{ico:'🤒',n:'体調不良報告',s:'Báo bệnh',k:'sick'},{ico:'⚠️',n:'作業ミス報告',s:'Báo lỗi',k:'mistake'},{ico:'🕐',n:'残業申請',s:'Tăng ca',k:'ot'},{ico:'🔧',n:'設備故障報告',s:'Hỏng hóc',k:'machine'},{ico:'💬',n:'相談・困りごと',s:'Tư vấn',k:'consult'}],
+    cInp:'メッセージを入力...',tInp:'詳しく書いてください...',    navChatQa:'チャット',
+    navTplQa:'申請',
+    navShiftQa:'シフト',
+    navSettingsQa:'設定',
+    notice1Title:'就業規則が更新されました',
+    notice1Sub:'書類タブで確認してください',
+    notice2Title:'担当者からメッセージがあります',
+    sosBtnHome:'緊急 SOS',
+    tplFormTitle:'申請フォーム',
+    docContract:'雇用契約書',
+    docContractSub:'雇用契約書',
+    docConfirmed:'確認済',
+    docRules:'就業規則（新版）',
+    docRulesSub:'更新あり',
+    docUnconfirmed:'未確認',
+    docSafety:'安全教育マニュアル',
+    docSafetySub:'安全マニュアル',
+    progRemain:'残り1件を確認してください',
+    npTypeDaily:'📋 日報',
+    npTypeHayari:'⚠️ ヒヤリハット',
+    nlTpl:'申請',
+    nlShift:'シフト',
+    nlSettings:'設定',
+    qYoroshiku:'よろしくお願いします。',
+    qKakunin:'確認しました。',
+    qArigato:'ありがとうございます。',
+    qWakari:'わかりました。',
+    qOtsukare:'お疲れ様でした。',
+    shiftPeriod:'2025年5月 第1週',
+    shiftDateLabel:'希望日',
+    shiftTypeLabel:'種別',
+    shiftOpt1:'有給休暇',
+    shiftOpt2:'早番希望',
+    shiftOpt3:'遅番希望',
+    shiftOpt4:'残業申請',
+    shiftSubmitBtn:'申請する',
+    shiftPending:'審査中',
+    shiftApproved:'承認済',
+    shiftH1:'5/10 有給休暇',
+    shiftH1d:'2025/04/28 申請',
+    shiftH2:'5/3 休み',
+    shiftH2d:'2025/04/20 申請',
+    langChangedTitle:'言語を変更しました',
+    langChangedBody:'すべての画面が翻訳されました。',
+    stPushNotif:'プッシュ通知',
+    stSosAlways:'常に有効',
+    stAppName:'アプリ名',
+    stAIEngine:'AIエンジン',
+    stHelp:'ヘルプ・FAQ',
+    stHelpBtn:'開く',
+    stName:'名前',
+    stCompany:'所属企業',
+    stManager:'担当者',
+    stTenure:'在籍期間',
+    stTenureVal:'1年目（2024年4月〜）',
+    langChangedMsg:'言語を変更しました',
+    shiftNiku:'日勤',
+    shiftHayaban:'早番',
+    shiftOsoi:'遅番',
+    shiftRest:'休み',
+    docNav:'書類',
+lLabel:'日本語'},
+  km:{greet:'សួស្តី',leave:'ថ្ងៃឈប់សម្រាកដែលនៅសល់',todayShift:'វេនថ្ងៃនេះ',notice:'សេចក្តីជូនដំណឹង',
+    tplBtn:'ពាក្យស្នើ',docBtn:'ឯកសារ',sosBtn:'SOS',nippoBtn:'របាយការណ៍',videoBtn:'វីដេអូ',
+    tplTitle:'ពាក្យស្នើ',tplSub:'សរសេរដោយភាសាមាតុភូមិ → AI បកប្រែ',tplSend:'ផ្ញើ',detail:'សរសេរលម្អិត',
+    docTitle:'ឯកសារ',docSub:'ឯកសារដែលបានបញ្ជាក់ = បៃតង',progL:'វឌ្ឍនភាព',
+    confirmQ:'តើអ្នកយល់ដឹងពីឯកសារទេ?',understood:'យល់ដឹងហើយ',back:'ត្រឡប់',ttsL:'ស្តាប់ជាសំឡេង',
+    sosTitle:'SOS',sosDesc:'ចុចប៊ូតុងក្រហម 3 វិនាទី',sosSent:'ផ្ញើ SOS រួចរាល់',
+    chatName:'Tanaka',chatStatus:'● Online',chatStart:'ចាប់ផ្តើម Chat',
+    shiftTitle:'កាលវិភាគ',shiftReq:'ស្នើសុំ',shiftHistory:'ប្រវត្តិ',shiftLegend:'ពន្យល់',
+    shiftNiku:'ពេលថ្ងៃ',shiftHayaban:'ពេលព្រឹក',shiftOsoi:'ពេលល្ងាច',shiftRest:'ឈប់សម្រាក',
+    vidTitle:'វីដេអូ',vidBack:'ត្រឡប់',vidWatched:'បញ្ចប់មើល',vidSubLbl:'ចំណងជើងរង',
+    npTitle:'របាយការណ៍',npNew:'+ ថ្មី',npFormTitle:'មាតិការបាយការណ៍',gcListTitle:'Group Chat',
+    stTitle:'ការកំណត់',stLang:'ភាសា',stAccount:'គណនី',stNotif:'ការជូនដំណឹង',stAI:'AI',stTTS:'សំឡេង',
+    approved:'ស្នើសុំត្រូវបានអនុម័ត',navHome:'ទំព័រដើម',navChat:'Chat',navGchat:'ក្រុម',
+    navTpl:'ស្នើ',navShift:'កាលវិភាគ',navSettings:'ការកំណត់',
+    navChatQa:'Chat',navTplQa:'ស្នើ',navShiftQa:'កាលវិភាគ',navSettingsQa:'ការកំណត់',
+    notice1Title:'ព័ត៌មានថ្មី',notice1Sub:'សូមពិនិត្យ',notice2Title:'មានសារ',sosBtnHome:'SOS',
+    tplFormTitle:'ពាក្យស្នើ',docContract:'កិច្ចសន្យា',docContractSub:'',docConfirmed:'បានបញ្ជាក់',
+    docRules:'វិធាន',docRulesSub:'ធ្វើបច្ចុប្បន្នភាព',docUnconfirmed:'មិនទាន់',
+    docSafety:'សុវត្ថិភាព',docSafetySub:'',progRemain:'នៅសល់ 1',
+    npTypeDaily:'📋 ប្រចាំថ្ងៃ',npTypeHayari:'⚠️ ហានិភ័យ',nlTpl:'ស្នើ',nlShift:'កាលវិភាគ',nlSettings:'ការកំណត់',
+    shiftPeriod:'',shiftDateLabel:'ថ្ងៃ',shiftTypeLabel:'ប្រភេទ',
+    shiftOpt1:'ឈប់',shiftOpt2:'ព្រឹក',shiftOpt3:'ល្ងាច',shiftOpt4:'ម៉ោងបន្ថែម',shiftSubmitBtn:'ដាក់ស្នើ',
+    shiftH1:'5/10',shiftH1d:'2025/04/28',shiftH2:'5/3',shiftH2d:'2025/04/20',
+    shiftPending:'កំពុងពិចារណា',shiftApproved:'បានអនុម័ត',
+    stPushNotif:'ការជូនដំណឹង',stSosAlways:'តែងតែ',stAppName:'App',stAIEngine:'AI',
+    stHelp:'ជំនួយ',stHelpBtn:'បើក',stName:'ឈ្មោះ',stCompany:'ក្រុមហ៊ុន',stManager:'អ្នកទទួល',
+    stTenure:'ពេលវេលា',stTenureVal:'ឆ្នាំទី 1',langChangedMsg:'ភាសាត្រូវបានផ្លាស់ប្ដូរ',
+    qYoroshiku:'សូម',qKakunin:'បានពិនិត្យ',qArigato:'អរគុណ',qWakari:'យល់ហើយ',qOtsukare:'អរគុណ',
+    cInp:'វាយសារ...',tInp:'សរសេរ...',lLabel:'ខ្មែរ'},
+};
+
+// ── AI TRANSLATE（スタブ：翻訳機能は準備中）──
+async function aiTx(text, lang) {
+  if(!text||!text.trim()) throw new Error('テキストが空です');
+  return text.trim();
+}
+
+// ── LANGUAGE ──────────────────────────────────────────────────────────────────
+function applyL(code) {
+  const L=LS[code]||LS.vi; LANG=code;
+  const s=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  s('h-greet',L.greet+', Giang さん');
+  s('h-leave-l',L.leave); s('h-today-shift',L.todayShift);
+  s('h-notice-l',L.notice);
+  s('h-tpl-l',L.tplBtn); s('h-doc-l',L.docBtn); s('h-sos-l',L.sosBtn);
+  s('h-nippo-l',L.nippoBtn); s('h-video-l',L.videoBtn);
+  s('h-approved-l',L.approved);
+  s('tp-title',L.tplTitle); s('tp-sub',L.tplSub);
+  s('tf-send-l',L.tplSend); s('tf-label',L.detail);
+  const ti=document.getElementById('tf-inp'); if(ti)ti.placeholder=L.tInp;
+  s('d-title',L.docTitle); s('d-sub',L.docSub); s('d-prog-l',L.progL);
+  s('d-back-l',L.back); s('d-tts-l',L.ttsL);
+  s('sos-title',L.sosTitle);
+  const sd=document.getElementById('sos-desc'); if(sd)sd.innerHTML=L.sosDesc.replace('\n','<br>');
+  s('sos-sent-l',L.sosSent);
+  s('c-cname',L.chatName); s('c-cstatus',L.chatStatus); s('c-start-l',L.chatStart);
+  const ci=document.getElementById('active-inp'); if(ci)ci.placeholder=L.cInp;
+  s('sh-title',L.shiftTitle); s('sh-request-l',L.shiftReq); s('sh-history-l',L.shiftHistory); s('sh-legend-l',L.shiftLegend);
+  s('vid-title',L.vidTitle); s('v-back-l',L.vidBack); s('vd-watched-l',L.vidWatched); s('vd-sub-lbl',L.vidSubLbl); s('vd-sub-lang-lbl',L.vidSubLbl);
+  s('np-title',L.npTitle); s('np-new-btn',L.npNew); s('np-form-title',L.npFormTitle);
+  s('gc-list-title',L.gcListTitle);
+  s('st-title',L.stTitle); s('st-lang-l',L.stLang); s('st-account-l',L.stAccount); s('st-notif-l',L.stNotif); s('st-ai-l',L.stAI); s('st-tts-l',L.stTTS);
+  s('nl-home',L.navHome); s('nl-chat',L.navChat);
+  s('nl-docs-nav',L.docNav||'書類'); // gchat merged into chat s('nl-tpl',L.navTpl); s('nl-shift',L.navShift); s('nl-settings',L.navSettings);
+  // ── クイックアクセス（ホーム）
+  s('nl-chat-qa',  L.navChatQa||L.navChat);
+  s('nl-tpl-qa',   L.navTplQa||L.navTpl||L.tplBtn);
+  s('nl-shift-qa', L.navShiftQa||L.navShift||L.shiftTitle);
+  s('nl-settings-qa', L.navSettingsQa||L.stTitle);
+
+  // ── ホームお知らせ
+  s('h-n1-t', L.notice1Title); s('h-n1-s', L.notice1Sub);
+  s('h-n2-t', L.notice2Title); s('h-sos-l2', L.sosBtnHome||L.sosBtn);
+  s('h-approved-l', L.approved);
+
+  // ── 申請フォーム
+  s('tf-header-title', L.tplFormTitle||L.tplTitle);
+
+  // ── 書類
+  s('dn-contract', L.docContract); s('ds-contract', L.docContractSub);
+  s('dn-rules',    L.docRules);    s('ds-rules',    L.docRulesSub);
+  s('dn-safety',   L.docSafety);   s('ds-safety',   L.docSafetySub);
+  s('prog-sub', L.progRemain);
+
+  // ── 日報フォーム種別
+  s('np-type-daily',  L.npTypeDaily);
+  s('np-type-hayari', L.npTypeHayari);
+
+  // ── クイックリプライボタン（全文翻訳）
+  const qmap = {
+    'qb-yoroshiku': L.qYoroshiku,
+    'qb-kakunin':   L.qKakunin,
+    'qb-arigato':   L.qArigato,
+    'qb-wakari':    L.qWakari,
+    'qb-otsukare':  L.qOtsukare,
+  };
+  Object.entries(qmap).forEach(([id,txt])=>{ const e=document.getElementById(id); if(e&&txt)e.textContent=txt; });
+  // insertActiveQ が返すフルテキストも更新
+  window._qTexts = {
+    yoroshiku: L.qYoroshiku, kakunin: L.qKakunin,
+    arigato:   L.qArigato,   wakari:  L.qWakari,
+    otsukare:  L.qOtsukare,
+  };
+
+  // ── シフト
+  s('sh-period',   L.shiftPeriod);
+  s('sh-date-lbl', L.shiftDateLabel);
+  s('sh-type-lbl', L.shiftTypeLabel);
+  const _sel=document.getElementById('sh-type-sel');
+  if(_sel&&_sel.options.length>=4){
+    _sel.options[0].text=L.shiftOpt1; _sel.options[1].text=L.shiftOpt2;
+    _sel.options[2].text=L.shiftOpt3; _sel.options[3].text=L.shiftOpt4;
+  }
+  s('sh-submit-btn', L.shiftSubmitBtn);
+  s('sh-h1',    L.shiftH1);    s('sh-h1d',   L.shiftH1d);
+  s('sh-h1-bdg',L.shiftPending);
+  s('sh-h2',    L.shiftH2);    s('sh-h2d',   L.shiftH2d);
+  s('sh-h2-bdg',L.shiftApproved);
+
+  // ── 設定ページの静的テキスト
+  s('st-push-notif', L.stPushNotif);  s('st-sos-always', L.stSosAlways);
+  s('st-app-name',   L.stAppName);    s('st-ai-engine',  L.stAIEngine);
+  s('st-help-lbl',   L.stHelp);       s('st-help-btn',   L.stHelpBtn);
+  s('st-name-lbl',   L.stName);       s('st-company-lbl',L.stCompany);
+  s('st-manager-lbl',L.stManager);    s('st-tenure-lbl', L.stTenure);
+  s('st-tenure-val', L.stTenureVal);
+
+  renderTpls();
+  Object.keys(docTranslateCache).forEach(k=>delete docTranslateCache[k]);
+}
+
+function setLang(el,code,flag,name){
+  wls.set('gb_wlang',code);
+  applyL(code);
+  document.getElementById('curr-lang').textContent=flag+' '+name;
+  document.querySelectorAll('.lang-opt').forEach(o=>{o.querySelector('.lang-check')?.remove();o.classList.remove('sel');});
+  el.classList.add('sel');
+  const ck=document.createElement('span');ck.className='lang-check';ck.textContent='✓';el.appendChild(ck);
+  showLangToast(flag,name,(LS[code]||LS.vi).langChangedMsg||'言語を変更しました');
+}
+
+
+// ── 音声入力（Web Speech API）
+let voiceRec=null,voiceOn=false;
+function toggleVoice(){
+  const btn=document.getElementById('voice-btn');
+  const inp=document.getElementById('active-inp');
+  if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+    toast('音声入力','このブラウザでは音声入力に対応していません','r');return;
+  }
+  if(voiceOn){
+    voiceRec?.stop();voiceOn=false;
+    if(btn)btn.classList.remove('listening');
+    return;
+  }
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  voiceRec=new SR();
+  voiceRec.lang=LANG==='ja'?'ja-JP':LANG==='zh'?'zh-CN':'vi-VN';
+  voiceRec.interimResults=true;voiceRec.continuous=false;
+  voiceRec.onstart=()=>{voiceOn=true;if(btn)btn.classList.add('listening');toast('音声入力','話してください...','b');};
+  voiceRec.onresult=e=>{
+    let txt='';for(let i=e.resultIndex;i<e.results.length;i++)txt+=e.results[i][0].transcript;
+    if(inp)inp.value=txt;autoSz(inp);
+  };
+  voiceRec.onend=()=>{voiceOn=false;if(btn)btn.classList.remove('listening');};
+  voiceRec.onerror=()=>{voiceOn=false;if(btn)btn.classList.remove('listening');toast('エラー','音声入力に失敗しました','r');};
+  voiceRec.start();
+}
+
+// ── テキストエリア自動リサイズ
+function autoSz(el){
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight,120)+'px';
+}
+
+const SCRS=['s-home','s-chat','s-tpl','s-docs','s-videos','s-nippo','s-shift','s-sos','s-settings'];
+const NMAP={'s-home':'n-home','s-chat':'n-chat','s-tpl':'n-tpl','s-docs':'n-docs','s-videos':null,'s-nippo':null,'s-shift':'n-shift','s-sos':null,'s-settings':'n-settings'};
+
+function go(id){
+  SCRS.forEach(s=>document.getElementById(s)?.classList.toggle('on',s===id));
+  Object.entries(NMAP).forEach(([s,n])=>{if(n)document.getElementById(n)?.classList.toggle('on',s===id);});
+  document.getElementById('ddover')?.classList.remove('on');
+  document.getElementById('vdov')?.classList.remove('on');
+  document.getElementById('npov')?.classList.remove('on');
+  document.getElementById('npov-new')?.classList.remove('on');
+  
+  if(id==='s-tpl'){document.getElementById('tpl-form-overlay')?.classList.remove('on');document.getElementById('tf-result').className='result-box';}
+  if(id==='s-chat'){renderChatList();}
+  if(id==='s-videos')renderVList();
+  if(id==='s-nippo')renderNPList();
+  if(id==='s-shift')loadAndRenderShift();
+  if(id==='s-docs')renderWDocs();
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function toast(title,body,type='g'){
+  const c=document.getElementById('toasts'),t=document.createElement('div');t.className='tw';
+  const cols={g:'var(--gn)',r:'var(--red)',a:'var(--amb)',b:'var(--blu)'};
+  const bgs={g:'var(--gbg)',r:'var(--rbg)',a:'var(--abg)',b:'var(--bbg)'};
+  const icos={g:'✓',r:'!',a:'⚠',b:'ℹ'};
+  t.innerHTML=`<div style="width:26px;height:26px;border-radius:7px;background:${bgs[type]};color:${cols[type]};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${icos[type]||'●'}</div><div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--tx)">${title}</div><div style="font-size:12px;color:var(--t2);margin-top:1px">${body||''}</div></div>`;
+  c.appendChild(t);
+  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),160);},3800);
+}
+
+// ── TEMPLATES ─────────────────────────────────────────────────────────────────
+// ── 言語変更専用バナー（既存のtoastとは別レイヤー、最上部に固定）
+function showLangToast(flag,name,msg){
+  // 既存の言語バナーを消す
+  document.querySelectorAll('.lang-banner').forEach(e=>e.remove());
+  const banner=document.createElement('div');
+  banner.className='lang-banner';
+  banner.style.cssText=`
+    position:fixed;top:0;left:50%;transform:translateX(-50%);
+    width:calc(100% - 0px);max-width:430px;z-index:1000;
+    background:var(--gn);border-bottom:2px solid var(--gd);
+    padding:10px 18px;display:flex;align-items:center;gap:10px;
+    animation:langIn .22s ease;
+  `;
+  banner.innerHTML=`
+    <style>@keyframes langIn{from{transform:translateX(-50%) translateY(-100%)}to{transform:translateX(-50%) translateY(0)}}</style>
+    <span style="font-size:22px">${flag}</span>
+    <div style="flex:1">
+      <div style="font-size:13.5px;font-weight:700;color:#fff">${name}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.8);margin-top:1px">${msg}</div>
+    </div>
+    <div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.2);
+                display:flex;align-items:center;justify-content:center;cursor:pointer;
+                font-size:14px;color:#fff;flex-shrink:0" onclick="this.parentElement.remove()">×</div>
+  `;
+  document.body.appendChild(banner);
+  setTimeout(()=>{
+    banner.style.animation='langIn .2s ease reverse forwards';
+    setTimeout(()=>banner.remove(),220);
+  },2800);
+}
+
+
+function renderTpls(){
+  const L=LS[LANG]||LS.vi;
+  const icoBg={
+    leave:'#e8f4ff',sick:'#fff0f0',mistake:'#fffbeb',
+    ot:'#f5f3ff',machine:'#f0fdf4',consult:'#ecfdf5'
+  };
+  const icoCol={
+    leave:'#2563eb',sick:'#e53e3e',mistake:'#d97706',
+    ot:'#9333ea',machine:'#16a34a',consult:'#00b050'
+  };
+  const desc={
+    leave:'休暇・欠勤の申請',sick:'体調不良の報告',mistake:'作業ミス・ヒヤリハット報告',
+    ot:'残業・時間外作業の申請',machine:'設備・機械トラブルの報告',consult:'困りごと・相談'
+  };
+  document.getElementById('tgrid').innerHTML=L.tpls.map(t=>`
+    <div class="tpl-card" onclick="openTpl('${t.k}','${t.n}','${desc[t.k]||''}','${icoBg[t.k]||'#f6f7fa'}','${icoCol[t.k]||'#64748b'}')">
+      <div class="tpl-ico" style="background:${icoBg[t.k]||'#f6f7fa'};border-color:${icoCol[t.k]||'#64748b'}33">${t.ico}</div>
+      <div style="flex:1;min-width:0">
+        <div class="tpl-name">${t.n}</div>
+        <div class="tpl-sub">${desc[t.k]||t.s}</div>
+      </div>
+      <div class="tpl-arr">›</div>
+    </div>`).join('');
+}
+function openTpl(key,name,desc,icoBg,icoCol){
+  activeTplKey=key;
+  const L=LS[LANG]||LS.vi;
+  // フォームオーバーレイを開く
+  document.getElementById('tf-header-title').textContent=name;
+  const icoEl=document.getElementById('tf-ico-display');
+  if(icoEl){icoEl.style.background=icoBg||'#f6f7fa';icoEl.style.borderColor=(icoCol||'#d8dce6')+'40';}
+  // テンプレ一覧のアイコンを取得して表示
+  const L2=LS[LANG]||LS.vi;
+  const tpl=L2.tpls.find(t=>t.k===key);
+  if(icoEl&&tpl)icoEl.textContent=tpl.ico;
+  document.getElementById('tf-title').textContent=name;
+  document.getElementById('tf-desc').textContent=desc||'';
+  document.getElementById('tf-inp').value='';
+  document.getElementById('tf-inp').placeholder=L.tInp||'詳しく書いてください...';
+  document.getElementById('tf-result').className='result-box';
+  document.getElementById('tf-result').textContent='';
+  document.getElementById('tf-char-count').textContent='0';
+  // char count
+  const inp=document.getElementById('tf-inp');
+  if(inp){inp.oninput=function(){document.getElementById('tf-char-count').textContent=this.value.length;autoSz(this);};}
+  document.getElementById('tpl-form-overlay').classList.add('on');
+  setTimeout(()=>document.getElementById('tf-inp').focus(),300);
+}
+
+function closeTplForm(){
+  document.getElementById('tpl-form-overlay').classList.remove('on');
+}
+async function submitTpl(){
+  const txt=document.getElementById('tf-inp').value.trim();if(!txt)return;
+  const btn=document.getElementById('tf-btn');const res=document.getElementById('tf-result');
+  const jpKey=TPL_JP[activeTplKey]||'申請';const L=LS[LANG]||LS.vi;
+  btn.disabled=true;res.className='result-box on';res.textContent='翻訳中...';
+  try{
+    const jp=await aiTx(txt,'ja');
+    const full=`【${jpKey}】\n${jp}`;
+    res.textContent='✓ 送信完了\n\n'+full;
+    // 申請をメッセージとして管理者に送信
+    fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:full,translated:full})}).catch(()=>{});
+    toast('✓ '+jpKey,jp.slice(0,50));
+  }catch(e){res.textContent='エラー: '+e.message;toast('翻訳エラー',e.message.slice(0,50),'r');}
+  btn.disabled=false;
+}
+
+// ── UNIFIED CHAT ─────────────────────────────────────────────────────────────
+// DIRECT = 担当者との個別チャット, GROUPS = グループチャット
+// DIRECT_MSGS migrated to DM_CHATS
+
+// Current chat context: {type:'direct'} or {type:'group', group: GROUPS[i]}
+let ACTIVE_CHAT = null;
+
+// Build list data: direct first, then groups
+function getChatListData() {
+  // Individual DMs from DM_CHATS
+  const dms = DM_CHATS.map(dm => {
+    const ct = getContact(dm.contactId) || {};
+    const lastMsg = dm.msgs.filter(m=>m.t!=='sys').slice(-1)[0];
+    return {
+      id: dm.id,
+      type: 'dm',
+      dmId: dm.id,
+      contactId: dm.contactId,
+      av: ct.init || '?',
+      avBg: ct.avBg || '#e2e8f0',
+      avTc: ct.avTc || '#374151',
+      name: ct.name || dm.contactId,
+      nameShort: (ct.name||'').split(' ')[0] + '\n' + (ct.role||''),
+      sub: (ct.online?'● ':'○ ') + (ct.role||''),
+      unread: dm.unread||0,
+      prev: lastMsg ? (lastMsg.tl||lastMsg.txt||'').slice(0,18)+'…' : 'メッセージなし',
+      time: lastMsg?.time||'',
+      isGroup: false,
+      online: ct.online||false,
+    };
+  });
+  const groups = GROUPS.map(g => ({
+    id: g.id,
+    type: 'group',
+    av: g.ico,
+    avBg: g.bg,
+    avTc: '#374151',
+    name: g.name,
+    nameShort: g.name.split('—')[0].trim().slice(0,6),
+    sub: 'グループ',
+    unread: g.unread || 0,
+    prev: g.prev,
+    time: g.time||'',
+    isGroup: true,
+    group: g,
+  }));
+  return [...dms, ...groups];
+}
+
+function renderChatList() {
+  const el = document.getElementById('cl-items');
+  el.innerHTML = '';
+  const items = getChatListData();
+
+  // Section: 個別チャット（ヘッダー + 追加ボタン）
+  const dmHdrRow = document.createElement('div');
+  dmHdrRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:0 2px';
+  dmHdrRow.innerHTML = '<div class="cl-section-lbl" style="padding:8px 4px 3px">個別</div>'
+    + '<button onclick="openAddContactModal()" style="background:none;border:none;cursor:pointer;color:var(--gn);font-size:18px;padding:4px 2px;line-height:1" title="関係者を追加">＋</button>';
+  el.appendChild(dmHdrRow);
+
+  items.filter(i => !i.isGroup).forEach(item => renderCLItem(el, item));
+
+  // Section: グループ
+  const gcLbl = document.createElement('div');
+  gcLbl.className = 'cl-section';
+  el.appendChild(gcLbl);
+
+  items.filter(i => i.isGroup).forEach(item => renderCLItem(el, item));
+
+  // Update total badge
+  const total = items.reduce((s,i) => s + (i.unread||0), 0);
+  const b = document.getElementById('chat-badge');
+  if (b) { b.textContent = total; b.style.display = total > 0 ? '' : 'none'; }
+}
+
+function renderCLItem(el, item) {
+  const d = document.createElement('div');
+  const isOn = ACTIVE_CHAT?.id === item.id;
+  d.className = 'cl-item' + (isOn ? ' on' : '');
+  d.id = 'cli-' + item.id;
+  d.onclick = () => openChatItem(item);
+  const avStyle = item.isGroup
+    ? `width:40px;height:40px;border-radius:11px;background:${item.avBg};border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0`
+    : `width:40px;height:40px;border-radius:50%;background:${item.avBg};border:2px solid var(--bd);color:${item.avTc};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0`;
+  const br='<br>';d.innerHTML=`<div style="${avStyle}">${item.av}</div><div class="cl-item-name">${item.nameShort.replace('\\n',br)}</div>${item.unread?`<div class="cl-item-unread">${item.unread}</div>`:''}`;
+  el.appendChild(d);
+}
+
+function openChatItem(item) {
+  ACTIVE_CHAT = item;
+  // Clear unread
+  if (item.isGroup) {
+    const g = GROUPS.find(x=>x.id===item.id); if(g) g.unread=0;
+  } else {
+    const dm = DM_CHATS.find(d=>d.id===item.id); if(dm) dm.unread=0;
+  }
+  // Update list
+  renderChatList();
+  // Show active pane
+  document.getElementById('chat-welcome-pane').style.display = 'none';
+  const ap = document.getElementById('chat-active-pane');
+  ap.style.display = 'flex';
+
+  // Header
+  const topAv = document.getElementById('chat-top-av');
+  topAv.textContent = item.av;
+  if (item.isGroup) {
+    topAv.style.cssText = `width:38px;height:38px;border-radius:10px;background:${item.avBg};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0`;
+  } else {
+    topAv.style.cssText = `width:38px;height:38px;border-radius:50%;background:${item.avBg};color:${item.avTc};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0`;
+  }
+  document.getElementById('chat-top-name').textContent = item.name;
+  document.getElementById('chat-top-sub').textContent = item.isGroup
+    ? `グループ · AI一斉翻訳オン`
+    : (item.online ? '● オンライン' : '○ オフライン') + ' · AI翻訳オン · ' + (getContact(item.contactId)?.dept||'');
+
+  const badge = document.getElementById('chat-top-badge');
+  badge.innerHTML = item.isGroup
+    ? '<span class="badge bg" style="font-size:10px">グループ</span>'
+    : '<span class="badge bb" style="font-size:10px">個別</span>';
+
+  // Placeholder
+  const inp = document.getElementById('active-inp');
+  if (inp) inp.placeholder = item.isGroup
+    ? 'グループに送信 → 全メンバーに一斉翻訳'
+    : '母国語で入力 → AIが日本語に翻訳して送信';
+
+  // Background color
+  const msgs = document.getElementById('active-msgs');
+  msgs.style.background = item.isGroup ? '#e8ede4' : '#e9edf2';
+
+  // Render messages
+  renderActiveMsgs();
+}
+
+function renderActiveMsgs() {
+  const area = document.getElementById('active-msgs');
+  area.innerHTML = '';
+  let msgs = [];
+  if (ACTIVE_CHAT?.isGroup) {
+    msgs = GROUPS.find(g=>g.id===ACTIVE_CHAT.id)?.msgs || [];
+  } else {
+    // DM
+    const dm = DM_CHATS.find(d=>d.id===ACTIVE_CHAT?.id);
+    msgs = dm?.msgs || [];
+  }
+  msgs.forEach(m => addActiveBubble(m, false));
+  area.scrollTop = area.scrollHeight;
+}
+
+function addActiveBubble(m, scroll=true) {
+  const area = document.getElementById('active-msgs');
+  if (!area) return;
+  if (m.t === 'sys') {
+    const d = document.createElement('div');
+    d.className = 'sys-msg'; d.textContent = m.txt;
+    area.appendChild(d);
+    if(scroll) area.scrollTop = area.scrollHeight;
+    return;
+  }
+  const isMe = m.t === 'me';
+  const row = document.createElement('div');
+  row.className = 'crow' + (isMe ? ' me' : '');
+
+  let mainHtml = '';
+  // Group: show sender name above bubble
+  if (!isMe && ACTIVE_CHAT?.isGroup && m.sender) {
+    mainHtml += `<span style="font-size:11px;font-weight:700;color:var(--gn);display:block;margin-bottom:2px">${m.sender}</span>`;
+  }
+  mainHtml += m.txt;
+  // Show translation
+  if (m.tl && !isMe) {
+    mainHtml += `<div style="margin-top:4px;font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:4px 8px"><span style="font-size:10.5px;font-weight:700;display:block;margin-bottom:1px">【AI翻訳】</span>${m.tl}</div>`;
+  }
+  if (m.tl && isMe) {
+    // my translation shown below bubble
+    const colBub = document.createElement('div');
+    colBub.className = 'mcol';
+    colBub.style.alignItems = 'flex-end';
+    const bub = document.createElement('div');
+    bub.className = 'cbub c-me';
+    bub.textContent = m.txt;
+    const tlBub = document.createElement('div');
+    tlBub.className = 'cbub c-ai';
+    tlBub.style.marginTop = '2px';
+    tlBub.innerHTML = '<span style="font-size:10.5px;font-weight:700;color:#065f46;display:block;margin-bottom:1px">【翻訳済み → 日本語】</span>' + m.tl;
+    const mtime = document.createElement('div');
+    mtime.className = 'mtime'; mtime.textContent = m.time||'';
+    colBub.appendChild(bub); colBub.appendChild(tlBub); colBub.appendChild(mtime);
+    row.appendChild(colBub);
+    area.appendChild(row);
+    if(scroll) area.scrollTop = area.scrollHeight;
+    return;
+  }
+
+  const bub = document.createElement('div');
+  bub.className = 'bub ' + (isMe ? 'me' : 'other');
+  bub.innerHTML = mainHtml;
+
+  if (!isMe) {
+    const av = document.createElement('div');
+    av.className = 'cmav';
+    if (ACTIVE_CHAT?.isGroup && m.sender) {
+      av.style.cssText = 'background:#e2e8f0;color:#475569';
+      av.textContent = m.sender[0];
+    } else {
+      av.style.cssText = 'background:var(--gbg);color:var(--gn)';
+      av.textContent = '田';
+    }
+    row.appendChild(av);
+  }
+
+  const col = document.createElement('div');
+  col.className = 'mcol';
+  if(isMe) col.style.alignItems='flex-end';
+  col.appendChild(bub);
+  const mtime = document.createElement('div');
+  mtime.className='mtime'; mtime.textContent=m.time||'';
+  col.appendChild(mtime);
+  row.appendChild(col);
+  area.appendChild(row);
+  if(scroll) area.scrollTop = area.scrollHeight;
+}
+
+function insertActive(txt) {
+  const i = document.getElementById('active-inp');
+  if(i){i.value=txt;i.focus();}
+}
+function insertActiveQ(key){
+  const L=LS[LANG]||LS.vi;
+  const map={yoroshiku:L.qYoroshiku,kakunin:L.qKakunin,arigato:L.qArigato,wakari:L.qWakari,otsukare:L.qOtsukare};
+  insertActive(map[key]||'');
+}
+
+
+async function sendActive() {
+  const inp = document.getElementById('active-inp');
+  const txt = inp.value.trim();
+  if(!txt || !ACTIVE_CHAT) return;
+  const btn = document.getElementById('active-send');
+  inp.value=''; inp.style.height='auto'; btn.disabled=true;
+  const time = new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+
+  if (ACTIVE_CHAT.isGroup) {
+    // Group: translate to Japanese, send to all
+    const grp = GROUPS.find(g=>g.id===ACTIVE_CHAT.id);
+    const m = {t:'me', txt, time};
+    if (grp) grp.msgs.push(m);
+    addActiveBubble(m, true);
+    try {
+      const jp = await aiTx(txt, 'ja');
+      // Add translation bubble
+      const area = document.getElementById('active-msgs');
+      const last = area.lastElementChild;
+      if(last) {
+        const tlDiv = document.createElement('div');
+        tlDiv.style.cssText='display:flex;justify-content:flex-end;margin-top:-2px;padding:0 6px';
+        tlDiv.innerHTML=`<div class="cbub c-ai" style="border-radius:16px 16px 4px 16px"><span style="font-size:10.5px;font-weight:700;color:#065f46;display:block;margin-bottom:1px">【翻訳 → 日本語】</span>${jp}</div>`;
+        area.appendChild(tlDiv);
+        area.scrollTop=area.scrollHeight;
+      }
+      if(grp){grp.prev='あなた: '+txt.slice(0,20);grp.unread=0;}
+      // DB に保存
+      await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp})}).catch(()=>{});
+      toast('送信完了','グループ全員に一斉翻訳して送信しました');
+    } catch(e) { toast('翻訳エラー',e.message,'r'); }
+  } else {
+    // Direct: translate and send to supervisor
+    addActiveBubble({t:'me',txt,time}, true);
+    const tid='typ-'+Date.now();
+    const area=document.getElementById('active-msgs');
+    const tr=document.createElement('div');tr.id=tid;tr.className='mrow';
+    tr.innerHTML='<div class="mav" style="background:var(--gbg);color:var(--gn)">田</div><div style="display:flex;gap:4px;align-items:center;padding:9px 13px;background:#fff;border-radius:4px 16px 16px 16px"><span style="width:7px;height:7px;border-radius:50%;background:var(--t3);animation:td 1.3s infinite;display:inline-block"></span><span style="width:7px;height:7px;border-radius:50%;background:var(--t3);animation:td 1.3s .2s infinite;display:inline-block"></span><span style="width:7px;height:7px;border-radius:50%;background:var(--t3);animation:td 1.3s .4s infinite;display:inline-block"></span></div>';
+    area.appendChild(tr);area.scrollTop=area.scrollHeight;
+    try {
+      const jp = await aiTx(txt, 'ja');
+      document.getElementById(tid)?.remove();
+      const m = {t:'me', txt, tl:jp, time};
+      const dm = DM_CHATS.find(d=>d.id===ACTIVE_CHAT?.id);
+      if(dm) dm.msgs.push(m);
+      addActiveBubble(m, true);
+      // DB に保存（receiver は ACTIVE_CHAT の相手）
+      const rcv = ACTIVE_CHAT?.contactId || null;
+      await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp,receiver_id:rcv})}).catch(()=>{});
+      toast('✓','担当者に送信しました');
+    } catch(e) {
+      document.getElementById(tid)?.remove();
+      toast('翻訳エラー',e.message,'r');
+    }
+  }
+  btn.disabled=false;
+}
+
+// ── DOCUMENTS ─────────────────────────────────────────────────────────────────
+async function openDoc(key){
+  // W_DOCS から書類情報を取得
+  const docInfo = W_DOCS.find(d=>d.id===key);
+  currentDoc=key;const L=LS[LANG]||LS.vi;
+  // タイトル設定
+  const titleEl = document.getElementById('dd-title');
+  if(titleEl) titleEl.textContent = docInfo?.name || (L.docNames?.[key]||key);
+  // 期限情報表示
+  const metaBar = document.getElementById('dd-meta-bar');
+  if(metaBar && docInfo){
+    const now = new Date();
+    let metaHtml = '';
+    if(docInfo.expireDate){
+      const diff=(new Date(docInfo.expireDate)-now)/(1000*60*60*24);
+      if(diff<0) metaHtml=`<div style="background:var(--rbg);border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--red)">⚠ 期限切れ: ${docInfo.expireDate}</div>`;
+      else if(diff<=7) metaHtml=`<div style="background:var(--abg);border:1px solid #fcd34d;border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--amb)">⏰ 期限まであと${Math.ceil(diff)}日（${docInfo.expireDate}）</div>`;
+    }
+    if(docInfo.fileName) metaHtml+=`<div style="background:var(--bbg);border:1px solid #93c5fd;border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--blu)">📎 ${docInfo.fileName}</div>`;
+    metaBar.innerHTML = metaHtml;
+    metaBar.style.display = metaHtml ? '' : 'none';
+  }
+  ttsStop();document.getElementById('ddover').classList.add('on');
+  const bodyEl=document.getElementById('dd-body');
+  const trLbl=document.getElementById('tr-status-lbl');
+  if(LANG!=='ja'){
+    const cacheKey=key+'-'+LANG;
+    if(docTranslateCache[cacheKey]){bodyEl.textContent=docTranslateCache[cacheKey];trLbl.textContent='🌐 '+L.lLabel+'に翻訳済み';}
+    else{bodyEl.innerHTML='<span style="color:#9ca3af">翻訳中... ⏳</span>';trLbl.textContent='';
+      try{const translated=await aiTx(DOC_CONTENT[key]||'',LANG);docTranslateCache[cacheKey]=translated;bodyEl.textContent=translated;trLbl.textContent='🌐 '+L.lLabel+'に翻訳済み';}
+      catch(e){bodyEl.textContent=DOC_CONTENT[key]||'';trLbl.textContent='⚠ 翻訳エラー（日本語で表示）';}
+    }
+  }else{bodyEl.textContent=DOC_CONTENT[key]||'';trLbl.textContent='';}
+  const done=confirmedDocs.has(key);const cbox=document.getElementById('cbox');
+  cbox.style.display='';cbox.className='cbox'+(done?' done':'');
+  if(done){cbox.innerHTML=`<div style="font-size:14px;font-weight:700;color:var(--gn)">✓ ${L.understood}</div><div style="font-size:12px;color:var(--gn);margin-top:4px">${new Date().toLocaleDateString('ja-JP')}</div>`;}
+  else{cbox.innerHTML=`<div style="font-size:14px;font-weight:700;color:var(--gn);margin-bottom:12px">${L.confirmQ}</div><button class="btn btn-g" onclick="confirmDoc()" style="padding:12px"><span>✓ ${L.understood}</span></button>`;}
+}
+function closeDoc(){document.getElementById('ddover').classList.remove('on');ttsStop();}
+function confirmDoc(){
+  if(!currentDoc)return;confirmedDocs.add(currentDoc);const L=LS[LANG]||LS.vi;
+  const cbox=document.getElementById('cbox');cbox.className='cbox done';
+  cbox.innerHTML=`<div style="font-size:14px;font-weight:700;color:var(--gn)">✓ ${L.understood}</div><div style="font-size:12px;color:var(--gn);margin-top:4px">${new Date().toLocaleDateString('ja-JP')}</div>`;
+  const b=document.getElementById('db-'+currentDoc);if(b){b.className='badge bg';b.textContent='確認済';}
+  // 書類確認を通知
+  fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:'書類確認完了: '+currentDoc,translated:'書類確認完了: '+currentDoc})}).catch(()=>{});
+  toast('✓ 確認完了','書類を確認しました');updateProg();
+}
+function updateProg(){
+  const n=confirmedDocs.size,t=3;
+  const pf=document.getElementById('prog-fill');
+  if(pf)pf.style.width=(n/t*100)+'%';
+  const pt=document.getElementById('prog-txt');
+  if(pt)pt.textContent=n+'/'+t;
+  // 書類一覧を再描画
+  renderWDocs();
+  // バッジ更新は renderWDocs() 内で処理
+
+}
+
+// TTS
+function ttsToggle(){ttsOn?ttsStop():ttsStart();}
+function ttsStart(){
+  ttsOn=true;ttsCnt=0;
+  document.getElementById('tts-ico').innerHTML='<rect x="2" y="2" width="3" height="10" rx="1" fill="white"/><rect x="8" y="2" width="3" height="10" rx="1" fill="white"/>';
+  ttsTimer=setInterval(()=>{ttsCnt++;document.getElementById('tts-fill').style.width=Math.min(100,ttsCnt/90*100)+'%';const m=Math.floor(ttsCnt/60),s=ttsCnt%60;document.getElementById('tts-time').textContent=m+':'+(s<10?'0':'')+s;if(ttsCnt>=90)ttsStop();},1000);
+  if(window.speechSynthesis){const u=new SpeechSynthesisUtterance(document.getElementById('dd-body').textContent);u.lang='ja-JP';u.rate=.9;u.onend=ttsStop;speechSynthesis.speak(u);}
+}
+function ttsStop(){
+  ttsOn=false;clearInterval(ttsTimer);
+  document.getElementById('tts-ico').innerHTML='<polygon points="3,2 12,7 3,12" fill="white"/>';
+  if(window.speechSynthesis)speechSynthesis.cancel();
+}
+
+// ── VIDEOS ────────────────────────────────────────────────────────────────────
+function renderVList(cat='all'){
+  const el=document.getElementById('v-list-items');el.innerHTML='';
+  VIDEOS.filter(v=>cat==='all'||v.cat===cat).forEach(v=>{
+    const d=document.createElement('div');d.className='vid-row';d.onclick=()=>openVideo(v);
+    d.innerHTML=`<div class="v-thumb"><span style="font-size:22px">${v.emoji}</span><div class="v-dur">${v.dur}</div></div>
+    <div class="v-meta"><div class="v-title">${v.title}</div><div class="v-info">${v.langs.map(l=>({vi:'🇻🇳',id:'🇮🇩',tl:'🇵🇭',my:'🇲🇲',ja:'🇯🇵'}[l]||l)).join('')} · ${{safety:'安全',work:'作業',training:'研修'}[v.cat]}</div>
+    ${v.watched?'<div class="v-watched">✓ 視聴済み</div>':'<div style="font-size:11px;color:var(--amb)">未視聴</div>'}</div>`;
+    el.appendChild(d);
+  });
+}
+function filterV(cat,el){document.querySelectorAll('#s-videos .panel-filters .fc').forEach(c=>c.classList.remove('on'));el.classList.add('on');renderVList(cat);}
+function openVideo(v){
+  currentVideo=v;
+  document.getElementById('vd-emoji').textContent=v.emoji;
+  document.getElementById('vd-title').textContent=v.title;
+  document.getElementById('vd-dur').textContent=v.dur;
+  document.getElementById('vd-desc').textContent=v.desc;
+  const ls=v.langs.map(l=>({vi:'🇻🇳 ベトナム語',id:'🇮🇩 インドネシア語',tl:'🇵🇭 フィリピン語',my:'🇲🇲 ミャンマー語',ja:'🇯🇵 日本語'}[l]||l)).map(n=>`<span class="badge bgray" style="font-size:11px">${n}</span>`).join(' ');
+  document.getElementById('vd-langs').innerHTML=ls;
+  const wb=document.getElementById('watch-confirm-btn');
+  if(v.watched){wb.textContent='✓ 視聴済み';wb.style.background='#94a3b8';wb.disabled=true;}
+  else{wb.innerHTML='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5 6.5-7" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> '+(LS[LANG]?.vidWatched||'視聴完了としてマーク');wb.style.background='';wb.disabled=false;}
+  document.getElementById('vdov').classList.add('on');
+}
+function closeVideo(){document.getElementById('vdov').classList.remove('on');}
+function markWatched(){
+  if(!currentVideo)return;currentVideo.watched=true;
+  const wb=document.getElementById('watch-confirm-btn');wb.textContent='✓ 視聴済み';wb.style.background='#94a3b8';wb.disabled=true;
+  // 動画視聴を通知
+  fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:'動画視聴完了: '+currentVideo.title,translated:'動画視聴完了: '+currentVideo.title})}).catch(()=>{});
+  toast('✓ 視聴完了','管理者に通知しました');
+}
+
+// ── NIPPO ─────────────────────────────────────────────────────────────────────
+function renderNPList(cat='all'){
+  const el=document.getElementById('np-list-items');el.innerHTML='';
+  const filtered=NIPPOS.filter(n=>cat==='all'||n.type===cat);
+  if(!filtered.length){el.innerHTML='<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px">日報がありません</div>';return;}
+  filtered.forEach(n=>{
+    const d=document.createElement('div');d.className='np-row';d.onclick=()=>openNippo(n);
+    const typeLbl={daily:'日報',hayari:'ヒヤリハット',weekly:'週報'};
+    d.innerHTML=`<div class="np-top"><div class="np-title">${n.date} <span class="badge ${n.type==='hayari'?'ba':'bb'}" style="font-size:9.5px">${typeLbl[n.type]||n.type}</span></div><span class="badge ${n.status==='done'?'bg':'ba'}">${n.status==='done'?'承認済':'確認待'}</span></div><div class="np-prev">${n.translated||n.content}</div>`;
+    el.appendChild(d);
+  });
+}
+function filterNP(cat,el){document.querySelectorAll('#s-nippo .panel-filters .fc').forEach(c=>c.classList.remove('on'));el.classList.add('on');npFilter=cat;renderNPList(cat);}
+function openNippo(n){
+  document.getElementById('np-ov-title').textContent=n.date+' — '+(n.type==='daily'?'日報':'ヒヤリハット');
+  const body=document.getElementById('np-ov-body');
+  body.innerHTML=`<div class="card-hdr"><span class="card-title">内容</span><span class="badge ${n.status==='done'?'bg':'ba'}">${n.status==='done'?'承認済':'確認待'}</span></div>
+  <div style="padding:14px;font-size:13.5px;line-height:1.8;white-space:pre-wrap;color:var(--t2)">${n.content}</div>
+  ${n.translated?`<div class="card-hdr" style="border-top:1px solid var(--bd)"><span class="card-title">AI翻訳（日本語）</span><span class="badge bg">翻訳済</span></div><div style="padding:14px;font-size:13.5px;line-height:1.8;color:var(--tx)">${n.translated}</div>`:''}`;
+  document.getElementById('npov').classList.add('on');
+}
+function closeNippo(){document.getElementById('npov').classList.remove('on');}
+function openNewNippo(){npType='daily';document.getElementById('npov-new').classList.add('on');document.getElementById('np-inp').value='';}
+function selectNpType(type){
+  npType=type;
+  document.getElementById('np-type-daily').classList.toggle('on',type==='daily');
+  document.getElementById('np-type-hayari').classList.toggle('on',type==='hayari');
+}
+async function submitNippo(){
+  const content=document.getElementById('np-inp').value.trim();
+  if(!content){toast('エラー','内容を入力してください','r');return;}
+  document.getElementById('npov-new').classList.remove('on');
+
+  let translated='';
+  try{translated=await aiTx(content,'ja');}catch{translated='';}
+
+  try{
+    const res=await fetch('/worker/api/daily-reports',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type:npType,content,translated}),
+    });
+    const json=await res.json();
+    if(!json.ok) throw new Error(json.error);
+    const now=new Date();
+    NIPPOS.unshift({id:json.report?.id||'n'+Date.now(),date:now.toLocaleDateString('ja-JP'),type:npType,status:'pending',content,translated});
+    renderNPList(npFilter);
+    toast('✓ 送信完了','日報を管理者に送信しました');
+  }catch(e){
+    toast('エラー',e.message||'送信に失敗しました','r');
+  }
+}
+
+// ── SHIFT ─────────────────────────────────────────────────────────────────────
+
+// 管理者が入力するシフト種別の表記ゆれを正規化
+function normalizeShiftType(raw){
+  // 元の文字列そのまま（大文字小文字を保持）で照合
+  const s = (raw||'').trim();
+  // 日勤: 'niku' 'day' '日' '日勤' 'daytime' '普通'
+  if(['niku','日勤','day','daytime','普通','日'].includes(s))       return 'niku';
+  // 早番: 'hayaban' 'morning' '早' '早番'
+  if(['hayaban','早番','morning','early','早'].includes(s))         return 'hayaban';
+  // 遅番: 'osoi' 'late' '遅' '遅番'
+  if(['osoi','遅番','evening','late','遅'].includes(s))             return 'osoi';
+  // 休日: 'rest' 'off' '休' '休み'
+  if(['rest','休み','休','off','holiday'].includes(s))              return 'rest';
+  // 有休: '有' '有休' '有給'
+  if(['有','有休','有給','yukyuu','paid'].includes(s))              return 'yukyuu';
+  // 欠勤: '欠' '欠勤'
+  if(['欠','欠勤','absent'].includes(s))                           return 'absent';
+  return 'tbd';
+}
+
+// APIからシフトを取得して workerShifts に追記（リセットはしない）
+async function loadWorkerShifts(year, month){
+  try {
+    const res  = await fetch(`/worker/api/shifts?year=${year}&month=${month}`);
+    const json = await res.json();
+    if(!json.ok) return;
+    (json.shifts || []).forEach(s => { workerShifts[s.date] = s.shift_type; });
+  } catch(e) {
+    console.error('[shift] load error:', e);
+  }
+}
+
+// シフト画面を開いたとき・週移動のたびに呼ぶ
+async function loadAndRenderShift(){
+  const data  = buildShiftData(shiftWeekOffset);
+  const year  = data[0].year;
+  const month = data[0].month;
+  const lastMonth = data[6].month;
+
+  // リセットをここで1回だけ行う（複数月またぎでも上書きしない）
+  workerShifts = {};
+  await loadWorkerShifts(year, month);
+  if(lastMonth !== month) await loadWorkerShifts(data[6].year, lastMonth);
+  renderShift();
+}
+
+function renderShift(){
+  const el=document.getElementById('shift-week');if(!el)return;el.innerHTML='';
+  const L=LS[LANG]||LS.vi;
+  const labelMap={
+    niku:   L.shiftNiku   ||'日勤',
+    hayaban:L.shiftHayaban||'早番',
+    osoi:   L.shiftOsoi   ||'遅番',
+    rest:   L.shiftRest   ||'休み',
+    yukyuu: '有休',
+    absent: '欠勤',
+    tbd:    '未定',
+  };
+
+  // 7列グリッドで全曜日を表示
+  el.style.cssText='display:grid;grid-template-columns:repeat(7,1fr);gap:5px;padding:10px 12px;';
+
+  const data = buildShiftData(shiftWeekOffset);
+
+  // 期間ラベル
+  const first = data[0], last = data[6];
+  const periodEl = document.getElementById('sh-period');
+  if(periodEl){
+    const sameMonth = first.month === last.month;
+    periodEl.textContent = sameMonth
+      ? `${first.year}年${first.month}月${first.date}〜${last.date}日`
+      : `${first.year}年${first.month}/${first.date}〜${last.month}/${last.date}`;
+  }
+
+  data.forEach(d=>{
+    // DBのシフトデータで上書き（なければ未定）
+    const dateKey = `${d.year}-${String(d.month).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`;
+    const dbType  = workerShifts[dateKey];
+    const type    = dbType ? normalizeShiftType(dbType) : 'tbd';
+    const lbl     = type === 'tbd' ? '未定' : (labelMap[type] || dbType);
+    const c       = SHIFT_COLORS[type] || SHIFT_COLORS.tbd;
+
+    const div=document.createElement('div');
+    div.style.cssText=`
+      background:${d.today?'var(--gbg)':'var(--white)'};
+      border:${d.today?'2px solid var(--gn)':'1.5px solid var(--bd)'};
+      border-radius:10px;padding:8px 3px;text-align:center;
+    `;
+    div.innerHTML=`
+      <div style="font-size:10px;color:${d.dw==='日'?'var(--red)':d.dw==='土'?'var(--blu)':'var(--t3)'};margin-bottom:2px">${d.dw}</div>
+      <div style="font-size:13px;font-weight:700;color:${d.today?'var(--gn)':'var(--tx)'};margin-bottom:5px">${d.date}</div>
+      <div style="font-size:10px;font-weight:700;padding:3px 2px;border-radius:5px;background:${c.bg};color:${c.color}">${lbl}</div>
+    `;
+    el.appendChild(div);
+  });
+}
+
+function shiftPrevWeek(){ shiftWeekOffset--; loadAndRenderShift(); }
+function shiftNextWeek(){ shiftWeekOffset++; loadAndRenderShift(); }
+async function submitShiftReq(){
+  const dateEl=document.querySelector('#s-shift input[type=date]');
+  const selEl=document.querySelector('#s-shift select');
+  const date=dateEl?.value;
+  const shift_type=selEl?.value||'日勤';
+
+  if(!date){toast('エラー','日付を選択してください','r');return;}
+
+  try{
+    const res=await fetch('/worker/api/shift-requests',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({date,shift_type}),
+    });
+    const json=await res.json();
+    if(!json.ok) throw new Error(json.error);
+
+    // 履歴欄に追加
+    const hist=document.querySelector('.shift-hist');
+    if(hist){
+      const row=document.createElement('div');row.className='sh-row';
+      row.innerHTML=`<div><div class="sh-main">${date} ${shift_type}</div><div class="sh-date">${new Date().toLocaleDateString('ja-JP')} 申請</div></div><span class="bdg ba">審査中</span>`;
+      hist.appendChild(row);
+    }
+    toast('✓ 申請送信',`${date} ${shift_type} を申請しました`);
+    if(dateEl)dateEl.value='';
+  }catch(e){
+    toast('エラー',e.message||'申請に失敗しました','r');
+  }
+}
+
+// ── SOS ──────────────────────────────────────────────────────────────────────
+let sosT=null,sosN=3;
+function startSOS(e){e.preventDefault();sosN=3;document.getElementById('sos-ring').classList.add('pressing');document.getElementById('sos-cnt').style.display='block';document.getElementById('sos-cnt').textContent=sosN;sosT=setInterval(()=>{sosN--;document.getElementById('sos-cnt').textContent=sosN;if(sosN<=0){clearInterval(sosT);fireSOS();}},1000);}
+function stopSOS(){clearInterval(sosT);document.getElementById('sos-ring').classList.remove('pressing');document.getElementById('sos-cnt').style.display='none';}
+async function fireSOS(){
+  stopSOS();
+  document.getElementById('sos-done').style.display='block';
+  try{
+    await fetch('/worker/api/sos',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  }catch(e){console.error('[SOS]',e);}
+  toast('SOS送信','担当者に緊急連絡を送りました');
+}
+
+
+// ── ADD CONTACT ──────────────────────────────────────────────────────────────
+function openAddContactModal() {
+  const addedIds = DM_CHATS.map(dm=>dm.contactId);
+  const available = CONTACTS.filter(ct => !addedIds.includes(ct.id));
+  const el = document.getElementById('contact-list-items');
+  if(el) {
+    if(available.length===0){
+      el.innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;font-size:13px">追加できる関係者がいません</div>';
+    } else {
+      el.innerHTML = available.map(ct=>`
+        <div class="contact-item" onclick="addContactDM('${ct.id}')">
+          <div class="ci-av" style="background:${ct.avBg};color:${ct.avTc}">${ct.init}<div class="ci-dot" style="background:${ct.online?'var(--gn)':'var(--t3)'}"></div></div>
+          <div class="ci-body"><div class="ci-name">${ct.name}</div><div class="ci-role">${ct.role} · ${ct.dept}</div></div>
+          <button class="ci-add">＋</button>
+        </div>`).join('');
+    }
+  }
+  document.getElementById('add-contact-bg').classList.add('on');
+}
+
+function closeAddContactSheet(e){
+  if(e&&e.target!==document.getElementById('add-contact-bg'))return;
+  document.getElementById('add-contact-bg').classList.remove('on');
+}
+
+function copyInviteUrl(){
+  const url=document.getElementById('invite-url')?.textContent||'https://gb.app/chat/ng-12345';
+  if(navigator.clipboard){navigator.clipboard.writeText(url).then(()=>toast('コピー完了','招待URLをコピーしました','g'));}
+  else{toast('コピー完了','招待URLをコピーしました','g');}
+}
+
+function addContactDM(contactId) {
+  document.getElementById('add-contact-bg').classList.remove('on');
+  const ct = getContact(contactId);
+  if(!ct) return;
+  getOrCreateDM(contactId);
+  renderChatList();
+  // Open the new DM immediately
+  const dm = getDM(contactId);
+  if(dm) {
+    const item = getChatListData().find(x=>x.id===dm.id);
+    if(item) openChatItem(item);
+  }
+  toast('追加完了', ct.name + ' とのチャットを開始しました');
+}
+
+// ── メッセージ受信 API Polling（Supabase DB経由・全デバイス対応） ───────────────
+// gb_msg localStorage ポーリングを廃止し、API polling に移行
+const _ADMIN_UID  = _sd.adminUserId  || null;  // 管理者のauth user ID
+const _MY_UID     = _sd.myUserId     || null;  // 自分のauth user ID
+let   _msgLastTs  = new Date().toISOString();  // 最後に取得したメッセージのタイムスタンプ
+
+async function _handleIncomingMessage(m){
+  const body = m.body || '';
+  let tl = m.translated || body;
+  if(LANG !== 'ja'){ try{ tl = await aiTx(body, LANG); }catch{} }
+  const time = new Date(m.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  const incomingM = { t:'other', txt: body, tl, time };
+
+  // 管理者のcontactIdを特定（CONTACTS配列から）
+  const adminContact = CONTACTS.find(c => c.id === _ADMIN_UID);
+  const contactId    = adminContact?.id || (_ADMIN_UID || 'admin');
+
+  const dm = getOrCreateDM(contactId);
+  dm.msgs.push(incomingM);
+  dm.unread = (dm.unread || 0) + 1;
+
+  if(ACTIVE_CHAT && !ACTIVE_CHAT.isGroup && ACTIVE_CHAT.contactId === contactId){
+    addActiveBubble(incomingM, true);
+    dm.unread = 0;
+  }
+
+  const total = getChatListData().reduce((s,i)=>s+(i.unread||0),0);
+  const badge = document.getElementById('chat-badge');
+  if(badge){ badge.textContent=total; badge.style.display=total>0?'':'none'; }
+  renderChatList();
+  toast('担当者からメッセージ', tl.slice(0, 40));
+}
+
+// 8秒間隔でAPI polling（localStorage不使用）
+setInterval(async()=>{
+  if(!_MY_UID) return;
+  try{
+    const url = `/worker/api/messages?after=${encodeURIComponent(_msgLastTs)}`;
+    const res  = await fetch(url);
+    const json = await res.json();
+    if(!json.ok || !json.messages?.length) return;
+    for(const m of json.messages){
+      _msgLastTs = m.created_at;
+      if(_ADMIN_UID && m.sender_id === _ADMIN_UID && m.receiver_id === _MY_UID){
+        await _handleIncomingMessage(m);
+      }
+    }
+  }catch(e){ console.warn('[poll] error:', e); }
+}, 8000);
+
+// ── CLOCK ─────────────────────────────────────────────────────────────────────
+function tick(){const n=new Date();document.getElementById('stime').textContent=n.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});}
+setInterval(tick,1000);tick();
+
+// ── パスワード変更 ────────────────────────────────────────────────────────────
+async function changePassword(){
+  const np  = document.getElementById('pw-new').value;
+  const cfm = document.getElementById('pw-confirm').value;
+  const msg = document.getElementById('pw-msg');
+  const btn = document.getElementById('pw-btn');
+
+  msg.style.color = 'var(--red)';
+  if(!np || np.length < 8){ msg.textContent = 'パスワードは8文字以上で入力してください'; return; }
+  if(np !== cfm){ msg.textContent = 'パスワードが一致しません'; return; }
+
+  btn.disabled = true;
+  msg.style.color = 'var(--t3)';
+  msg.textContent = '変更中...';
+
+  try {
+    const res  = await fetch('/worker/api/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: np, confirm: cfm }),
+    });
+    const data = await res.json();
+    if(data.ok){
+      msg.style.color = 'var(--gn)';
+      msg.textContent = '✓ パスワードを変更しました';
+      document.getElementById('pw-new').value    = '';
+      document.getElementById('pw-confirm').value = '';
+      toast('✓ 変更完了', 'パスワードを更新しました', 'g');
+    } else {
+      msg.style.color = 'var(--red)';
+      msg.textContent = data.error || '変更に失敗しました';
+    }
+  } catch(e) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = '通信エラーが発生しました';
+  }
+  btn.disabled = false;
+}
+
+// ── ログアウト ────────────────────────────────────────────────────────────────
+function confirmLogout(){
+  if(confirm('ログアウトしますか？')) {
+    window.location.href = '/worker/logout';
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+const _sd  = window.SERVER_DATA || {};
+const _sw  = _sd.worker || {};
+
+// worker 単位で localStorage キーを分離
+const WID = _sd.workerId || 'guest';
+const wls = {
+  get:    k =>        localStorage.getItem(k + '_' + WID),
+  set:    (k, v) =>   localStorage.setItem(k + '_' + WID, v),
+  remove: k =>        localStorage.removeItem(k + '_' + WID),
+};
+
+// 言語：サーバーデータ → localStorage の順で決定
+const savedLang = wls.get('gb_wlang') || _sw.language || 'vi';
+applyL(savedLang);
+document.querySelectorAll('.lang-opt').forEach(o=>{
+  o.querySelector('.lang-check')?.remove();o.classList.remove('sel');
+  if(o.dataset.code===savedLang){o.classList.add('sel');const ck=document.createElement('span');ck.className='lang-check';ck.textContent='✓';o.appendChild(ck);}
+});
+
+// ── サーバーデータをUIに反映 ─────────────────────────────────────────────────
+(function applyServerData(){
+  if(!_sw.name) return;
+
+  // 在籍年数を計算
+  function calcYear(dateStr){
+    if(!dateStr) return '';
+    const y = new Date().getFullYear() - new Date(dateStr).getFullYear();
+    return y > 0 ? y+'年目' : '1年目';
+  }
+  const year = calcYear(_sw.entryDate);
+  const sub  = [_sw.name, _sw.jobTitle, year].filter(Boolean).join(' · ');
+  const psub = [_sw.jobTitle, year, _sw.department].filter(Boolean).join(' · ');
+  const init = (_sw.name.trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('')).toUpperCase() || '?';
+
+  // Hero
+  const heroSub = document.getElementById('w-hero-sub');
+  if(heroSub) heroSub.textContent = sub;
+  const hgreet = document.getElementById('h-greet');
+  if(hgreet) hgreet.textContent = (LS[savedLang]||LS.vi).greet + ', ' + (_sw.name.split(' ')[0] || '') + ' さん';
+
+  // Settings profile header
+  const pav   = document.getElementById('w-pav');   if(pav)  pav.textContent  = init;
+  const pname = document.getElementById('w-pname'); if(pname) pname.textContent = _sw.name;
+  const pwsub = document.getElementById('w-psub');  if(pwsub) pwsub.textContent = psub;
+
+  // Settings account rows
+  const stn = document.getElementById('w-st-name');    if(stn) stn.textContent = _sw.name;
+  const ste2= document.getElementById('w-st-email');   if(ste2) ste2.textContent = _sd.email || '—';
+  const stc = document.getElementById('w-st-company'); if(stc) stc.textContent = _sd.companyName || '';
+  const stm = document.getElementById('w-st-manager'); if(stm) stm.textContent = _sw.supervisor || '';
+  const ste = document.getElementById('st-tenure-val');
+  if(ste && year) ste.textContent = year + (_sw.entryDate ? '（'+_sw.entryDate.slice(0,7).replace('-','年')+'月〜）' : '');
+})();
+
+updateProg();loadAndRenderShift();
+
+// attendance.js 読み込み後に初期化（script タグの後で呼ぶ）
+
+// ── ADD CONTACT ──────────────────────────────────────────────────────────────
+function openAddContactModal() {
+  const addedIds = DM_CHATS.map(dm=>dm.contactId);
+  const available = CONTACTS.filter(ct => !addedIds.includes(ct.id));
+  const el = document.getElementById('contact-list-items');
+  if(el) {
+    if(available.length===0){
+      el.innerHTML='<div style="padding:24px;text-align:center;color:#9ca3af;font-size:13px">追加できる関係者がいません</div>';
+    } else {
+      el.innerHTML = available.map(ct=>`
+        <div class="contact-item" onclick="addContactDM('${ct.id}')">
+          <div class="ci-av" style="background:${ct.avBg};color:${ct.avTc}">${ct.init}<div class="ci-dot" style="background:${ct.online?'var(--gn)':'var(--t3)'}"></div></div>
+          <div class="ci-body"><div class="ci-name">${ct.name}</div><div class="ci-role">${ct.role} · ${ct.dept}</div></div>
+          <button class="ci-add">＋</button>
+        </div>`).join('');
+    }
+  }
+  document.getElementById('add-contact-bg').classList.add('on');
+}
+
+function closeAddContactSheet(e){
+  if(e&&e.target!==document.getElementById('add-contact-bg'))return;
+  document.getElementById('add-contact-bg').classList.remove('on');
+}
+
+function copyInviteUrl(){
+  const url=document.getElementById('invite-url')?.textContent||'https://gb.app/chat/ng-12345';
+  if(navigator.clipboard){navigator.clipboard.writeText(url).then(()=>toast('コピー完了','招待URLをコピーしました','g'));}
+  else{toast('コピー完了','招待URLをコピーしました','g');}
+}
+
+function addContactDM(contactId) {
+  document.getElementById('add-contact-bg').classList.remove('on');
+  const ct = getContact(contactId);
+  if(!ct) return;
+  getOrCreateDM(contactId);
+  renderChatList();
+  // Open the new DM immediately
+  const dm = getDM(contactId);
+  if(dm) {
+    const item = getChatListData().find(x=>x.id===dm.id);
+    if(item) openChatItem(item);
+  }
+  toast('追加完了', ct.name + ' とのチャットを開始しました');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+</script>
+<script src="/js/worker/attendance.js"></script>
+<script>Attendance.init();</script>
+</body>
+</html>
+

@@ -1,0 +1,139 @@
+<%- include('../partials/head') %>
+<body class="flex h-screen overflow-hidden bg-slate-50">
+  <%- include('../partials/sidebar', { currentPath: '/workers' }) %>
+  <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+    <%- include('../partials/topbar') %>
+    <main class="flex-1 overflow-y-auto p-6">
+      <div class="mb-6">
+        <h1 class="text-xl font-bold text-slate-900"><%= title %></h1>
+        <% if (worker) { %><p class="text-sm text-slate-500 mt-0.5"><%= worker.name %></p><% } %>
+      </div>
+      <%- include('../partials/flash') %>
+
+      <div class="max-w-3xl bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <form action="<%= action %>" method="POST" class="space-y-6">
+          <% if (worker) { %><input type="hidden" name="_method" value="PUT"><% } %>
+
+          <!-- 基本情報 -->
+          <section>
+            <h3 class="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">基本情報</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="col-span-2 md:col-span-1">
+                <label class="block text-xs font-semibold text-slate-500 mb-1">氏名 *</label>
+                <input type="text" name="name" required value="<%= worker?.name || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">氏名（カナ）</label>
+                <input type="text" name="name_kana" value="<%= worker?.name_kana || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">国籍</label>
+                <input type="text" name="nationality" value="<%= worker?.nationality || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">言語</label>
+                <select name="language" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="">選択してください</option>
+                  <% [['vi','ベトナム語'],['id','インドネシア語'],['tl','フィリピン語'],['my','ミャンマー語'],['zh','中国語'],['km','クメール語'],['ja','日本語']].forEach(([v,l]) => { %>
+                    <option value="<%= v %>" <%= worker?.language === v ? 'selected' : '' %>><%= l %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">生年月日</label>
+                <input type="date" name="date_of_birth" value="<%= worker?.date_of_birth || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">性別</label>
+                <select name="gender" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="">選択</option>
+                  <option value="male"   <%= worker?.gender === 'male'   ? 'selected' : '' %>>男性</option>
+                  <option value="female" <%= worker?.gender === 'female' ? 'selected' : '' %>>女性</option>
+                  <option value="other"  <%= worker?.gender === 'other'  ? 'selected' : '' %>>その他</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <!-- 在留情報 -->
+          <section>
+            <h3 class="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">在留情報</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">在留資格</label>
+                <input type="text" name="visa_type" value="<%= worker?.visa_type || '' %>" placeholder="技能実習2号ロ" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">在留カード番号</label>
+                <input type="text" name="residence_card" value="<%= worker?.residence_card || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">在留期限</label>
+                <input type="date" name="residence_expire" value="<%= worker?.residence_expire || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">入国日</label>
+                <input type="date" name="entry_date" value="<%= worker?.entry_date || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">契約終了日</label>
+                <input type="date" name="contract_end" value="<%= worker?.contract_end || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">パスポート番号</label>
+                <input type="text" name="passport_number" value="<%= worker?.passport_number || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">パスポート期限</label>
+                <input type="date" name="passport_expire" value="<%= worker?.passport_expire || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+            </div>
+          </section>
+
+          <!-- 勤務情報 -->
+          <section>
+            <h3 class="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">勤務情報</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">職種</label>
+                <input type="text" name="job_title" value="<%= worker?.job_title || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">部署</label>
+                <input type="text" name="department" value="<%= worker?.department || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">担当者</label>
+                <input type="text" name="supervisor" value="<%= worker?.supervisor || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">ステータス</label>
+                <select name="status" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="active"   <%= (worker?.status || 'active') === 'active'   ? 'selected' : '' %>>在籍中</option>
+                  <option value="inactive" <%= worker?.status === 'inactive' ? 'selected' : '' %>>退職済み</option>
+                  <option value="issue"    <%= worker?.status === 'issue'    ? 'selected' : '' %>>要対応</option>
+                </select>
+              </div>
+              <div class="col-span-2">
+                <label class="block text-xs font-semibold text-slate-500 mb-1">住所</label>
+                <input type="text" name="address" value="<%= worker?.address || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div class="col-span-2">
+                <label class="block text-xs font-semibold text-slate-500 mb-1">緊急連絡先</label>
+                <input type="text" name="emergency_contact" value="<%= worker?.emergency_contact || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+            </div>
+          </section>
+
+          <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors">
+              <%= worker ? '更新する' : '登録する' %>
+            </button>
+            <a href="/workers<%= worker ? '/' + worker.id : '' %>" class="px-6 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors">キャンセル</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

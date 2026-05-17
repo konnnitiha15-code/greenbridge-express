@@ -1,0 +1,27 @@
+<%- include('../partials/head') %>
+<body class="flex h-screen overflow-hidden bg-slate-50">
+  <%- include('../partials/sidebar', { currentPath: '/companies' }) %>
+  <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+    <%- include('../partials/topbar') %>
+    <main class="flex-1 overflow-y-auto p-6">
+      <div class="mb-6"><h1 class="text-xl font-bold text-slate-900"><%= title %></h1></div>
+      <%- include('../partials/flash') %>
+      <div class="max-w-xl bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <form action="<%= action %>" method="POST" class="space-y-4">
+          <% if (company) { %><input type="hidden" name="_method" value="PUT"><% } %>
+          <% [['会社名 *', 'name', 'text', true], ['会社名（カナ）', 'name_kana', 'text', false], ['住所', 'address', 'text', false], ['電話番号', 'phone', 'tel', false], ['メールアドレス', 'email', 'email', false]].forEach(([l,n,t,r]) => { %>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1"><%= l %></label>
+              <input type="<%= t %>" name="<%= n %>" <%= r ? 'required' : '' %> value="<%= company?.[n] || '' %>" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+          <% }) %>
+          <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors"><%= company ? '更新する' : '登録する' %></button>
+            <a href="/companies" class="px-6 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50">キャンセル</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

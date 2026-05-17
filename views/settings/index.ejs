@@ -1,0 +1,55 @@
+<%- include('../partials/head') %>
+<body class="flex h-screen overflow-hidden bg-slate-50">
+  <%- include('../partials/sidebar', { currentPath: '/settings' }) %>
+  <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+    <%- include('../partials/topbar') %>
+    <main class="flex-1 overflow-y-auto p-6">
+      <div class="mb-6">
+        <h1 class="text-xl font-bold text-slate-900">設定・権限管理</h1>
+      </div>
+
+      <!-- アカウント情報 -->
+      <div class="max-w-xl mb-6 bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+        <% [['氏名', profile?.full_name || '—'], ['メールアドレス', user?.email || '—'], ['ロール', {admin:'管理者',manager:'マネージャー',staff:'スタッフ'}[profile?.role] || profile?.role || '—'], ['バージョン', 'GreenBridge v1.0.0']].forEach(([l,v]) => { %>
+          <div class="flex items-center gap-6 px-5 py-4">
+            <dt class="w-36 flex-shrink-0 text-xs font-semibold text-slate-400 uppercase tracking-wider"><%= l %></dt>
+            <dd class="flex-1 text-sm text-slate-900"><%= v %></dd>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- ユーザー一覧 -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100">
+          <h3 class="text-sm font-semibold text-slate-900">ユーザー一覧</h3>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50">
+              <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">氏名</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">会社</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">ロール</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% if (!profiles.length) { %>
+              <tr><td colspan="3" class="text-center py-12 text-slate-400">ユーザーがいません</td></tr>
+            <% } %>
+            <% const roleColor = { admin:'bg-purple-50 text-purple-700 border-purple-200', manager:'bg-blue-50 text-blue-700 border-blue-200', staff:'bg-slate-50 text-slate-600 border-slate-200' } %>
+            <% const roleLabel = { admin:'管理者', manager:'マネージャー', staff:'スタッフ' } %>
+            <% profiles.forEach(p => { %>
+              <tr class="hover:bg-slate-50 transition-colors">
+                <td class="px-5 py-3.5 font-medium text-slate-900"><%= p.full_name %></td>
+                <td class="px-4 py-3.5 hidden md:table-cell text-sm text-slate-500"><%= p.companies?.name || '—' %></td>
+                <td class="px-4 py-3.5">
+                  <span class="inline-flex text-xs font-medium px-2 py-0.5 rounded-full border <%= roleColor[p.role] || roleColor.staff %>"><%= roleLabel[p.role] || p.role %></span>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

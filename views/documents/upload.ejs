@@ -1,0 +1,65 @@
+<%- include('../partials/head') %>
+<body class="flex h-screen overflow-hidden bg-slate-50">
+  <%- include('../partials/sidebar', { currentPath: '/documents' }) %>
+  <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+    <%- include('../partials/topbar') %>
+    <main class="flex-1 overflow-y-auto p-6">
+      <div class="mb-6">
+        <h1 class="text-xl font-bold text-slate-900">書類アップロード</h1>
+        <p class="text-sm text-slate-500 mt-0.5">PDF・Word・画像などの書類を登録します</p>
+      </div>
+      <%- include('../partials/flash') %>
+
+      <div class="max-w-2xl bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <form action="/documents/upload" method="POST" enctype="multipart/form-data" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">書類名 *</label>
+            <input type="text" name="name" required class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">カテゴリ *</label>
+              <select name="category" required class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <% Object.entries(categoryLabel).forEach(([v,l]) => { %>
+                  <option value="<%= v %>"><%= l %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">対象従業員</label>
+              <select name="worker_id" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="">会社共通</option>
+                <% workers.forEach(w => { %>
+                  <option value="<%= w.id %>"><%= w.name %></option>
+                <% }) %>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">発行日</label>
+              <input type="date" name="issue_date" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">有効期限</label>
+              <input type="date" name="expire_date" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">ファイル</label>
+            <input type="file" name="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">メモ</label>
+            <textarea name="notes" rows="3" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"></textarea>
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors">登録する</button>
+            <a href="/documents" class="px-6 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors">キャンセル</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<%- include('../partials/head') %>
+<body class="flex h-screen overflow-hidden bg-slate-50">
+  <%- include('../partials/sidebar', { currentPath: '/dashboard' }) %>
+  <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+    <%- include('../partials/topbar') %>
+    <main class="flex-1 overflow-y-auto p-6">
+
+      <div class="mb-6">
+        <h1 class="text-xl font-bold text-slate-900">ダッシュボード</h1>
+        <p class="text-sm text-slate-500 mt-0.5">期限管理・従業員状況の概要</p>
+      </div>
+      <%- include('../partials/flash') %>
+
+      <!-- KPI -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <% const stats = [
+          { label: '在籍中の従業員', value: workerCount,   color: 'text-emerald-600 bg-emerald-50' },
+          { label: '書類数',         value: documentCount, color: 'text-blue-600 bg-blue-50' },
+          { label: '要対応アラート', value: urgentCount,   color: urgentCount > 0 ? 'text-red-600 bg-red-50' : 'text-slate-600 bg-slate-100' },
+          { label: '登録会社数',     value: companyCount,  color: 'text-purple-600 bg-purple-50' },
+        ] %>
+        <% stats.forEach(s => { %>
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2"><%= s.label %></p>
+            <p class="text-3xl font-bold text-slate-900"><%= s.value %></p>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- 期限アラート -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+          <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 class="text-sm font-semibold text-slate-900">期限アラート</h3>
+          <% if (alerts.length > 0) { %><span class="ml-auto text-xs text-slate-500"><%= alerts.length %>件</span><% } %>
+        </div>
+        <div class="px-5 py-4">
+          <% if (!alerts.length) { %>
+            <p class="text-sm text-slate-400 py-4 text-center">期限の近い項目はありません</p>
+          <% } else { %>
+            <ul class="divide-y divide-slate-100">
+              <% alerts.forEach(a => { %>
+                <% const color = a.status === 'expired' ? 'text-red-600 bg-red-50 border-red-200' : a.status === 'urgent' ? 'text-orange-600 bg-orange-50 border-orange-200' : 'text-amber-600 bg-amber-50 border-amber-200' %>
+                <li class="py-3 flex items-center gap-3">
+                  <a href="/workers/<%= a.worker_id %>" class="flex-1 text-sm font-medium text-slate-900 hover:text-emerald-600"><%= a.worker_name %></a>
+                  <span class="text-xs text-slate-400"><%= a.label %></span>
+                  <span class="inline-flex text-xs font-medium px-2 py-0.5 rounded-full border <%= color %>">
+                    <%= a.status === 'expired' ? '期限切れ' : a.days + '日' %>
+                  </span>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</body>
+</html>

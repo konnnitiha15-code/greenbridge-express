@@ -1,0 +1,6 @@
+<% if (locals.success && success.length) { %>
+  <div class="mb-4 px-4 py-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm"><%= success[0] %></div>
+<% } %>
+<% if (locals.error && error.length) { %>
+  <div class="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"><%= error[0] %></div>
+<% } %>

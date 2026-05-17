@@ -1,0 +1,9 @@
+public/uploads/
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.png
+*.jpg
+*.jpeg

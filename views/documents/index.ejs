@@ -1,0 +1,64 @@
+<%- include('../partials/head') %>
+<body class="flex h-screen overflow-hidden bg-slate-50">
+  <%- include('../partials/sidebar', { currentPath: '/documents' }) %>
+  <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+    <%- include('../partials/topbar') %>
+    <main class="flex-1 overflow-y-auto p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-xl font-bold text-slate-900">書類管理</h1>
+          <p class="text-sm text-slate-500 mt-0.5"><%= documents.length %>件の書類</p>
+        </div>
+        <a href="/documents/upload" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          書類を追加
+        </a>
+      </div>
+      <%- include('../partials/flash') %>
+
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50">
+              <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">書類名</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">カテゴリ</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">対象者</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">有効期限</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% if (!documents.length) { %>
+              <tr><td colspan="5" class="text-center py-12 text-slate-400">書類が登録されていません</td></tr>
+            <% } %>
+            <% const catColor = { contract:'bg-blue-50 text-blue-700 border-blue-200', visa:'bg-purple-50 text-purple-700 border-purple-200', insurance:'bg-emerald-50 text-emerald-700 border-emerald-200', salary:'bg-amber-50 text-amber-700 border-amber-200', safety:'bg-orange-50 text-orange-700 border-orange-200', other:'bg-slate-50 text-slate-600 border-slate-200' } %>
+            <% documents.forEach(doc => { %>
+              <tr class="hover:bg-slate-50 transition-colors">
+                <td class="px-5 py-3.5">
+                  <p class="font-medium text-slate-900"><%= doc.name %></p>
+                  <% if (doc.file_name) { %><p class="text-xs text-slate-400 mt-0.5 truncate max-w-xs"><%= doc.file_name %></p><% } %>
+                </td>
+                <td class="px-4 py-3.5 hidden md:table-cell">
+                  <span class="inline-flex text-xs font-medium px-2 py-0.5 rounded-full border <%= catColor[doc.category] || '' %>"><%= categoryLabel[doc.category] %></span>
+                </td>
+                <td class="px-4 py-3.5 hidden lg:table-cell text-xs text-slate-500"><%= doc.workers?.name || '会社共通' %></td>
+                <td class="px-4 py-3.5 hidden lg:table-cell text-xs text-slate-500"><%= doc.expire_date || '—' %></td>
+                <td class="px-4 py-3.5 text-right">
+                  <% if (doc.file_url) { %>
+                    <a href="<%= doc.file_url %>" target="_blank" class="text-slate-400 hover:text-emerald-600 mr-2">
+                      <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    </a>
+                  <% } %>
+                  <a href="/documents/<%= doc.id %>" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                  </a>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
