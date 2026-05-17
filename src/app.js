@@ -51,6 +51,10 @@ app.use('/companies', companyRoutes)
 app.use('/settings',  settingsRoutes)
 app.use('/worker',    workerAppRoutes)
 
-// ── 起動 ──────────────────────────────────────
-const PORT = process.env.PORT || 3000
-app.listen(PORT, () => console.log(`GreenBridge running → http://localhost:${PORT}`))
+// ── 起動（ローカル）・エクスポート（Vercel）────────────────────────
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000
+  app.listen(PORT, () => console.log(`GreenBridge running → http://localhost:${PORT}`))
+}
+
+module.exports = app
