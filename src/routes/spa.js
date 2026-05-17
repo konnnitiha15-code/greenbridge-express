@@ -16,14 +16,18 @@ function createAdminClient() {
   )
 }
 
-// アップロード先: public/uploads/documents/
-const UPLOAD_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads', 'documents')
-fs.mkdirSync(UPLOAD_ROOT, { recursive: true })
+// アップロード先: Vercel では /tmp を使用（ローカルは public/uploads/documents/）
+const IS_VERCEL  = !!process.env.VERCEL
+const UPLOAD_ROOT = IS_VERCEL
+  ? '/tmp/uploads/documents'
+  : path.join(__dirname, '..', '..', 'public', 'uploads', 'documents')
+try { fs.mkdirSync(UPLOAD_ROOT, { recursive: true }) } catch {}
 
 // ── ローカルJSONストレージ（DBなしでも永続化） ──────────────────────────────
-const DATA_DIR   = path.join(__dirname, '..', '..', 'data')
+// Vercel では /tmp を使用（再起動時にリセットされるためキャッシュ用途のみ）
+const DATA_DIR   = IS_VERCEL ? '/tmp/data' : path.join(__dirname, '..', '..', 'data')
 const DOCS_JSON  = path.join(DATA_DIR, 'docs_local.json')
-fs.mkdirSync(DATA_DIR, { recursive: true })
+try { fs.mkdirSync(DATA_DIR, { recursive: true }) } catch {}
 
 function loadLocalDocs() {
   try { return JSON.parse(fs.readFileSync(DOCS_JSON, 'utf8') || '[]') } catch { return [] }
