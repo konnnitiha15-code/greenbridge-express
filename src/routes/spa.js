@@ -7,6 +7,10 @@ const { requireAuth }  = require('../middleware/auth')
 const { requireAdmin } = require('../middleware/requireRole')
 const router  = express.Router()
 
+// ── /app 配下の全ルートに admin 認証を適用 ──────────────────────────────────
+// 個別ルートの requireAuth / requireAdmin は重複するが安全のため残す
+router.use(requireAuth, requireAdmin)
+
 // service_role クライアント（サーバー専用・クライアントへ露出禁止）
 function createAdminClient() {
   return _createClient(
