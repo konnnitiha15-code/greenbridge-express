@@ -6,7 +6,8 @@ const COOKIE_OPT = { httpOnly: true, sameSite: 'lax', secure: SECURE }
 
 router.get('/login', async (req, res) => {
   const accessToken = req.cookies['sb-access-token']
-  if (!accessToken) return res.render('auth/login', { title: 'ログイン' })
+  const errorMsg    = req.query.e ? decodeURIComponent(req.query.e) : null
+  if (!accessToken) return res.render('auth/login', { title: 'ログイン', errorMsg })
 
   // 既存トークンがある場合は role を確認してから振り分け
   try {
@@ -23,11 +24,11 @@ router.get('/login', async (req, res) => {
     // admin/staff は /app へ
     if (profile?.role === 'admin' || profile?.role === 'staff') return res.redirect('/app')
     // worker セッションが残っている場合はクッキーをクリアしてログインフォームを表示
-    res.clearCookie('sb-access-token')
-    res.clearCookie('sb-refresh-token')
-    return res.render('auth/login', { title: 'ログイン' })
+    res.clearCookie('sb-access-token', COOKIE_OPT)
+    res.clearCookie('sb-refresh-token', COOKIE_OPT)
+    return res.render('auth/login', { title: 'ログイン', errorMsg })
   } catch {
-    return res.render('auth/login', { title: 'ログイン' })
+    return res.render('auth/login', { title: 'ログイン', errorMsg })
   }
 })
 
@@ -38,8 +39,8 @@ router.post('/login', async (req, res) => {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error || !data.session) {
-    req.flash('error', 'メールアドレスまたはパスワードが正しくありません')
-    return res.redirect('/login')
+    const msg = encodeURIComponent('メールアドレスまたはパスワードが正しくありません')
+    return res.redirect(`/login?e=${msg}`)
   }
 
   // role 確認は service_role キーで確実に取得
@@ -53,8 +54,8 @@ router.post('/login', async (req, res) => {
 
   // worker は /login から入れない → /worker/login に誘導
   if (profile?.role === 'worker') {
-    req.flash('error', 'ワーカーアカウントは /worker/login からログインしてください')
-    return res.redirect('/login')
+    const msg = encodeURIComponent('ワーカーアカウントは /worker/login からログインしてください')
+    return res.redirect(`/login?e=${msg}`)
   }
 
   // admin / staff のみ Cookie を発行して /app へ

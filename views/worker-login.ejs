@@ -91,8 +91,8 @@ input,button{font-family:inherit}
   </div>
 
   <div class="body">
-    <% if (locals.error && error.length) { %>
-      <div class="alert"><%= error[0] %></div>
+    <% if (locals.errorMsg) { %>
+      <div class="alert"><%= errorMsg %></div>
     <% } %>
 
     <form method="POST" action="/worker/login">

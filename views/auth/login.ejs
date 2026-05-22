@@ -13,7 +13,11 @@
 
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
       <h2 class="text-lg font-semibold text-slate-900 mb-6">アカウントにログイン</h2>
-      <%- include('../partials/flash') %>
+      <% if (locals.errorMsg) { %>
+        <div style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px">
+          ⚠️ <%= errorMsg %>
+        </div>
+      <% } %>
       <form action="/login" method="POST" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1.5">メールアドレス</label>

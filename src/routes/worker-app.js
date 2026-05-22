@@ -11,7 +11,8 @@ const router          = express.Router()
 // worker session のみ許可。admin session があっても /app にはリダイレクトしない。
 router.get('/login', async (req, res) => {
   const accessToken = req.cookies['gb-worker-token']
-  if (!accessToken) return res.render('worker-login', { title: 'ログイン' })
+  const errorMsg    = req.query.e ? decodeURIComponent(req.query.e) : null
+  if (!accessToken) return res.render('worker-login', { title: 'ログイン', errorMsg })
 
   try {
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -32,13 +33,13 @@ router.get('/login', async (req, res) => {
     if (profile?.role === 'worker') return res.redirect('/worker')
 
     // worker 以外（admin等）の gb-worker-token は無効 → Cookieを消してフォーム表示
-    res.clearCookie('gb-worker-token')
-    res.clearCookie('gb-worker-refresh')
-    return res.render('worker-login', { title: 'ログイン' })
+    res.clearCookie('gb-worker-token', COOKIE_OPT)
+    res.clearCookie('gb-worker-refresh', COOKIE_OPT)
+    return res.render('worker-login', { title: 'ログイン', errorMsg })
   } catch {
-    res.clearCookie('gb-worker-token')
-    res.clearCookie('gb-worker-refresh')
-    return res.render('worker-login', { title: 'ログイン' })
+    res.clearCookie('gb-worker-token', COOKIE_OPT)
+    res.clearCookie('gb-worker-refresh', COOKIE_OPT)
+    return res.render('worker-login', { title: 'ログイン', errorMsg })
   }
 })
 
@@ -50,8 +51,8 @@ router.post('/login', async (req, res) => {
   const { data, error } = await sb.auth.signInWithPassword({ email, password })
 
   if (error || !data.session) {
-    req.flash('error', 'メールアドレスまたはパスワードが正しくありません')
-    return res.redirect('/worker/login')
+    const msg = encodeURIComponent('メールアドレスまたはパスワードが正しくありません')
+    return res.redirect(`/worker/login?e=${msg}`)
   }
 
   // role 確認
@@ -62,8 +63,8 @@ router.post('/login', async (req, res) => {
 
   // admin / staff は /worker/login から入れない → /login に誘導
   if (profile?.role !== 'worker') {
-    req.flash('error', '管理者アカウントは /login からログインしてください')
-    return res.redirect('/worker/login')
+    const msg = encodeURIComponent('管理者アカウントは /login からログインしてください')
+    return res.redirect(`/worker/login?e=${msg}`)
   }
 
   // worker のみ gb-worker-token を発行して /worker へ
