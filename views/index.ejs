@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreenBridge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 25px 60px rgba(0,0,0,.25);
+      text-align: center;
+    }
+    .logo {
+      font-size: 48px;
+      margin-bottom: 8px;
+    }
+    .title {
+      font-size: 26px;
+      font-weight: 700;
+      color: #064e3b;
+      letter-spacing: -.5px;
+    }
+    .sub {
+      font-size: 13px;
+      color: #6b7280;
+      margin-top: 4px;
+      margin-bottom: 40px;
+    }
+    .label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      padding: 18px 22px;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform .12s, box-shadow .12s;
+      margin-bottom: 12px;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    }
+    .btn:active { transform: translateY(0); }
+    .btn-admin {
+      background: linear-gradient(135deg, #064e3b, #047857);
+      color: #fff;
+    }
+    .btn-worker {
+      background: #f0fdf4;
+      color: #064e3b;
+      border: 2px solid #bbf7d0;
+    }
+    .btn-icon {
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+    .btn-text { text-align: left; }
+    .btn-title {
+      font-size: 15px;
+      font-weight: 700;
+      display: block;
+    }
+    .btn-desc {
+      font-size: 11.5px;
+      opacity: .75;
+      margin-top: 2px;
+      display: block;
+    }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 4px 0 16px;
+      color: #d1d5db;
+      font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e5e7eb;
+    }
+    .footer {
+      margin-top: 32px;
+      font-size: 11px;
+      color: #d1fae5;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">🌿</div>
+    <div class="title">GreenBridge</div>
+    <div class="sub">技能実習生管理プラットフォーム</div>
+
+    <div class="label">ログイン先を選んでください</div>
+
+    <a href="/login" class="btn btn-admin">
+      <span class="btn-icon">🏢</span>
+      <span class="btn-text">
+        <span class="btn-title">管理者・スタッフ</span>
+        <span class="btn-desc">実習生の管理・シフト・書類</span>
+      </span>
+    </a>
+
+    <div class="divider">または</div>
+
+    <a href="/worker/login" class="btn btn-worker">
+      <span class="btn-icon">👷</span>
+      <span class="btn-text">
+        <span class="btn-title">実習生（ワーカー）</span>
+        <span class="btn-desc">打刻・シフト確認・日報</span>
+      </span>
+    </a>
+  </div>
+
+  <div class="footer">© 2026 GreenBridge</div>
+</body>
+</html>

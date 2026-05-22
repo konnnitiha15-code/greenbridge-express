@@ -45,7 +45,7 @@ app.use((req, res, next) => {
 })
 
 // ── ルーティング ──────────────────────────────
-app.get('/',          (req, res) => res.redirect('/app'))
+app.get('/',          (req, res) => res.render('index'))
 app.get('/dashboard', (req, res) => res.redirect('/app'))
 app.use('/',          authRoutes)
 app.use('/app',       spaRoutes)
