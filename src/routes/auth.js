@@ -1,6 +1,8 @@
 const express = require('express')
 const { createClient } = require('@supabase/supabase-js')
 const router = express.Router()
+const SECURE = !!(process.env.VERCEL || process.env.NODE_ENV === 'production')
+const COOKIE_OPT = { httpOnly: true, sameSite: 'lax', secure: SECURE }
 
 router.get('/login', async (req, res) => {
   const accessToken = req.cookies['sb-access-token']
@@ -57,8 +59,8 @@ router.post('/login', async (req, res) => {
 
   // admin / staff のみ Cookie を発行して /app へ
   const { access_token, refresh_token } = data.session
-  res.cookie('sb-access-token', access_token, { httpOnly: true, sameSite: 'lax' })
-  res.cookie('sb-refresh-token', refresh_token, { httpOnly: true, sameSite: 'lax' })
+  res.cookie('sb-access-token', access_token,  COOKIE_OPT)
+  res.cookie('sb-refresh-token', refresh_token, COOKIE_OPT)
   res.redirect('/app')
 })
 

@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js')
+const SECURE     = !!(process.env.VERCEL || process.env.NODE_ENV === 'production')
+const COOKIE_OPT = { httpOnly: true, sameSite: 'lax', secure: SECURE }
 
 async function requireAuth(req, res, next) {
   const accessToken  = req.cookies['sb-access-token']
@@ -81,8 +83,8 @@ async function requireWorkerAuth(req, res, next) {
 
     // トークンが更新された場合はCookieを更新
     if (session.access_token !== accessToken) {
-      res.cookie('gb-worker-token',   session.access_token,  { httpOnly: true, sameSite: 'lax' })
-      res.cookie('gb-worker-refresh', session.refresh_token, { httpOnly: true, sameSite: 'lax' })
+      res.cookie('gb-worker-token',   session.access_token,  COOKIE_OPT)
+      res.cookie('gb-worker-refresh', session.refresh_token, COOKIE_OPT)
     }
 
     req.user     = session.user

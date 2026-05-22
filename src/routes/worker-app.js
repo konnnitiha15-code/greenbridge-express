@@ -1,5 +1,7 @@
 const express         = require('express')
 const { createClient } = require('@supabase/supabase-js')
+const SECURE     = !!(process.env.VERCEL || process.env.NODE_ENV === 'production')
+const COOKIE_OPT = { httpOnly: true, sameSite: 'lax', secure: SECURE }
 const { requireWorkerAuth } = require('../middleware/auth')
 const { requireWorker } = require('../middleware/requireRole')
 const router          = express.Router()
@@ -66,8 +68,8 @@ router.post('/login', async (req, res) => {
 
   // worker のみ gb-worker-token を発行して /worker へ
   const { access_token, refresh_token } = data.session
-  res.cookie('gb-worker-token',   access_token,  { httpOnly: true, sameSite: 'lax' })
-  res.cookie('gb-worker-refresh', refresh_token, { httpOnly: true, sameSite: 'lax' })
+  res.cookie('gb-worker-token',   access_token,  COOKIE_OPT)
+  res.cookie('gb-worker-refresh', refresh_token, COOKIE_OPT)
   res.redirect('/worker')
 })
 

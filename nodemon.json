@@ -1,5 +1,7 @@
 {
   "watch": ["src"],
   "ext": "js,json",
-  "ignore": ["public/", "views/", "data/"]
+  "ignore": ["public/", "views/", "data/"],
+  "delay": 1000,
+  "signal": "SIGKILL"
 }

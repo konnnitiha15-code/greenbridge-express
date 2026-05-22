@@ -957,8 +957,8 @@ input,textarea,select,button{font-family:inherit}
       <div class="card">
         <div class="card-hdr"><span class="card-title">送信先</span></div>
         <div class="card-row">
-          <div style="width:38px;height:38px;border-radius:50%;background:#064e3b;color:#6ee7b7;border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">田</div>
-          <div style="flex:1"><div style="font-size:13.5px;font-weight:600">田中 誠（担当責任者）</div><div style="font-size:12px;color:var(--t3);margin-top:2px">AI翻訳して日本語で届きます</div></div>
+          <div id="tpl-recipient-init" style="width:38px;height:38px;border-radius:50%;background:#064e3b;color:#6ee7b7;border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">担</div>
+          <div style="flex:1"><div style="font-size:13.5px;font-weight:600" id="tpl-recipient-name">担当者</div><div style="font-size:12px;color:var(--t3);margin-top:2px">AI翻訳して日本語で届きます</div></div>
           <div style="width:26px;height:26px;border-radius:50%;background:var(--gbg);border:2px solid var(--glt);display:flex;align-items:center;justify-content:center;color:var(--gn);font-size:14px;font-weight:700">✓</div>
         </div>
       </div>
@@ -1147,7 +1147,7 @@ input,textarea,select,button{font-family:inherit}
     </div>
     <div id="sos-cnt" style="display:none" class="sos-cnt">3</div>
     <div id="sos-done" style="display:none" class="sos-ok"><div class="sos-ok-title" id="sos-sent-l">SOS 送信完了</div><div style="font-size:13px;color:var(--gn);margin-top:4px">担当者に通知しました</div></div>
-    <div class="contact-card"><div class="cc-ico">📞</div><div><div style="font-size:14px;font-weight:700">田中さん（担当者）</div><div style="font-size:12px;color:var(--t3);margin-top:2px">090-XXXX-XXXX</div></div></div>
+    <div class="contact-card"><div class="cc-ico">📞</div><div><div style="font-size:14px;font-weight:700" id="sos-contact-name">担当者</div><div style="font-size:12px;color:var(--t3);margin-top:2px" id="sos-contact-role">担当責任者</div></div></div>
   </div>
 </div>
 
@@ -1480,7 +1480,7 @@ const LS={
     tplTitle:'Đơn & Báo cáo',tplSub:'Nhập tiếng mẹ đẻ → AI dịch sang tiếng Nhật',tplSend:'Dịch AI và gửi',detail:'Viết chi tiết',
     docTitle:'Tài liệu',docSub:'Tài liệu đã xác nhận hiển thị màu xanh',progL:'Tiến độ',confirmQ:'Bạn đã hiểu nội dung tài liệu chưa?',understood:'Tôi đã hiểu · Xác nhận',back:'Quay lại',ttsL:'Nghe to',
     sosTitle:'Khẩn cấp SOS',sosDesc:'Giữ nút đỏ 3 giây\nđể gửi liên lạc khẩn cấp',sosSent:'Đã gửi SOS',
-    chatName:'Tanaka (Phụ trách)',chatStatus:'● Online · AI dịch bật',chatStart:'Bắt đầu chat — AI dịch thuật đang bật',
+    chatName:'Người phụ trách',chatStatus:'● Online · AI dịch bật',chatStart:'Bắt đầu chat — AI dịch thuật đang bật',
     shiftTitle:'Lịch làm việc',shiftReq:'Yêu cầu lịch làm việc',shiftHistory:'Lịch sử yêu cầu',shiftLegend:'Chú thích',
     vidTitle:'Video hướng dẫn',vidBack:'Quay lại',vidWatched:'Đánh dấu đã xem',vidSubLbl:'Phụ đề',
     npTitle:'Nhật ký & Báo cáo',npNew:'Tạo mới',npFormTitle:'Nội dung nhật ký',
@@ -1555,7 +1555,7 @@ lLabel:'ベトナム語'},
     tplTitle:'Permohonan & Laporan',tplSub:'Masukkan bahasa ibu → AI terjemahkan',tplSend:'Terjemahkan & kirim',detail:'Tulis detail',
     docTitle:'Dokumen',docSub:'Dokumen terkonfirmasi berwarna hijau',progL:'Progres',confirmQ:'Apakah Anda mengerti isi dokumen ini?',understood:'Saya mengerti · Konfirmasi',back:'Kembali',ttsL:'Bacakan',
     sosTitle:'SOS Darurat',sosDesc:'Tahan tombol merah 3 detik\nuntuk mengirim darurat',sosSent:'SOS berhasil terkirim',
-    chatName:'Tanaka (Penanggung jawab)',chatStatus:'● Online · Terjemahan AI aktif',chatStart:'Chat dimulai — AI terjemahan aktif',
+    chatName:'Penanggung jawab',chatStatus:'● Online · Terjemahan AI aktif',chatStart:'Chat dimulai — AI terjemahan aktif',
     shiftTitle:'Jadwal Kerja',shiftReq:'Permintaan Jadwal',shiftHistory:'Riwayat Permintaan',shiftLegend:'Keterangan',
     vidTitle:'Video Manual',vidBack:'Kembali',vidWatched:'Tandai sudah ditonton',vidSubLbl:'Subtitle',
     npTitle:'Laporan Harian',npNew:'Buat Baru',npFormTitle:'Isi Laporan',
@@ -1630,7 +1630,7 @@ lLabel:'インドネシア語'},
     tplTitle:'Kahilingan & Ulat',tplSub:'I-input sa sariling wika → AI isalin sa Japanese',tplSend:'Isalin ng AI at ipadala',detail:'Isulat ang detalye',
     docTitle:'Mga Dokumento',docSub:'Ang nakumpirmang dokumento ay berde',progL:'Progreso',confirmQ:'Naiintindihan mo ba ang dokumento?',understood:'Naiintindihan · Kumpirmahin',back:'Bumalik',ttsL:'Basahin',
     sosTitle:'SOS Emergency',sosDesc:'Pindutin ang pulang pindutan 3 segundo\npara magpadala ng emergency',sosSent:'SOS naipadala na',
-    chatName:'Tanaka (Tagapangasiwa)',chatStatus:'● Online · AI pagsasalin naka-on',chatStart:'Nagsimula ang chat — AI pagsasalin aktibo',
+    chatName:'Tagapangasiwa',chatStatus:'● Online · AI pagsasalin naka-on',chatStart:'Nagsimula ang chat — AI pagsasalin aktibo',
     shiftTitle:'Iskedyul ng Trabaho',shiftReq:'Kahilingan sa Iskedyul',shiftHistory:'Kasaysayan',shiftLegend:'Paliwanag',
     vidTitle:'Video Manual',vidBack:'Bumalik',vidWatched:'Markahan bilang napanood',vidSubLbl:'Subtitle',
     npTitle:'Daily Report',npNew:'Gumawa ng Bago',npFormTitle:'Nilalaman ng Ulat',
@@ -1705,7 +1705,7 @@ lLabel:'フィリピン語'},
     tplTitle:'申请·报告',tplSub:'用母语输入 → AI翻译成日语',tplSend:'AI翻译后发送',detail:'请详细填写',
     docTitle:'文件',docSub:'已确认的文件显示为绿色',progL:'确认进度',confirmQ:'您理解该文件的内容了吗？',understood:'我已理解 · 确认',back:'返回',ttsL:'朗读',
     sosTitle:'紧急SOS',sosDesc:'长按红色按钮3秒\n发送紧急联系',sosSent:'SOS发送成功',
-    chatName:'田中（负责人）',chatStatus:'● 在线 · AI翻译开启',chatStart:'聊天开始 — AI翻译已启动',
+    chatName:'负责人',chatStatus:'● 在线 · AI翻译开启',chatStart:'聊天开始 — AI翻译已启动',
     shiftTitle:'排班',shiftReq:'排班申请',shiftHistory:'申请历史',shiftLegend:'图例',
     vidTitle:'视频手册',vidBack:'返回',vidWatched:'标记为已观看',vidSubLbl:'字幕',
     npTitle:'日报',npNew:'创建新报告',npFormTitle:'报告内容',
@@ -1855,7 +1855,7 @@ lLabel:'ミャンマー語'},
     tplTitle:'申請・報告',tplSub:'母国語で入力 → AI が日本語に変換して送信',tplSend:'AIで日本語に変換して送信',detail:'詳しく書いてください',
     docTitle:'書類',docSub:'確認済みの書類は緑色になります',progL:'確認の進捗',confirmQ:'この書類の内容を理解しましたか？',understood:'理解した・確認完了',back:'戻る',ttsL:'音声で聞く',
     sosTitle:'緊急 SOS',sosDesc:'赤いボタンを3秒長押しすると\n担当者に緊急連絡が届きます',sosSent:'SOS 送信完了',
-    chatName:'田中さん（担当者）',chatStatus:'● オンライン · AI翻訳オン',chatStart:'チャット開始 — AI翻訳が有効です',
+    chatName:'担当者',chatStatus:'● オンライン · AI翻訳オン',chatStart:'チャット開始 — AI翻訳が有効です',
     shiftTitle:'シフト管理',shiftReq:'シフト希望申請',shiftHistory:'申請履歴',shiftLegend:'シフト凡例',
     vidTitle:'動画マニュアル',vidBack:'戻る',vidWatched:'視聴完了としてマーク',vidSubLbl:'字幕・言語',
     npTitle:'日報・報告',npNew:'+ 新規作成',npFormTitle:'日報の内容',
@@ -2226,7 +2226,7 @@ async function submitTpl(){
     const full=`【${jpKey}】\n${jp}`;
     res.textContent='✓ 送信完了\n\n'+full;
     // 申請をメッセージとして管理者に送信
-    fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:full,translated:full})}).catch(()=>{});
+    fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:full,translated:full})}).catch(e=>{console.warn('[msg]',e);toast('送信エラー','担当者への通知に失敗しました','r');});
     toast('✓ '+jpKey,jp.slice(0,50));
   }catch(e){res.textContent='エラー: '+e.message;toast('翻訳エラー',e.message.slice(0,50),'r');}
   btn.disabled=false;
@@ -2486,6 +2486,7 @@ async function sendActive() {
       const jp = await aiTx(txt, 'ja');
       // Add translation bubble
       const area = document.getElementById('active-msgs');
+      if(!area) return;
       const last = area.lastElementChild;
       if(last) {
         const tlDiv = document.createElement('div');
@@ -2496,8 +2497,8 @@ async function sendActive() {
       }
       if(grp){grp.prev='あなた: '+txt.slice(0,20);grp.unread=0;}
       // DB に保存
-      await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp})}).catch(()=>{});
-      toast('送信完了','グループ全員に一斉翻訳して送信しました');
+      const _gr = await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp})}).catch(e=>{console.warn('[msg]',e);toast('送信エラー','メッセージの送信に失敗しました','r');return null;});
+      if(_gr) toast('送信完了','グループ全員に一斉翻訳して送信しました');
     } catch(e) { toast('翻訳エラー',e.message,'r'); }
   } else {
     // Direct: translate and send to supervisor
@@ -2516,7 +2517,7 @@ async function sendActive() {
       addActiveBubble(m, true);
       // DB に保存（receiver は ACTIVE_CHAT の相手）
       const rcv = ACTIVE_CHAT?.contactId || null;
-      await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp,receiver_id:rcv})}).catch(()=>{});
+      await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp,receiver_id:rcv})}).catch(e=>{console.warn('[msg]',e);toast('送信エラー','メッセージの送信に失敗しました','r');});
       toast('✓','担当者に送信しました');
     } catch(e) {
       document.getElementById(tid)?.remove();
@@ -2571,7 +2572,7 @@ function confirmDoc(){
   cbox.innerHTML=`<div style="font-size:14px;font-weight:700;color:var(--gn)">✓ ${L.understood}</div><div style="font-size:12px;color:var(--gn);margin-top:4px">${new Date().toLocaleDateString('ja-JP')}</div>`;
   const b=document.getElementById('db-'+currentDoc);if(b){b.className='badge bg';b.textContent='確認済';}
   // 書類確認を通知
-  fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:'書類確認完了: '+currentDoc,translated:'書類確認完了: '+currentDoc})}).catch(()=>{});
+  fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:'書類確認完了: '+currentDoc,translated:'書類確認完了: '+currentDoc})}).catch(e=>{console.warn('[msg]',e);});
   toast('✓ 確認完了','書類を確認しました');updateProg();
 }
 function updateProg(){
@@ -2630,7 +2631,7 @@ function markWatched(){
   if(!currentVideo)return;currentVideo.watched=true;
   const wb=document.getElementById('watch-confirm-btn');wb.textContent='✓ 視聴済み';wb.style.background='#94a3b8';wb.disabled=true;
   // 動画視聴を通知
-  fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:'動画視聴完了: '+currentVideo.title,translated:'動画視聴完了: '+currentVideo.title})}).catch(()=>{});
+  fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:'動画視聴完了: '+currentVideo.title,translated:'動画視聴完了: '+currentVideo.title})}).catch(e=>{console.warn('[msg]',e);});
   toast('✓ 視聴完了','管理者に通知しました');
 }
 
@@ -3027,6 +3028,15 @@ document.querySelectorAll('.lang-opt').forEach(o=>{
   const ste2= document.getElementById('w-st-email');   if(ste2) ste2.textContent = _sd.email || '—';
   const stc = document.getElementById('w-st-company'); if(stc) stc.textContent = _sd.companyName || '';
   const stm = document.getElementById('w-st-manager'); if(stm) stm.textContent = _sw.supervisor || '';
+
+  // 担当者名をハードコードから動的に置換
+  const supervisorName = _sw.supervisor || CONTACTS[0]?.name || '担当者';
+  const supervisorInit = supervisorName.trim().slice(0,1) || '担';
+  const tplName = document.getElementById('tpl-recipient-name'); if(tplName) tplName.textContent = supervisorName + '（担当責任者）';
+  const tplInit = document.getElementById('tpl-recipient-init'); if(tplInit) tplInit.textContent = supervisorInit;
+  const sosName = document.getElementById('sos-contact-name');  if(sosName) sosName.textContent = supervisorName + '（担当者）';
+  // 各言語のchatNameも実担当者名で上書き
+  Object.keys(LS).forEach(lang => { if(LS[lang]) LS[lang].chatName = supervisorName; });
   const ste = document.getElementById('st-tenure-val');
   if(ste && year) ste.textContent = year + (_sw.entryDate ? '（'+_sw.entryDate.slice(0,7).replace('-','年')+'月〜）' : '');
 })();

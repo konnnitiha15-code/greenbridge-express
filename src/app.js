@@ -24,11 +24,15 @@ app.set('views', path.join(__dirname, '..', 'views'))
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json())
 app.use(cookieParser())
+const IS_PROD = !!(process.env.VERCEL || process.env.NODE_ENV === 'production')
+if (!process.env.SESSION_SECRET) {
+  console.warn('[WARN] SESSION_SECRET 未設定 — 本番環境では必ず設定してください')
+}
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'secret',
+  secret: process.env.SESSION_SECRET || 'greenbridge-dev-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false }
+  cookie: { secure: IS_PROD, sameSite: 'lax' },
 }))
 app.use(flash())
 app.use(express.static(path.join(__dirname, '..', 'public')))
