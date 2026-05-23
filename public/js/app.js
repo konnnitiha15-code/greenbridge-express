@@ -2288,10 +2288,8 @@ function todayJST(){
   return new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
 }
 
-// 勤怠ページの自動ポーリングタイマー
-let _attendPollTimer = null;
-
 // 従業員フィルタを初期化してデータ読み込み
+// SP('attend') が呼ばれるたびに実行される → タブを開くたびに最新データを取得
 function initAttendPage(){
   const sel = document.getElementById('att-filter-worker');
   if(sel && sel.options.length <= 1){
@@ -2301,21 +2299,11 @@ function initAttendPage(){
       sel.appendChild(o);
     });
   }
-  // 今日の日付をJSTでデフォルトセット（UTC⇔JSTズレ防止）
+  // 日付フィルターを今日（JST）にリセット
   const df = document.getElementById('att-filter-date');
-  if(df && !df.value) df.value = todayJST();
+  if(df) df.value = todayJST();
   loadAttendance();
   loadAttendStats();
-
-  // 30秒ごとに自動更新（勤怠ページが表示中のみ）
-  if(_attendPollTimer) clearInterval(_attendPollTimer);
-  _attendPollTimer = setInterval(()=>{
-    const page = document.getElementById('page-attend');
-    if(page && page.style.display !== 'none') {
-      loadAttendance();
-      loadAttendStats();
-    }
-  }, 30000);
 }
 
 // 一覧取得
