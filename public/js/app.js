@@ -2283,6 +2283,14 @@ function exportShiftCSV(){
 // ── 勤怠管理 (ATTENDANCE) ────────────────────────────────────────────────────
 let ATTEND_DATA = [];
 
+// JST（日本時間）での今日の日付を返す（タイムゾーンズレ防止）
+function todayJST(){
+  return new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
+}
+
+// 勤怠ページの自動ポーリングタイマー
+let _attendPollTimer = null;
+
 // 従業員フィルタを初期化してデータ読み込み
 function initAttendPage(){
   const sel = document.getElementById('att-filter-worker');
@@ -2293,11 +2301,21 @@ function initAttendPage(){
       sel.appendChild(o);
     });
   }
-  // 今日の日付をデフォルトセット（初回のみ）
+  // 今日の日付をJSTでデフォルトセット（UTC⇔JSTズレ防止）
   const df = document.getElementById('att-filter-date');
-  if(df && !df.value) df.value = new Date().toISOString().slice(0,10);
+  if(df && !df.value) df.value = todayJST();
   loadAttendance();
   loadAttendStats();
+
+  // 30秒ごとに自動更新（勤怠ページが表示中のみ）
+  if(_attendPollTimer) clearInterval(_attendPollTimer);
+  _attendPollTimer = setInterval(()=>{
+    const page = document.getElementById('page-attend');
+    if(page && page.style.display !== 'none') {
+      loadAttendance();
+      loadAttendStats();
+    }
+  }, 30000);
 }
 
 // 一覧取得
@@ -2620,6 +2638,13 @@ function addBub(cid,m,worker,scroll=true){
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 SP('home');
+
+// ホームの勤怠統計を60秒ごとに自動更新
+setInterval(()=>{
+  const homePage = document.getElementById('page-home');
+  if(homePage && homePage.style.display !== 'none') loadAttendStats();
+}, 60000);
+
 setTimeout(()=>{
   const alerts=checkExpireAlerts();
   if(alerts.length>0){
