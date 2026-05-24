@@ -120,7 +120,7 @@ router.get('/', requireWorkerAuth, requireWorker, async (req, res) => {
         // 自分宛て OR 全社共通書類
         req.supabase
           .from('documents')
-          .select('id, name, category, created_at, expire_date, file_name, notes')
+          .select('id, name, category, created_at, expire_date, file_name, file_url, mime_type, file_size, notes')
           .eq('company_id', companyId)
           .or(`worker_id.eq.${workerId},worker_id.is.null`)
           .order('created_at', { ascending: false }),
@@ -183,6 +183,9 @@ router.get('/', requireWorkerAuth, requireWorker, async (req, res) => {
         updated:    fmtDate((d.created_at || '').slice(0, 10)),
         expireDate: fmtDate(d.expire_date),
         fileName:   d.file_name || null,
+        fileUrl:    d.file_url  || null,       // 添付ファイルURL（Storage署名URLまたはローカル）
+        mimeType:   d.mime_type || null,
+        fileSize:   d.file_size || null,
         langs:      ['vi', 'id', 'tl', 'my'],
       }))
 
@@ -499,6 +502,38 @@ router.post('/api/sos', requireWorkerAuth, requireWorker, async (req, res) => {
 
   if (error) console.error('[SOS] notification error:', error.message)
   res.json({ ok: true })
+})
+
+// ── 書類API ────────────────────────────────────────────────────
+// GET /worker/api/documents/:id/url — 署名付きURLを再生成
+router.get('/api/documents/:id/url', requireWorkerAuth, requireWorker, async (req, res) => {
+  const docId    = req.params.id
+  const workerId = req.profile?.worker_id
+  const companyId = req.profile?.company_id
+  const sb = adminClient()
+
+  // ワーカーが閲覧可能な書類か確認（自分宛て or 全社共通）
+  const { data: doc, error } = await sb
+    .from('documents')
+    .select('id, file_url, worker_id, company_id')
+    .eq('id', docId)
+    .eq('company_id', companyId)
+    .maybeSingle()
+
+  if (error || !doc) return res.status(404).json({ ok: false, error: '書類が見つかりません' })
+  if (doc.worker_id && doc.worker_id !== workerId) return res.status(403).json({ ok: false, error: 'アクセス権限がありません' })
+
+  // ローカルファイルの場合はそのまま返す
+  if (!doc.file_url) return res.json({ ok: false, error: 'ファイルが添付されていません' })
+  if (doc.file_url.startsWith('/uploads/')) return res.json({ ok: true, url: doc.file_url })
+
+  // Storageの署名URLを生成（10分有効）
+  const m = doc.file_url.split('/documents/')[1]
+  if (!m) return res.json({ ok: true, url: doc.file_url })
+  const storagePath = m.split('?')[0]
+  const { data: signed, error: sigErr } = await sb.storage.from('documents').createSignedUrl(storagePath, 600)
+  if (sigErr) return res.status(500).json({ ok: false, error: sigErr.message })
+  res.json({ ok: true, url: signed.signedUrl })
 })
 
 // ── グループチャット API ────────────────────────────────────────

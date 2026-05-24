@@ -2619,7 +2619,16 @@ async function openDoc(key){
       if(diff<0) metaHtml=`<div style="background:var(--rbg);border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--red)">⚠ 期限切れ: ${docInfo.expireDate}</div>`;
       else if(diff<=7) metaHtml=`<div style="background:var(--abg);border:1px solid #fcd34d;border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--amb)">⏰ 期限まであと${Math.ceil(diff)}日（${docInfo.expireDate}）</div>`;
     }
-    if(docInfo.fileName) metaHtml+=`<div style="background:var(--bbg);border:1px solid #93c5fd;border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--blu)">📎 ${docInfo.fileName}</div>`;
+    if(docInfo.fileName){
+      const sizeKB = docInfo.fileSize ? Math.round(docInfo.fileSize/1024) : 0;
+      metaHtml += `<div style="background:var(--bbg);border:1px solid #93c5fd;border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--blu);display:flex;align-items:center;gap:10px;margin-top:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${docInfo.fileName}</div>
+          ${sizeKB?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${sizeKB} KB</div>`:''}
+        </div>
+        <button onclick="openDocFile('${key}')" style="background:var(--blu);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">開く</button>
+      </div>`;
+    }
     metaBar.innerHTML = metaHtml;
     metaBar.style.display = metaHtml ? '' : 'none';
   }
@@ -2640,6 +2649,21 @@ async function openDoc(key){
   else{cbox.innerHTML=`<div style="font-size:14px;font-weight:700;color:var(--gn);margin-bottom:12px">${L.confirmQ}</div><button class="btn btn-g" onclick="confirmDoc()" style="padding:12px"><span>✓ ${L.understood}</span></button>`;}
 }
 function closeDoc(){document.getElementById('ddover').classList.remove('on');ttsStop();}
+
+// 書類ファイルを開く（署名URLを再生成して新規タブで表示）
+async function openDocFile(docId){
+  try{
+    const res  = await fetch(`/worker/api/documents/${docId}/url`);
+    const json = await res.json();
+    if(!json.ok || !json.url){
+      toast('エラー', json.error || 'ファイルを開けませんでした', 'r');
+      return;
+    }
+    window.open(json.url, '_blank');
+  }catch(e){
+    toast('エラー', 'ネットワークエラー', 'r');
+  }
+}
 function confirmDoc(){
   if(!currentDoc)return;confirmedDocs.add(currentDoc);const L=LS[LANG]||LS.vi;
   const cbox=document.getElementById('cbox');cbox.className='cbox done';
