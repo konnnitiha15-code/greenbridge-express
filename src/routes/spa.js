@@ -344,6 +344,7 @@ router.put('/api/shift-requests/:id', requireAuth, async (req, res) => {
 // ── Documents Upload API ─────────────────────────────────────────────────────
 
 // POST /app/api/documents/upload  (multipart)
+// Supabase Storage を優先、失敗時のみローカルフォールバック（開発用）
 router.post('/api/documents/upload', requireAuth, upload.single('file'), async (req, res) => {
   const companyId = req.profile?.company_id
   if (!companyId) return res.status(403).json({ error: '会社が未設定です' })
@@ -351,44 +352,55 @@ router.post('/api/documents/upload', requireAuth, upload.single('file'), async (
   const { name, category, notes, expire_date, worker_id, visible_roles } = req.body
   if (!name) return res.status(400).json({ error: '書類名は必須です' })
 
-  let fileUrl = null, fileName = null, fileSize = null, mimeType = null
+  let fileUrl = null, fileName = null, fileSize = null, mimeType = null, storagePath = null
 
-  // ── ① ローカルディスク保存（確実に動く・Supabase Storage不要）────────────
   if (req.file) {
     const origName = req.file.originalname
     const ext      = path.extname(origName).toLowerCase() || '.bin'
-    const safeName = `${Date.now()}${ext}`
-
-    // フォルダ: uploads/documents/company_id/worker_id|shared/
-    const subDir  = worker_id
-      ? path.join(companyId, worker_id)
-      : path.join(companyId, 'shared')
-    const saveDir = path.join(UPLOAD_ROOT, subDir)
-    fs.mkdirSync(saveDir, { recursive: true })
-
-    const savePath = path.join(saveDir, safeName)
-    fs.writeFileSync(savePath, req.file.buffer)
-
-    // Express static から /uploads/documents/... で配信される
-    const urlPath = `/uploads/documents/${subDir.replace(/\\/g, '/')}/${safeName}`
-    fileUrl  = urlPath
+    const safeName = `${Date.now()}_${Math.random().toString(36).slice(2,8)}${ext}`
     fileName = origName
     fileSize = req.file.size
     mimeType = ext === '.pdf' ? 'application/pdf' : (req.file.mimetype || 'application/octet-stream')
 
-    // ── ② Supabase Storage（バケットが存在する場合は上書き・オプション）────
+    storagePath = `${companyId}/${worker_id || 'shared'}/${safeName}`
+
+    // ── ① Supabase Storage 優先（service_role で安定動作）────
+    let storageOk = false
     try {
-      const storagePath = `${companyId}/${worker_id || 'shared'}/${safeName}`
-      const { error: upErr } = await req.supabase.storage
+      const sb = createAdminClient()
+      const { error: upErr } = await sb.storage
         .from('documents')
         .upload(storagePath, req.file.buffer, { contentType: mimeType, upsert: false })
 
       if (!upErr) {
-        const { data: urlData } = req.supabase.storage
-          .from('documents').getPublicUrl(storagePath)
-        if (urlData?.publicUrl) fileUrl = urlData.publicUrl  // Storage URLで上書き
+        // 署名付きURL（24時間有効）でアクセス
+        const { data: signed } = await sb.storage
+          .from('documents').createSignedUrl(storagePath, 60 * 60 * 24)
+        if (signed?.signedUrl) {
+          fileUrl = signed.signedUrl
+          storageOk = true
+        }
+      } else {
+        console.warn('[storage] upload failed:', upErr.message)
       }
-    } catch { /* Storage未設定でも続行 */ }
+    } catch (e) {
+      console.warn('[storage] error:', e.message)
+    }
+
+    // ── ② Storage 失敗時のみローカル保存（開発・フォールバック）────
+    if (!storageOk && !IS_VERCEL) {
+      const subDir  = worker_id
+        ? path.join(companyId, worker_id)
+        : path.join(companyId, 'shared')
+      const saveDir = path.join(UPLOAD_ROOT, subDir)
+      try {
+        fs.mkdirSync(saveDir, { recursive: true })
+        fs.writeFileSync(path.join(saveDir, safeName), req.file.buffer)
+        fileUrl = `/uploads/documents/${subDir.replace(/\\/g, '/')}/${safeName}`
+      } catch (e) {
+        console.warn('[local file] write failed:', e.message)
+      }
+    }
   }
 
   // ── ③ ローカルJSONに必ず保存（リロード対策・DB不要） ──────────────────────
@@ -456,14 +468,18 @@ router.delete('/api/documents/:id', requireAuth, async (req, res) => {
   }
   deleteLocalDoc(id)
 
-  // Supabase からも削除
-  const { data: doc } = await req.supabase
-    .from('documents').select('file_url').eq('id', id).single()
+  // Supabase Storage からも削除
+  const sbAdmin = createAdminClient()
+  const { data: doc } = await sbAdmin.from('documents').select('file_url').eq('id', id).maybeSingle()
   if (doc?.file_url && !doc.file_url.startsWith('/uploads/')) {
-    const storagePath = doc.file_url.split('/documents/')[1]
-    if (storagePath) await req.supabase.storage.from('documents').remove([storagePath]).catch(()=>{})
+    // signed URL も public URL も documents/[path] のパターン
+    const m = doc.file_url.split('/documents/')[1]
+    if (m) {
+      const storagePath = m.split('?')[0]  // クエリ文字列を除去
+      await sbAdmin.storage.from('documents').remove([storagePath]).catch(()=>{})
+    }
   }
-  await req.supabase.from('documents').delete().eq('id', id)
+  await sbAdmin.from('documents').delete().eq('id', id)
   res.json({ ok: true })
 })
 
@@ -874,6 +890,170 @@ router.delete('/api/workers/:id/link-account', requireAuth, async (req, res) => 
 
   if (error) return res.status(500).json({ error: error.message })
   res.json({ ok: true })
+})
+
+// ── グループチャット API（Admin用） ──────────────────────────────
+// GET /app/api/groups — グループ一覧
+router.get('/api/groups', requireAuth, requireAdmin, async (req, res) => {
+  const companyId = req.profile?.company_id
+  const sb = createAdminClient()
+
+  const { data: groups, error } = await sb
+    .from('groups')
+    .select('id, name, icon, bg_color, description, created_at')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    if (isTableMissing(error)) return res.json({ ok: true, groups: [], missing: true })
+    return res.status(500).json({ error: error.message })
+  }
+
+  // 各グループのメンバー数を取得
+  const groupIds = (groups || []).map(g => g.id)
+  let members = []
+  if (groupIds.length) {
+    const { data } = await sb
+      .from('group_members')
+      .select('group_id, user_id')
+      .in('group_id', groupIds)
+    members = data || []
+  }
+
+  const enriched = (groups || []).map(g => ({
+    ...g,
+    members: members.filter(m => m.group_id === g.id).map(m => m.user_id),
+    memberCount: members.filter(m => m.group_id === g.id).length,
+  }))
+
+  res.json({ ok: true, groups: enriched })
+})
+
+// POST /app/api/groups — グループ作成
+router.post('/api/groups', requireAuth, requireAdmin, async (req, res) => {
+  const companyId = req.profile?.company_id
+  const adminId   = req.user?.id
+  const { name, icon, bg_color, description, member_ids } = req.body
+
+  if (!name?.trim()) return res.status(400).json({ error: 'グループ名は必須です' })
+
+  const sb = createAdminClient()
+  const { data: group, error } = await sb
+    .from('groups')
+    .insert({
+      company_id:  companyId,
+      name:        name.trim(),
+      icon:        icon || '👥',
+      bg_color:    bg_color || '#e0e7ff',
+      description: description || null,
+      created_by:  adminId,
+    })
+    .select()
+    .single()
+
+  if (error) return res.status(500).json({ error: error.message })
+
+  // メンバー追加（管理者自身も含める）
+  const memberSet = new Set([adminId, ...(Array.isArray(member_ids) ? member_ids : [])])
+  const memberRows = [...memberSet].map(uid => ({ group_id: group.id, user_id: uid }))
+  if (memberRows.length) {
+    await sb.from('group_members').insert(memberRows)
+  }
+
+  res.json({ ok: true, group })
+})
+
+// PUT /app/api/groups/:id — グループ更新（名前、メンバー等）
+router.put('/api/groups/:id', requireAuth, requireAdmin, async (req, res) => {
+  const groupId   = req.params.id
+  const companyId = req.profile?.company_id
+  const sb = createAdminClient()
+
+  const { name, icon, bg_color, description, member_ids } = req.body
+
+  // 自社グループか確認
+  const { data: group } = await sb.from('groups').select('id').eq('id', groupId).eq('company_id', companyId).maybeSingle()
+  if (!group) return res.status(404).json({ error: 'グループが見つかりません' })
+
+  // 基本情報更新
+  const updates = {}
+  if (name !== undefined)        updates.name = name
+  if (icon !== undefined)        updates.icon = icon
+  if (bg_color !== undefined)    updates.bg_color = bg_color
+  if (description !== undefined) updates.description = description
+
+  if (Object.keys(updates).length) {
+    const { error } = await sb.from('groups').update(updates).eq('id', groupId)
+    if (error) return res.status(500).json({ error: error.message })
+  }
+
+  // メンバー更新（送信されたら全置換）
+  if (Array.isArray(member_ids)) {
+    await sb.from('group_members').delete().eq('group_id', groupId)
+    const memberSet = new Set([req.user.id, ...member_ids])
+    const rows = [...memberSet].map(uid => ({ group_id: groupId, user_id: uid }))
+    if (rows.length) await sb.from('group_members').insert(rows)
+  }
+
+  res.json({ ok: true })
+})
+
+// DELETE /app/api/groups/:id — グループ削除
+router.delete('/api/groups/:id', requireAuth, requireAdmin, async (req, res) => {
+  const groupId   = req.params.id
+  const companyId = req.profile?.company_id
+  const sb = createAdminClient()
+
+  const { error } = await sb.from('groups').delete().eq('id', groupId).eq('company_id', companyId)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
+// GET /app/api/groups/:id/messages?after=ISO — グループメッセージ取得
+router.get('/api/groups/:id/messages', requireAuth, requireAdmin, async (req, res) => {
+  const groupId   = req.params.id
+  const companyId = req.profile?.company_id
+  const { after } = req.query
+  const sb = createAdminClient()
+
+  // 自社グループか確認
+  const { data: group } = await sb.from('groups').select('id').eq('id', groupId).eq('company_id', companyId).maybeSingle()
+  if (!group) return res.status(404).json({ error: 'グループが見つかりません' })
+
+  let q = sb.from('group_messages')
+    .select('id, sender_id, body, translated, created_at')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: true })
+    .limit(200)
+  if (after) q = q.gt('created_at', after)
+
+  const { data, error } = await q
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true, messages: data || [] })
+})
+
+// POST /app/api/groups/:id/messages — グループにメッセージ送信
+router.post('/api/groups/:id/messages', requireAuth, requireAdmin, async (req, res) => {
+  const groupId   = req.params.id
+  const companyId = req.profile?.company_id
+  const adminId   = req.user?.id
+  const { body, translated } = req.body
+
+  if (!body?.trim()) return res.status(400).json({ error: 'メッセージ本文は必須です' })
+
+  const sb = createAdminClient()
+  const { data: group } = await sb.from('groups').select('id').eq('id', groupId).eq('company_id', companyId).maybeSingle()
+  if (!group) return res.status(404).json({ error: 'グループが見つかりません' })
+
+  const { data, error } = await sb.from('group_messages').insert({
+    group_id:   groupId,
+    sender_id:  adminId,
+    body:       body.trim(),
+    translated: translated || null,
+  }).select('id, created_at').single()
+
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true, message: data })
 })
 
 // ── メッセージ API（Admin用） ─────────────────────────────────────

@@ -26,13 +26,33 @@ const TASKS=[
   {id:'t5',title:'宿舎点検',priority:'medium',due:'2025/01/25',status:'done',assignees:[]},
 ];
 
-const _DEFAULT_GROUPS=[
-  {id:'g1',name:'全社員 — 全体連絡',ico:'👥',bg:'#e0e7ff',unread:0,prev:'本日の朝礼は10:00からです。',time:'09:05',desc:'全員参加の連絡用',members:[],msgs:[{who:'admin',t:'09:00',txt:'本日の朝礼は10:00からです。'}]},
-  {id:'g2',name:'ベトナム語チーム',ico:'🇻🇳',bg:'#d1fae5',unread:0,prev:'お疲れ様です。',time:'10:00',desc:'ベトナム出身者専用',members:[],msgs:[{who:'admin',t:'10:00',txt:'お疲れ様です。'}]},
-];
-const _savedGroups = (() => { try{ const g=JSON.parse(localStorage.getItem('gb_groups')||'null'); return g&&g.length?g:null; }catch{return null;} })();
-const GROUPS = _savedGroups || _DEFAULT_GROUPS;
-function _saveGroups(){ try{ localStorage.setItem('gb_groups',JSON.stringify(GROUPS)); }catch{} }
+// グループ：DBから取得（localStorage廃止）
+let GROUPS = [];
+let _groupPollTimer = null;
+let _gMsgLastTs = {};   // group.id → 最後に取得したメッセージのcreated_at
+
+function _saveGroups(){}  // 廃止（後方互換のため空関数を残す）
+
+async function loadGroups(){
+  try{
+    const res  = await fetch('/app/api/groups');
+    const json = await res.json();
+    if(!json.ok) return;
+    GROUPS = (json.groups||[]).map(g => ({
+      id:      g.id,
+      name:    g.name,
+      ico:     g.icon     || '👥',
+      bg:      g.bg_color || '#e0e7ff',
+      desc:    g.description || '',
+      members: g.members || [],
+      memberCount: g.memberCount || 0,
+      unread:  0,
+      prev:    '',
+      time:    '',
+      msgs:    [],
+    }));
+  }catch(e){ console.warn('[groups] load error:', e); }
+}
 
 const VIDEOS=[
   {id:'v1',title:'溶接作業 安全確認手順',cat:'safety',dur:'8:24',views:45,langs:['ja','vi'],emoji:'🔧',desc:'溶接作業前に必ず確認してください。'},
@@ -1694,35 +1714,91 @@ function deleteTask(id){
 }
 
 // ── GROUP CHAT ────────────────────────────────────────────────────────────────
-function renderGCL(){
+async function renderGCL(){
+  // タブを開くたびに最新取得
+  await loadGroups();
   const el=document.getElementById('gc-list');if(!el)return;el.innerHTML='';
+  if(!GROUPS.length){
+    el.innerHTML='<div style="padding:30px 14px;text-align:center;color:var(--t3);font-size:13px">グループがありません<br><button class="btn btn-g btn-sm" style="margin-top:10px" onclick="openCreateGroup()">＋ 作成</button></div>';
+    return;
+  }
   GROUPS.forEach(g=>{
     const d=document.createElement('div');d.className='gc-item'+(AG?.id===g.id?' on':'');d.onclick=()=>openGChat(g);
-    d.innerHTML=`<div class="gc-ico" style="background:${g.bg}">${g.ico}</div><div style="flex:1;min-width:0"><div class="gc-name">${g.name}</div><div class="gc-prev">${g.prev}</div><div class="gc-time">${g.time}</div></div>${g.unread?`<div class="gc-unread">${g.unread}</div>`:''}`;
+    d.innerHTML=`<div class="gc-ico" style="background:${g.bg}">${g.ico}</div><div style="flex:1;min-width:0"><div class="gc-name">${g.name}</div><div class="gc-prev">${g.prev||g.desc||''}</div><div class="gc-time">${g.time||''}</div></div>${g.unread?`<div class="gc-unread">${g.unread}</div>`:''}`;
     el.appendChild(d);
   });
 }
 
-function openGChat(g){
-  AG=g;g.unread=0;renderGCL();
+function _gMsgToLocal(m){
+  const time = new Date(m.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  const isMe = m.sender_id === GB_USER?.id;
+  return { t: isMe?'me':'other', txt: m.body, tl: m.translated||'', time, read: true, _id: m.id, sender_id: m.sender_id };
+}
+
+async function _loadGroupMessages(g){
+  try{
+    const res  = await fetch(`/app/api/groups/${g.id}/messages`);
+    const json = await res.json();
+    if(!json.ok) return;
+    g.msgs = (json.messages||[]).map(_gMsgToLocal);
+    if(json.messages?.length) _gMsgLastTs[g.id] = json.messages.at(-1).created_at;
+  }catch(e){ console.warn('[group] load error:', e); }
+}
+
+async function openGChat(g){
+  AG=g; g.unread=0; renderGCL();
   document.getElementById('gchat-welcome').style.display='none';
-  const ga=document.getElementById('gchat-active');ga.style.display='flex';
-  document.getElementById('gch-ico').textContent=g.ico;document.getElementById('gch-ico').style.background=g.bg;
+  const ga=document.getElementById('gchat-active'); ga.style.display='flex';
+  document.getElementById('gch-ico').textContent=g.ico; document.getElementById('gch-ico').style.background=g.bg;
   document.getElementById('gch-name').textContent=g.name;
-  document.getElementById('gch-sub').textContent=`${g.members?.length||0}名 · ${g.desc||''}`;
-  renderMsgs('gchat-msgs',g.msgs,{bg:'#f3f4f6',tc:'#374151',init:g.ico});
+  document.getElementById('gch-sub').textContent=`${g.memberCount||g.members?.length||0}名 · ${g.desc||''}`;
+  await _loadGroupMessages(g);
+  renderMsgs('gchat-msgs', g.msgs||[], {bg:'#f3f4f6',tc:'#374151',init:g.ico});
+  _startGroupPoll(g);
+}
+
+function _startGroupPoll(g){
+  if(_groupPollTimer) clearInterval(_groupPollTimer);
+  _groupPollTimer = setInterval(async()=>{
+    if(!AG || AG.id !== g.id) { clearInterval(_groupPollTimer); return; }
+    try{
+      const after = _gMsgLastTs[g.id] || '';
+      const url   = `/app/api/groups/${g.id}/messages${after?'?after='+encodeURIComponent(after):''}`;
+      const res   = await fetch(url);
+      const json  = await res.json();
+      if(!json.ok || !json.messages?.length) return;
+      json.messages.forEach(m => {
+        if(!g.msgs) g.msgs = [];
+        g.msgs.push(_gMsgToLocal(m));
+        _gMsgLastTs[g.id] = m.created_at;
+      });
+      renderMsgs('gchat-msgs', g.msgs, {bg:'#f3f4f6',tc:'#374151',init:g.ico});
+    }catch{}
+  }, 5000);
 }
 
 function insertGQuick(txt){const i=document.getElementById('gchat-inp');if(i){i.value=txt;i.focus();}}
 
 async function sendGChat(){
   const inp=document.getElementById('gchat-inp');const txt=inp?.value?.trim();if(!txt||!AG)return;
-  inp.value='';inp.style.height='auto';
+  inp.value=''; inp.style.height='auto';
   const time=new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
-  const m={who:'admin',t:'me',txt,tl:'[全言語に翻訳済み]',time,read:true};
-  AG.msgs.push(m);addBub('gchat-msgs',m,{bg:'#f3f4f6',tc:'#374151',init:AG.ico},true);
-  AG.prev='あなた: '+txt.slice(0,20)+'…';AG.time=time;renderGCL();_saveGroups();
-  toast('送信完了','グループ全員に一斉翻訳して送信しました');
+
+  // 楽観的UI更新
+  const m={who:'admin',t:'me',txt,time,read:true};
+  if(!AG.msgs) AG.msgs=[];
+  AG.msgs.push(m);
+  addBub('gchat-msgs', m, {bg:'#f3f4f6',tc:'#374151',init:AG.ico}, true);
+
+  try{
+    const res = await fetch(`/app/api/groups/${AG.id}/messages`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({body: txt})
+    });
+    const json = await res.json();
+    if(json.ok && json.message){ _gMsgLastTs[AG.id] = json.message.created_at; }
+    toast('送信','グループに送信しました','g');
+  }catch(e){ toast('エラー','送信に失敗しました','r'); }
 }
 
 const GROUP_ICONS=['💬','👥','🏭','⚙️','📋','🌏','🔧','📊','🇻🇳','🇮🇩','🇵🇭','🇲🇲'];
@@ -1742,32 +1818,47 @@ function openCreateGroup(){
     `<button class="btn" onclick="closeModal()">キャンセル</button><button class="btn btn-g" onclick="createGroup()">作成</button>`
   );
 }
-function createGroup(){
+async function createGroup(){
   const name=document.getElementById('gn')?.value?.trim();
   if(!name){toast('エラー','グループ名を入力してください','r');return;}
   const ico=document.getElementById('g-ico')?.value||'💬';
   const bg=document.getElementById('g-color')?.value||'#f3f4f6';
   const desc=document.getElementById('g-desc')?.value?.trim()||'';
   const sel=document.getElementById('g-members');
-  const members=sel?Array.from(sel.selectedOptions).map(o=>o.value):[];
-  GROUPS.push({id:'g'+Date.now(),name,ico,bg,unread:0,prev:'グループを作成しました',time:'今',desc,members,msgs:[{t:'sys',txt:'グループを作成しました'}]});
-  closeModal();renderGCL();_saveGroups();
-  toast('作成完了','「'+name+'」グループを作成しました');
+  const selectedWorkerIds = sel?Array.from(sel.selectedOptions).map(o=>o.value):[];
+  // worker.id → authUserId に変換（紐付け済みのみ）
+  const member_ids = selectedWorkerIds
+    .map(wid => WORKERS.find(w => w.id === wid)?.authUserId)
+    .filter(Boolean);
+
+  try{
+    const res  = await fetch('/app/api/groups', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, icon: ico, bg_color: bg, description: desc, member_ids })
+    });
+    const json = await res.json();
+    if(!json.ok) return toast('エラー', json.error||'作成に失敗しました', 'r');
+    closeModal();
+    await renderGCL();
+    toast('作成完了','「'+name+'」グループを作成しました');
+  }catch(e){ toast('エラー','ネットワークエラー','r'); }
 }
 
 function openManageGroup(){
   if(!AG){return;}
-  const members=AG.members||[];
-  const nonMembers=WORKERS.filter(w=>!members.includes(w.id));
-  const memberRows=members.map(mid=>{
-    const w=WORKERS.find(x=>x.id===mid);
-    return w?`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd)">
+  // AG.members は authUserId の配列。Worker情報に変換
+  const memberUserIds = AG.members || [];
+  const memberWorkers = memberUserIds
+    .map(uid => WORKERS.find(w => w.authUserId === uid))
+    .filter(Boolean);
+  const memberWorkerIds = memberWorkers.map(w => w.id);
+  const nonMembers = WORKERS.filter(w => w.authUserId && !memberWorkerIds.includes(w.id));
+  const memberRows = memberWorkers.map(w => `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd)">
       <div style="width:28px;height:28px;border-radius:50%;background:${w.bg};color:${w.tc};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${w.init}</div>
       <div style="flex:1;font-size:13px">${w.flag} ${w.name}</div>
-      ${IS_ADMIN?`<button class="btn btn-xs btn-r" onclick="removeGroupMember('${mid}')">✕ 削除</button>`:''}
-    </div>`:'';
-  }).join('');
-  const addOpts=nonMembers.map(w=>`<option value="${w.id}">${w.flag} ${w.name}</option>`).join('');
+      ${IS_ADMIN?`<button class="btn btn-xs btn-r" onclick="removeGroupMember('${w.authUserId}')">✕ 削除</button>`:''}
+    </div>`).join('');
+  const addOpts = nonMembers.map(w => `<option value="${w.id}">${w.flag} ${w.name}</option>`).join('');
   openModal(`👥 メンバー管理 — ${AG.name}`,
     `<div style="margin-bottom:10px">
        <div style="font-size:12px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-bottom:6px">現在のメンバー (${members.length}名)</div>
@@ -1783,41 +1874,52 @@ function openManageGroup(){
     `<button class="btn" onclick="closeModal()">閉じる</button>`
   );
 }
-function addGroupMember(){
+async function addGroupMember(){
   if(!AG)return;
-  const wid=document.getElementById('mgr-add-sel')?.value;if(!wid)return;
-  if(!AG.members)AG.members=[];
-  if(AG.members.includes(wid)){toast('通知','すでにメンバーです','a');return;}
-  AG.members.push(wid);
-  const w=WORKERS.find(x=>x.id===wid);
-  // モーダル内リストを更新
-  const list=document.getElementById('mgr-member-list');
-  if(list&&w){
-    const div=document.createElement('div');
-    div.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd)';
-    div.innerHTML=`<div style="width:28px;height:28px;border-radius:50%;background:${w.bg};color:${w.tc};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${w.init}</div>
-      <div style="flex:1;font-size:13px">${w.flag} ${w.name}</div>
-      <button class="btn btn-xs btn-r" onclick="removeGroupMember('${wid}')">✕ 削除</button>`;
-    list.appendChild(div);
-  }
-  // セレクトから削除
-  const sel=document.getElementById('mgr-add-sel');
-  if(sel){const opt=sel.querySelector(`option[value="${wid}"]`);if(opt)opt.remove();}
-  _updateGroupSub();_saveGroups();
-  toast('追加',`${w?.name||''}をグループに追加しました`);
+  const wid = document.getElementById('mgr-add-sel')?.value; if(!wid) return;
+  const w = WORKERS.find(x => x.id === wid);
+  if(!w?.authUserId){ toast('エラー','このワーカーはアカウント未紐付けです','r'); return; }
+  if(!AG.members) AG.members = [];
+  if(AG.members.includes(w.authUserId)){ toast('通知','すでにメンバーです','a'); return; }
+
+  const newMembers = [...AG.members, w.authUserId];
+  try{
+    const res = await fetch(`/app/api/groups/${AG.id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ member_ids: newMembers })
+    });
+    const json = await res.json();
+    if(!json.ok) return toast('エラー', json.error||'追加に失敗しました', 'r');
+    AG.members = newMembers;
+    AG.memberCount = newMembers.length;
+    openManageGroup();
+    _updateGroupSub();
+    toast('追加', `${w.name}をグループに追加しました`);
+  }catch(e){ toast('エラー','ネットワークエラー','r'); }
 }
-function removeGroupMember(wid){
+
+async function removeGroupMember(userId){
   if(!AG)return;
-  AG.members=(AG.members||[]).filter(m=>m!==wid);
-  _saveGroups();
-  openManageGroup(); // モーダル再描画
-  _updateGroupSub();
-  const w=WORKERS.find(x=>x.id===wid);
-  toast('削除',`${w?.name||''}をグループから削除しました`,'a');
+  const newMembers = (AG.members||[]).filter(m => m !== userId);
+  try{
+    const res = await fetch(`/app/api/groups/${AG.id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ member_ids: newMembers })
+    });
+    const json = await res.json();
+    if(!json.ok) return toast('エラー', json.error||'削除に失敗しました', 'r');
+    AG.members = newMembers;
+    AG.memberCount = newMembers.length;
+    openManageGroup();
+    _updateGroupSub();
+    const w = WORKERS.find(x => x.authUserId === userId);
+    toast('削除', `${w?.name||''}をグループから削除しました`, 'a');
+  }catch(e){ toast('エラー','ネットワークエラー','r'); }
 }
+
 function _updateGroupSub(){
   const sub=document.getElementById('gch-sub');
-  if(sub&&AG) sub.textContent=`${AG.members?.length||0}名 · ${AG.desc||''}`;
+  if(sub&&AG) sub.textContent=`${AG.memberCount||AG.members?.length||0}名 · ${AG.desc||''}`;
 }
 
 function openEditGroup(){
@@ -1836,30 +1938,44 @@ function openEditGroup(){
      <button class="btn btn-g" onclick="saveGroupEdit()">保存</button>`
   );
 }
-function saveGroupEdit(){
+async function saveGroupEdit(){
   if(!AG)return;
-  AG.name=document.getElementById('eg-name')?.value?.trim()||AG.name;
-  AG.ico =document.getElementById('eg-ico')?.value||AG.ico;
-  AG.bg  =document.getElementById('eg-color')?.value||AG.bg;
-  AG.desc=document.getElementById('eg-desc')?.value?.trim()||'';
-  closeModal();
-  document.getElementById('gch-ico').textContent=AG.ico;
-  document.getElementById('gch-ico').style.background=AG.bg;
-  document.getElementById('gch-name').textContent=AG.name;
-  _updateGroupSub();
-  renderGCL();_saveGroups();
-  toast('更新','グループ設定を更新しました');
+  const name = document.getElementById('eg-name')?.value?.trim() || AG.name;
+  const icon = document.getElementById('eg-ico')?.value || AG.ico;
+  const bg_color = document.getElementById('eg-color')?.value || AG.bg;
+  const description = document.getElementById('eg-desc')?.value?.trim() || '';
+  try{
+    const res = await fetch(`/app/api/groups/${AG.id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, icon, bg_color, description })
+    });
+    const json = await res.json();
+    if(!json.ok) return toast('エラー', json.error||'更新に失敗しました', 'r');
+    AG.name = name; AG.ico = icon; AG.bg = bg_color; AG.desc = description;
+    closeModal();
+    document.getElementById('gch-ico').textContent = AG.ico;
+    document.getElementById('gch-ico').style.background = AG.bg;
+    document.getElementById('gch-name').textContent = AG.name;
+    _updateGroupSub();
+    renderGCL();
+    toast('更新','グループ設定を更新しました');
+  }catch(e){ toast('エラー','ネットワークエラー','r'); }
 }
-function deleteGroup(){
+
+async function deleteGroup(){
   if(!IS_ADMIN){toast('権限エラー','管理者のみ削除できます','r');return;}
-  closeModal();
-  const idx=GROUPS.findIndex(g=>g.id===AG.id);
-  if(idx>-1)GROUPS.splice(idx,1);
-  AG=null;
-  document.getElementById('gchat-welcome').style.display='';
-  document.getElementById('gchat-active').style.display='none';
-  renderGCL();_saveGroups();
-  toast('削除','グループを削除しました','a');
+  if(!confirm(`「${AG.name}」を削除しますか？\nメッセージも全て消えます。`)) return;
+  try{
+    const res = await fetch(`/app/api/groups/${AG.id}`, {method:'DELETE'});
+    const json = await res.json();
+    if(!json.ok) return toast('エラー', json.error||'削除に失敗しました', 'r');
+    closeModal();
+    AG = null;
+    document.getElementById('gchat-welcome').style.display='';
+    document.getElementById('gchat-active').style.display='none';
+    renderGCL();
+    toast('削除','グループを削除しました','a');
+  }catch(e){ toast('エラー','ネットワークエラー','r'); }
 }
 
 // ── VIDEOS ────────────────────────────────────────────────────────────────────

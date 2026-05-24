@@ -501,6 +501,78 @@ router.post('/api/sos', requireWorkerAuth, requireWorker, async (req, res) => {
   res.json({ ok: true })
 })
 
+// ── グループチャット API ────────────────────────────────────────
+// GET /worker/api/groups — 自分が所属するグループ一覧
+router.get('/api/groups', requireWorkerAuth, requireWorker, async (req, res) => {
+  const userId = req.user?.id
+  const sb = adminClient()
+
+  // 自分が参加しているグループ
+  const { data: memberships } = await sb
+    .from('group_members')
+    .select('group_id')
+    .eq('user_id', userId)
+  const groupIds = (memberships || []).map(m => m.group_id)
+  if (!groupIds.length) return res.json({ ok: true, groups: [] })
+
+  const { data: groups, error } = await sb
+    .from('groups')
+    .select('id, name, icon, bg_color, description')
+    .in('id', groupIds)
+    .order('created_at', { ascending: false })
+
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true, groups: groups || [] })
+})
+
+// GET /worker/api/groups/:id/messages?after=ISO
+router.get('/api/groups/:id/messages', requireWorkerAuth, requireWorker, async (req, res) => {
+  const groupId = req.params.id
+  const userId  = req.user?.id
+  const { after } = req.query
+  const sb = adminClient()
+
+  // メンバー確認
+  const { data: m } = await sb.from('group_members').select('user_id').eq('group_id', groupId).eq('user_id', userId).maybeSingle()
+  if (!m) return res.status(403).json({ error: 'このグループのメンバーではありません' })
+
+  let q = sb.from('group_messages')
+    .select('id, sender_id, body, translated, created_at')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: true })
+    .limit(200)
+  if (after) q = q.gt('created_at', after)
+
+  const { data, error } = await q
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true, messages: data || [] })
+})
+
+// POST /worker/api/groups/:id/messages
+router.post('/api/groups/:id/messages', requireWorkerAuth, requireWorker, async (req, res) => {
+  const groupId = req.params.id
+  const userId  = req.user?.id
+  const { body, translated } = req.body
+
+  if (!body?.trim()) return res.status(400).json({ error: 'メッセージ本文は必須です' })
+
+  const sb = adminClient()
+
+  // メンバー確認
+  const { data: m } = await sb.from('group_members').select('user_id').eq('group_id', groupId).eq('user_id', userId).maybeSingle()
+  if (!m) return res.status(403).json({ error: 'このグループのメンバーではありません' })
+
+  const { data, error } = await sb.from('group_messages').insert({
+    group_id:   groupId,
+    sender_id:  userId,
+    body:       body.trim(),
+    translated: translated || null,
+  }).select('id, created_at').single()
+
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true, message: data })
+})
+
 // ── パスワード変更 API ──────────────────────────────────────────
 router.post('/api/change-password', requireWorkerAuth, requireWorker, async (req, res) => {
   const { password, confirm } = req.body

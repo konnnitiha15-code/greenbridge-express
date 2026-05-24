@@ -2,7 +2,8 @@
  * GreenBridge — Supabase マイグレーション実行スクリプト
  *
  * 使い方:
- *   node scripts/migrate.js <DBパスワード>
+ *   node scripts/migrate.js <DBパスワード> [マイグレーションファイル名]
+ *   例: node scripts/migrate.js mypass 005_groups.sql
  *
  * DBパスワードの確認場所:
  *   Supabase Dashboard → Project Settings → Database → Database password
@@ -12,12 +13,13 @@ const { Client } = require('pg')
 const fs         = require('fs')
 const path       = require('path')
 
-const PROJECT_REF = 'lbwiusqlzxlkldtvnquf'
-const DB_PASSWORD = process.argv[2]
+const PROJECT_REF  = 'lbwiusqlzxlkldtvnquf'
+const DB_PASSWORD  = process.argv[2]
+const MIGRATION_FILE = process.argv[3] || '002_worker_rls.sql'
 
 if (!DB_PASSWORD) {
   console.error('❌ DBパスワードを引数で渡してください')
-  console.error('   node scripts/migrate.js <パスワード>')
+  console.error('   node scripts/migrate.js <パスワード> [ファイル名]')
   console.error('')
   console.error('   パスワードの確認:')
   console.error('   https://supabase.com/dashboard/project/lbwiusqlzxlkldtvnquf/settings/database')
@@ -62,11 +64,11 @@ function splitSQL(sql) {
 }
 
 async function run() {
-  const sqlFile = path.join(__dirname, '..', 'supabase', 'migrations', '002_worker_rls.sql')
+  const sqlFile = path.join(__dirname, '..', 'supabase', 'migrations', MIGRATION_FILE)
   const sql     = fs.readFileSync(sqlFile, 'utf8')
   const stmts   = splitSQL(sql)
 
-  console.log(`\n🚀 GreenBridge Migration 002`)
+  console.log(`\n🚀 GreenBridge Migration: ${MIGRATION_FILE}`)
   console.log(`   接続先: db.${PROJECT_REF}.supabase.co`)
   console.log(`   ステートメント数: ${stmts.length}\n`)
 
