@@ -1413,8 +1413,44 @@ const CONTACTS = (window.SERVER_DATA?.contacts || []);
 // ── DM_CHATS: 空で開始（セッション中のみメモリ保持）────────────
 const DM_CHATS = [];
 
-// ── GROUPS: 空で開始（将来 DB 移行予定）─────────────────────────
-const GROUPS = [];
+// ── GROUPS: DB から取得 ──────────────────────────────────────
+let GROUPS = [];
+let _wGroupMsgLastTs = {}; // group.id → 最終取得タイムスタンプ
+
+async function loadWorkerGroups(){
+  try{
+    const res  = await fetch('/worker/api/groups');
+    const json = await res.json();
+    if(!json.ok) return;
+    GROUPS = (json.groups || []).map(g => ({
+      id:      g.id,
+      name:    g.name,
+      icon:    g.icon || '👥',
+      bg:      g.bg_color || '#e0e7ff',
+      desc:    g.description || '',
+      msgs:    [],
+      unread:  0,
+      prev:    '',
+      time:    '',
+    }));
+  }catch(e){ console.warn('[group] load error:', e); }
+}
+
+function _wGMsgToLocal(m, myUid){
+  const time = new Date(m.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  const isMe = m.sender_id === myUid;
+  return { t: isMe?'me':'other', txt: m.body, tl: m.translated||'', time, _id: m.id, sender_id: m.sender_id };
+}
+
+async function loadGroupMessages(g){
+  try{
+    const res = await fetch(`/worker/api/groups/${g.id}/messages`);
+    const json = await res.json();
+    if(!json.ok) return;
+    g.msgs = (json.messages||[]).map(m => _wGMsgToLocal(m, _MY_UID));
+    if(json.messages?.length) _wGroupMsgLastTs[g.id] = json.messages.at(-1).created_at;
+  }catch(e){ console.warn('[group msg] load error:', e); }
+}
 
 // Helpers
 function getContact(id){ return CONTACTS.find(x=>x.id===id); }
@@ -2137,8 +2173,14 @@ function go(id){
     renderTpls();  // 申請テンプレートを毎回描画
   }
   if(id==='s-chat'){
-    renderChatList();
-    if(typeof pollMessages==='function') pollMessages();  // タブを開いたら即座に最新取得
+    // グループ一覧を更新してからリスト描画
+    if(typeof loadWorkerGroups==='function'){
+      loadWorkerGroups().then(()=>renderChatList());
+    } else {
+      renderChatList();
+    }
+    if(typeof pollMessages==='function') pollMessages();        // 個別メッセージ即時取得
+    if(typeof pollGroupMessages==='function') pollGroupMessages(); // グループ即時取得
   }
   if(id==='s-videos')renderVList();
   if(id==='s-nippo'){
@@ -2350,11 +2392,16 @@ function renderCLItem(el, item) {
   el.appendChild(d);
 }
 
-function openChatItem(item) {
+async function openChatItem(item) {
   ACTIVE_CHAT = item;
   // Clear unread
   if (item.isGroup) {
-    const g = GROUPS.find(x=>x.id===item.id); if(g) g.unread=0;
+    const g = GROUPS.find(x=>x.id===item.id);
+    if(g) {
+      g.unread=0;
+      await loadGroupMessages(g);   // DBから最新メッセージ取得
+      item.group = g;
+    }
   } else {
     const dm = DM_CHATS.find(d=>d.id===item.id); if(dm) dm.unread=0;
   }
@@ -2506,28 +2553,26 @@ async function sendActive() {
   const time = new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
 
   if (ACTIVE_CHAT.isGroup) {
-    // Group: translate to Japanese, send to all
+    // Group: 翻訳してDBに保存
     const grp = GROUPS.find(g=>g.id===ACTIVE_CHAT.id);
     const m = {t:'me', txt, time};
     if (grp) grp.msgs.push(m);
     addActiveBubble(m, true);
     try {
       const jp = await aiTx(txt, 'ja');
-      // Add translation bubble
-      const area = document.getElementById('active-msgs');
-      if(!area) return;
-      const last = area.lastElementChild;
-      if(last) {
-        const tlDiv = document.createElement('div');
-        tlDiv.style.cssText='display:flex;justify-content:flex-end;margin-top:-2px;padding:0 6px';
-        tlDiv.innerHTML=`<div class="cbub c-ai" style="border-radius:16px 16px 4px 16px"><span style="font-size:10.5px;font-weight:700;color:#065f46;display:block;margin-bottom:1px">【翻訳 → 日本語】</span>${jp}</div>`;
-        area.appendChild(tlDiv);
-        area.scrollTop=area.scrollHeight;
-      }
       if(grp){grp.prev='あなた: '+txt.slice(0,20);grp.unread=0;}
-      // DB に保存
-      const _gr = await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp})}).catch(e=>{console.warn('[msg]',e);toast('送信エラー','メッセージの送信に失敗しました','r');return null;});
-      if(_gr) toast('送信完了','グループ全員に一斉翻訳して送信しました');
+      // グループDBに保存
+      const res = await fetch(`/worker/api/groups/${ACTIVE_CHAT.id}/messages`,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({body: txt, translated: jp})
+      });
+      const json = await res.json();
+      if(json.ok && json.message){
+        _wGroupMsgLastTs[ACTIVE_CHAT.id] = json.message.created_at;
+        toast('送信完了','グループに送信しました');
+      } else {
+        toast('送信エラー', json.error||'送信に失敗しました', 'r');
+      }
     } catch(e) { toast('翻訳エラー',e.message,'r'); }
   } else {
     // Direct: translate and send to supervisor
@@ -2959,6 +3004,34 @@ async function pollMessages(){
 // 8秒間隔でAPI polling
 setInterval(pollMessages, 8000);
 
+// グループメッセージポーリング（アクティブなグループ + 全グループ未読チェック）
+async function pollGroupMessages(){
+  if(!_MY_UID || !GROUPS.length) return;
+  for(const g of GROUPS){
+    try{
+      const after = _wGroupMsgLastTs[g.id] || '';
+      const url   = `/worker/api/groups/${g.id}/messages${after?'?after='+encodeURIComponent(after):''}`;
+      const res   = await fetch(url);
+      const json  = await res.json();
+      if(!json.ok || !json.messages?.length) continue;
+      for(const m of json.messages){
+        _wGroupMsgLastTs[g.id] = m.created_at;
+        if(m.sender_id === _MY_UID) continue;  // 自分のは追加しない
+        if(!g.msgs) g.msgs = [];
+        g.msgs.push(_wGMsgToLocal(m, _MY_UID));
+        g.unread = (g.unread||0) + 1;
+        // アクティブなグループなら画面に追加
+        if(ACTIVE_CHAT?.isGroup && ACTIVE_CHAT.id === g.id){
+          addActiveBubble(g.msgs.at(-1), true);
+          g.unread = 0;
+        }
+      }
+    }catch(e){ console.warn('[group poll] error:', e); }
+  }
+  renderChatList();
+}
+setInterval(pollGroupMessages, 10000);  // 10秒間隔
+
 // ── CLOCK ─────────────────────────────────────────────────────────────────────
 function tick(){const n=new Date();document.getElementById('stime').textContent=n.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});}
 setInterval(tick,1000);tick();
@@ -3074,6 +3147,8 @@ document.querySelectorAll('.lang-opt').forEach(o=>{
 })();
 
 updateProg();loadAndRenderShift();
+// 起動時にグループ一覧を取得（バックグラウンド）
+if(typeof loadWorkerGroups==='function') loadWorkerGroups().then(()=>{ if(typeof renderChatList==='function') renderChatList(); });
 
 // attendance.js 読み込み後に初期化（script タグの後で呼ぶ）
 
