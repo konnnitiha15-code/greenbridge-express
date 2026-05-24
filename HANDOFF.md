@@ -1,274 +1,139 @@
-# GreenBridge — 引継ぎドキュメント
-> 新セッション開始時にこのファイルを最初に読ませてください
-
----
+# GreenBridge Express — Handoff
 
 ## プロジェクト概要
 
-**技能実習生管理プラットフォーム「GreenBridge」**
-
-- 管理者側（PC）は実装済み
-- 次のタスク：**作業者（実習生）側のスマホアプリ追加**
-
----
-
-## 技術スタック
+技能実習生向けSaaSプラットフォーム。管理者（PC）とワーカー（スマホ）の2画面構成。
 
 | 項目 | 内容 |
 |------|------|
-| ランタイム | Node.js |
-| サーバー | Express.js v4 |
-| テンプレート | EJS（サーバーサイドレンダリング） |
-| CSS | カスタム Design System v2.0（CSSトークン） |
-| JS | バニラJS（フレームワークなし） |
-| DB / Auth | Supabase |
-| ファイル保存 | ローカルディスク `public/uploads/` + Supabase Storage（オプション） |
-| メタデータ | `data/docs_local.json`（DBフォールバック） |
-| 開発 | nodemon（`src/` のみ監視） |
+| バックエンド | Node.js / Express / EJS |
+| DB・認証 | Supabase (PostgreSQL + Auth + RLS) |
+| フロント | Vanilla JS（独自CSS、Tailwindなし） |
+| デプロイ | Vercel（本番） / localhost:3000（開発） |
+| リポジトリ | github.com/konnnitiha15-code/greenbridge-express |
 
 ---
 
-## プロジェクトパス
+## 画面構成
 
-```
-C:\Users\mayniti\Downloads\greenbridge-express\
-```
+| URL | 対象 | 内容 |
+|-----|------|------|
+| `/` | 共通 | ログイン先選択ページ |
+| `/login` | 管理者専用 | 管理者ログイン |
+| `/app` | 管理者 | 実習生管理SPA |
+| `/worker/login` | ワーカー専用 | ワーカーログイン |
+| `/worker` | ワーカー | モバイル向けアプリ |
 
-## サーバー起動
+---
+
+## 直近やったこと
+
+### Vercel対応 & 認証分離
+1. Vercelデプロイ対応（`vercel.json`、`module.exports = app`、`fs.mkdirSync` → `/tmp`）
+2. **認証導線完全分離**：管理者(`sb-access-token`) / ワーカー(`gb-worker-token`)で同時ログイン可能
+3. `/app/api/*` 全ルートに `requireAdmin` 一括適用
+4. Cookie を本番(VERCEL)で `secure: true` 化
+5. `connect-flash` → URLクエリパラメータ方式（Vercel serverless対応）
+
+### データ整理
+6. **localStorage → Supabase DB 移行**：チャット双方向通信、storage abstraction
+7. ハードコード「田中」を全削除 → SERVER_DATA から動的取得
+8. **テストデータリセット**：`scripts/reset-and-seed.js` で完全再シード
+9. **トップページ追加**（`/`）：管理者・ワーカー選択UI
+
+### 通信改善（最新）
+10. **「タブを開く＝最新取得」パターン徹底**：
+    - 管理者：home (KPI+勤怠統計)、chat (開いてるチャットの履歴再取得)、shift、nippo、attend
+    - ワーカー：s-chat (即時 pollMessages)、s-nippo (DBから日報取得)、s-tpl (テンプレート毎回描画)
+11. **JSTタイムゾーン修正**：勤怠フィルターが UTC→JST に
+12. **ワーカー側日報をDB化**：`NIPPOS const → let`、`loadAndRenderNippos()` 追加
+
+---
+
+## 現在の状態（動作確認済み）
+
+### ✅ 動作
+- `/` ログイン選択ページ
+- `/login` 管理者ログイン（URLクエリエラー表示）
+- `/worker/login` ワーカーログイン
+- `/app` 管理者SPA（二重ガード）
+- `/worker` ワーカーアプリ（二重ガード）
+- 同時ログイン（同一ブラウザでadmin・worker両立）
+- 勤怠打刻 → 管理者勤怠タブで即時反映（タブ開で更新）
+- チャット双方向通信（admin 5秒、worker 8秒ポーリング）
+- worker_id 紐付けUI（管理者アカウントタブ）
+- Vercel本番デプロイ動作中
+
+### 📊 DBテーブル（すべてRLS適用済み）
+- profiles / companies / workers
+- attendance_records / shifts / shift_requests
+- documents / daily_reports / messages / notifications
+
+---
+
+## 未完了のタスク
+
+### 🟡 機能
+- [ ] グループチャットDB化（現在 `gb_groups` localStorage）→ `groups` + `group_messages` テーブル要作成
+- [ ] ファイルアップロード Supabase Storage 移行（現在 Vercel `/tmp`、再起動で消える）
+- [ ] `aiTx()` 翻訳機能の実装（現在は原文返却）
+- [ ] シフト申請の承認フロー通知
+
+### 🔵 UX
+- [ ] チャット未読バッジの正確な計算
+- [ ] 通知（notifications）テーブルの活用
+
+### 🟢 運用
+- [ ] Supabase Realtime（WebSocket）でポーリング廃止
+- [ ] エラー監視（Sentry等）導入
+
+---
+
+## 重要な決定事項
+
+### Cookie戦略
+- **管理者**：`sb-access-token` / `sb-refresh-token`
+- **ワーカー**：`gb-worker-token` / `gb-worker-refresh`（独自命名で衝突回避）
+- 別Cookie名にすることで**同一ブラウザでの両側同時ログイン**が可能
+- `secure: !!(process.env.VERCEL || NODE_ENV === 'production')`
+
+### Vercel対応
+- `vercel.json`: 全routes → `src/app.js`
+- `src/app.js`: `module.exports = app` + `require.main === module` 分岐
+- `fs.mkdirSync` を try/catch でラップ、Vercel時は `/tmp` 使用
+- `connect-flash` 使わず URLクエリパラメータ方式
+
+### データ更新方針
+- **手動リフレッシュ廃止** → 「タブを開く＝必ず最新取得」
+- 30秒/60秒の長期ポーリングは廃止（タブ開閉トリガーで十分）
+- 例外：チャットはアクティブ時のみ短間隔ポーリング（5秒/8秒）
+
+### localStorage 使用ルール
+- **OK**: theme, language, activeTab, draft, UI state, API cache
+- **NG**: 勤怠/シフト/書類/ワーカー/role情報、チャット履歴本体
+- `public/js/services/storage.js` でラップ
+
+---
+
+## テストアカウント
+
+| 種別 | URL | メール | パスワード |
+|------|-----|--------|-----------|
+| 管理者 | `/login` | `admin@greenbridge-test.com` | `GBAdmin2026!` |
+| ワーカー① | `/worker/login` | `worker01@greenbridge-test.com` | `GBWorker2026!` |
+| ワーカー② | `/worker/login` | `worker02@greenbridge-test.com` | `GBWorker2026!` |
+
+---
+
+## 開発コマンド
 
 ```bash
-npm run dev   # nodemon で起動（ポート 3000）
+# ローカル起動
+npm run dev
+
+# テストデータリセット & 再シード
+node scripts/reset-and-seed.js
+
+# Vercelへ自動デプロイ
+git push
 ```
-
----
-
-## ディレクトリ構成
-
-```
-greenbridge-express/
-├── src/
-│   ├── app.js                  # Expressエントリーポイント
-│   ├── middleware/
-│   │   └── auth.js             # requireAuth ミドルウェア（Supabase Auth）
-│   └── routes/
-│       ├── auth.js             # ログイン・ログアウト
-│       ├── spa.js              # 管理者SPA 全ルート + AJAX API ★メインファイル
-│       ├── workers.js          # (旧) workers CRUD
-│       ├── documents.js        # (旧) documents CRUD
-│       ├── companies.js        # (旧) companies CRUD
-│       ├── dashboard.js        # (旧) dashboard
-│       └── settings.js        # (旧) settings
-├── views/
-│   └── spa.ejs                 # 管理者SPA HTML（全画面1ファイル）
-├── public/
-│   ├── css/style.css           # Design System v2.0
-│   ├── js/app.js               # フロントエンドJS（全機能、約2000行）
-│   └── uploads/documents/      # アップロードファイル
-├── data/
-│   └── docs_local.json         # 書類メタデータのローカル永続化
-├── .env                        # 環境変数
-├── nodemon.json                # src/ のみ監視
-└── package.json
-```
-
----
-
-## 環境変数（.env）
-
-```env
-SUPABASE_URL=https://lbwiusqlzxlkldtvnquf.supabase.co
-SUPABASE_ANON_KEY=eyJhbGci...（既存）
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...（既存）
-SESSION_SECRET=greenbridge-secret-2025
-PORT=3000
-```
-
----
-
-## Supabase プロジェクト
-
-- **Project ref:** `lbwiusqlzxlkldtvnquf`
-- **SQL Editor:** https://supabase.com/dashboard/project/lbwiusqlzxlkldtvnquf/sql/new
-
----
-
-## DBスキーマ（作成済みテーブル）
-
-```sql
--- 作成済み
-profiles           -- ユーザープロフィール（auth.users 拡張）
-companies          -- 会社
-workers            -- 実習生
-documents          -- 書類
-attendance_records -- 勤怠記録 ★最近追加
-
--- シフト（Supabase未作成、localStorageで代替中）
-shifts
-shift_requests
-```
-
-### attendance_records（最近追加）
-
-```sql
-CREATE TABLE attendance_records (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  worker_id   UUID NOT NULL REFERENCES workers(id)  ON DELETE CASCADE,
-  work_date   DATE NOT NULL,
-  clock_in    TIMESTAMPTZ,
-  clock_out   TIMESTAMPTZ,
-  status      TEXT NOT NULL DEFAULT 'absent',  -- present/late/absent/holiday
-  memo        TEXT,
-  source      TEXT DEFAULT 'admin',  -- admin/worker/qr/gps ★将来拡張用
-  created_by  UUID REFERENCES auth.users(id),
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
-);
--- UNIQUE: worker_id + work_date（1日1レコード）
-```
-
-### RLS ルール（全テーブル共通）
-
-```sql
--- 同じ company_id のユーザーのみアクセス可能
-company_id = (SELECT company_id FROM profiles WHERE id = auth.uid())
-```
-
----
-
-## ロール定義
-
-| ロール | 権限 |
-|--------|------|
-| `admin` | 全機能フルアクセス・ロール変更 |
-| `manager` | 管理機能一部・承認 |
-| `staff` | 閲覧・書類アップロード |
-| `trainee` | 技能実習生（限定閲覧）|
-
----
-
-## 管理者SPA（実装済み画面）
-
-| 画面 | SP() ID | 機能 |
-|------|---------|------|
-| ホーム | `home` | KPI・期限アラート・勤怠統計 |
-| チャット | `chat` | 個別メッセージ |
-| 実習生管理 | `workers` | CRUD・書類タブ |
-| 書類管理 | `docs` | カテゴリ分け・フィルタ・PDF閲覧 |
-| タスク | `tasks` | カンバン・月ナビ |
-| グループチャット | `gchat` | グループ管理 |
-| 動画マニュアル | `videos` | 動画一覧 |
-| 日報 | `nippo` | 日報管理 |
-| シフト | `shift` | 月次シフト表 |
-| **勤怠管理** | `attend` | **管理者専用・CRUD** |
-| 権限管理 | `roles` | ロール変更 |
-| 設定 | `settings` | アカウント・通知 |
-
----
-
-## API エンドポイント（`/app/api/`）
-
-| Method | Path | 機能 |
-|--------|------|------|
-| GET/POST | `/api/workers` | 実習生一覧・追加 |
-| PUT/DELETE | `/api/workers/:id` | 更新・削除 |
-| POST | `/api/documents/upload` | ファイルアップロード（multer） |
-| PUT | `/api/documents/:id/worker` | 実習生紐付け |
-| DELETE | `/api/documents/:id` | 削除 |
-| GET/PUT/DELETE | `/api/shifts` | シフト |
-| POST/PUT | `/api/shift-requests` | シフト申請 |
-| GET | `/api/attendance` | 勤怠一覧（管理者のみ） |
-| GET | `/api/attendance/stats` | 本日の勤怠統計 |
-| POST | `/api/attendance` | 勤怠登録（upsert） |
-| PUT | `/api/attendance/:id` | 勤怠更新 |
-| DELETE | `/api/attendance/:id` | 勤怠削除 |
-| GET/PUT | `/api/users` | ユーザー一覧・更新 |
-| PUT | `/api/users/:id/role` | ロール変更（admin専用） |
-
----
-
-## データ永続化戦略
-
-| データ | 保存先 |
-|--------|--------|
-| 書類ファイル | `public/uploads/documents/` + Supabase Storage（オプション） |
-| 書類メタデータ | `data/docs_local.json`（常時） + Supabase `documents`（あれば） |
-| シフトデータ | localStorage + Supabase `shifts`（テーブルあれば） |
-| チャット履歴 | localStorage（ワーカーIDごと） |
-| グループ情報 | localStorage |
-| 勤怠データ | Supabase `attendance_records` |
-
----
-
-## 書類カテゴリ（10種類）
-
-```js
-contract, visa, passport, insurance, salary,
-safety, technical_intern, specified_skilled, tax, other
-```
-
----
-
-## 次のタスク：作業者側スマホアプリ
-
-### やりたいこと
-
-既存の Express サーバーに `/worker/*` ルートを追加して、
-実習生（trainee）が使うモバイルファーストのWebアプリを作る。
-
-### 将来追加予定の機能
-
-- 打刻（出退勤）→ `attendance_records` の source を `'worker'` にする
-- QR打刻
-- GPS打刻
-- シフト確認
-- 書類閲覧
-- チャット
-- 多言語対応（vi/id/tl/my/zh/km）
-
-### 実装方針
-
-1. `src/routes/worker.js` を新規作成
-2. `views/worker.ejs` を新規作成（モバイルファーストHTML）
-3. `public/css/worker.css` を新規作成（モバイル最適化）
-4. `public/js/worker.js` を新規作成
-5. `src/app.js` に `app.use('/worker', workerRoutes)` を追加
-
-### 認証方針
-
-- 既存の Supabase Auth（Cookie）をそのまま使う
-- `requireAuth` ミドルウェアを流用
-- ロールが `trainee` のユーザーが主なターゲット
-
-### DB 追加不要
-
-- `attendance_records` テーブルは作成済み
-- `source = 'worker'` にするだけで打刻元を区別できる
-
----
-
-## CSSデザイントークン（主要変数）
-
-```css
---bg, --bg2     /* 背景 */
---sf, --s2      /* サーフェス */
---bd, --bd2     /* ボーダー */
---tx, --t2, --t3 /* テキスト */
---gn, --gd      /* Primary Green */
---red, --amb, --blu /* セマンティック */
---r, --r-sm, --r-lg, --r-full /* 角丸 */
---sh, --sh-md   /* シャドウ */
-```
-
----
-
-## 注意事項
-
-- `nodemon.json` は `src/` のみ監視（`public/` `data/` は除外）→ アップロード時の無限再起動防止
-- `multer` は `memoryStorage` → ローカルディスクに手動保存
-- `isTableMissing(err)` でテーブル不在エラーをフォールバック
-- 管理者ルートは `req.profile?.role !== 'admin'` でガード
-
----
-
-*作成日: 2026-05-17*

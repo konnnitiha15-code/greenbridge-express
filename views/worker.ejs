@@ -1429,8 +1429,27 @@ function getOrCreateDM(contactId){
 }
 
 
-// ── NIPPOS: 空で開始（将来 DB 移行予定）─────────────────────────
-const NIPPOS = [];
+// ── NIPPOS: DB から取得 ───────────────────────────────────────
+let NIPPOS = [];
+
+async function loadAndRenderNippos(){
+  try{
+    const res  = await fetch('/worker/api/daily-reports');
+    const json = await res.json();
+    if(!json.ok) return;
+    NIPPOS = (json.reports || []).map(r => ({
+      id:       r.id,
+      type:     r.type || 'daily',
+      content:  r.content || '',
+      jp:       r.translated || r.content || '',
+      date:     (r.report_date || '').slice(0,10) || (r.created_at||'').slice(0,10),
+      status:   r.status || 'pending',
+    }));
+    renderNPList(typeof npFilter !== 'undefined' ? npFilter : 'all');
+  }catch(e){
+    console.warn('[nippo] load error:', e);
+  }
+}
 
 // SHIFT_DATA を現在日付から動的生成
 // 週オフセット（0=今週、-1=先週、+1=来週）
@@ -2112,10 +2131,20 @@ function go(id){
   document.getElementById('npov')?.classList.remove('on');
   document.getElementById('npov-new')?.classList.remove('on');
   
-  if(id==='s-tpl'){document.getElementById('tpl-form-overlay')?.classList.remove('on');document.getElementById('tf-result').className='result-box';}
-  if(id==='s-chat'){renderChatList();}
+  if(id==='s-tpl'){
+    document.getElementById('tpl-form-overlay')?.classList.remove('on');
+    const tfr=document.getElementById('tf-result');if(tfr) tfr.className='result-box';
+    renderTpls();  // 申請テンプレートを毎回描画
+  }
+  if(id==='s-chat'){
+    renderChatList();
+    if(typeof pollMessages==='function') pollMessages();  // タブを開いたら即座に最新取得
+  }
   if(id==='s-videos')renderVList();
-  if(id==='s-nippo')renderNPList();
+  if(id==='s-nippo'){
+    renderNPList();
+    if(typeof loadAndRenderNippos==='function') loadAndRenderNippos();  // DBから最新取得
+  }
   if(id==='s-shift')loadAndRenderShift();
   if(id==='s-docs')renderWDocs();
 }
@@ -2910,8 +2939,8 @@ async function _handleIncomingMessage(m){
   toast('担当者からメッセージ', tl.slice(0, 40));
 }
 
-// 8秒間隔でAPI polling（localStorage不使用）
-setInterval(async()=>{
+// メッセージ取得（共通関数）
+async function pollMessages(){
   if(!_MY_UID) return;
   try{
     const url = `/worker/api/messages?after=${encodeURIComponent(_msgLastTs)}`;
@@ -2925,7 +2954,10 @@ setInterval(async()=>{
       }
     }
   }catch(e){ console.warn('[poll] error:', e); }
-}, 8000);
+}
+
+// 8秒間隔でAPI polling
+setInterval(pollMessages, 8000);
 
 // ── CLOCK ─────────────────────────────────────────────────────────────────────
 function tick(){const n=new Date();document.getElementById('stime').textContent=n.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});}

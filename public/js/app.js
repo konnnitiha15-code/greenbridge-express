@@ -193,12 +193,19 @@ function SP(id){
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
-  if(id==='chat') renderCL();
+  if(id==='chat'){
+    renderCL();
+    // 現在開いているチャットがあればDBから最新メッセージ取得
+    if(AW && AW.authUserId) _loadChatHistory(AW).then(()=>renderMessages());
+  }
   if(id==='gchat') renderGCL();
   if(id==='videos') renderVL();
   if(id==='nippo') loadAndRenderNPL();
   if(id==='tasks') renderKanban();
-  if(id==='home') refreshHomeKPIs();
+  if(id==='home'){
+    refreshHomeKPIs();
+    loadAttendStats();  // 勤怠統計も最新化
+  }
   if(id==='shift') rerenderShiftTable();
   if(id==='attend') initAttendPage();
   if(id==='roles') loadRoleUsers();
