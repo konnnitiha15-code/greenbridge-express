@@ -393,6 +393,20 @@ router.post('/api/daily-reports', requireWorkerAuth, requireWorker, async (req, 
 })
 
 // ── メッセージ API ───────────────────────────────────────────────
+// POST /worker/api/messages/read — 自分宛てのメッセージを既読にマーク
+router.post('/api/messages/read', requireWorkerAuth, requireWorker, async (req, res) => {
+  const userId = req.user?.id
+  const { sender_id } = req.body  // 特定相手からのものだけ既読 (任意)
+
+  const sb = adminClient()
+  let q = sb.from('messages').update({ is_read: true }).eq('receiver_id', userId).eq('is_read', false)
+  if (sender_id) q = q.eq('sender_id', sender_id)
+
+  const { error } = await q
+  if (error) return res.status(500).json({ ok: false, error: error.message })
+  res.json({ ok: true })
+})
+
 // GET /worker/api/messages?after=<ISO>
 router.get('/api/messages', requireWorkerAuth, requireWorker, async (req, res) => {
   const companyId = req.profile?.company_id

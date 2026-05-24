@@ -2399,11 +2399,18 @@ async function openChatItem(item) {
     const g = GROUPS.find(x=>x.id===item.id);
     if(g) {
       g.unread=0;
-      await loadGroupMessages(g);   // DBから最新メッセージ取得
+      await loadGroupMessages(g);
       item.group = g;
     }
   } else {
     const dm = DM_CHATS.find(d=>d.id===item.id); if(dm) dm.unread=0;
+    // 個別チャット: この相手からの自分宛てメッセージを既読にマーク
+    if(item.contactId){
+      fetch('/worker/api/messages/read',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({sender_id: item.contactId})
+      }).catch(()=>{});
+    }
   }
   // Update list
   renderChatList();
@@ -2483,8 +2490,10 @@ function addActiveBubble(m, scroll=true) {
   if (m.tl && !isMe) {
     mainHtml += `<div style="margin-top:4px;font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:4px 8px"><span style="font-size:10.5px;font-weight:700;display:block;margin-bottom:1px">【AI翻訳】</span>${m.tl}</div>`;
   }
+  // 自分の送信メッセージに既読インジケータ（is_read プロパティから判定）
+  const readMark = isMe ? `<div style="font-size:10px;color:${m.is_read?'#0ea5e9':'#94a3b8'};margin-top:2px;font-weight:600">${m.is_read?'既読 ✓✓':'送信済 ✓'}</div>` : '';
+
   if (m.tl && isMe) {
-    // my translation shown below bubble
     const colBub = document.createElement('div');
     colBub.className = 'mcol';
     colBub.style.alignItems = 'flex-end';
@@ -2496,7 +2505,8 @@ function addActiveBubble(m, scroll=true) {
     tlBub.style.marginTop = '2px';
     tlBub.innerHTML = '<span style="font-size:10.5px;font-weight:700;color:#065f46;display:block;margin-bottom:1px">【翻訳済み → 日本語】</span>' + m.tl;
     const mtime = document.createElement('div');
-    mtime.className = 'mtime'; mtime.textContent = m.time||'';
+    mtime.className = 'mtime';
+    mtime.innerHTML = (m.time||'') + readMark;
     colBub.appendChild(bub); colBub.appendChild(tlBub); colBub.appendChild(mtime);
     row.appendChild(colBub);
     area.appendChild(row);
@@ -2526,7 +2536,8 @@ function addActiveBubble(m, scroll=true) {
   if(isMe) col.style.alignItems='flex-end';
   col.appendChild(bub);
   const mtime = document.createElement('div');
-  mtime.className='mtime'; mtime.textContent=m.time||'';
+  mtime.className='mtime';
+  mtime.innerHTML = (m.time||'') + readMark;
   col.appendChild(mtime);
   row.appendChild(col);
   area.appendChild(row);
@@ -2585,13 +2596,17 @@ async function sendActive() {
     try {
       const jp = await aiTx(txt, 'ja');
       document.getElementById(tid)?.remove();
-      const m = {t:'me', txt, tl:jp, time};
+      const m = {t:'me', txt, tl:jp, time, is_read:false};
       const dm = DM_CHATS.find(d=>d.id===ACTIVE_CHAT?.id);
       if(dm) dm.msgs.push(m);
       addActiveBubble(m, true);
       // DB に保存（receiver は ACTIVE_CHAT の相手）
       const rcv = ACTIVE_CHAT?.contactId || null;
-      await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp,receiver_id:rcv})}).catch(e=>{console.warn('[msg]',e);toast('送信エラー','メッセージの送信に失敗しました','r');});
+      try{
+        const sendRes = await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp,receiver_id:rcv})});
+        const sendJson = await sendRes.json();
+        if(sendJson.ok && sendJson.message) m._id = sendJson.message.id;
+      }catch(e){ console.warn('[msg]',e); toast('送信エラー','メッセージの送信に失敗しました','r'); }
       toast('✓','担当者に送信しました');
     } catch(e) {
       document.getElementById(tid)?.remove();
@@ -3012,15 +3027,34 @@ async function _handleIncomingMessage(m){
 async function pollMessages(){
   if(!_MY_UID) return;
   try{
-    const url = `/worker/api/messages?after=${encodeURIComponent(_msgLastTs)}`;
-    const res  = await fetch(url);
+    // 全件取得（既読ステータスも反映するため）
+    const res  = await fetch('/worker/api/messages');
     const json = await res.json();
-    if(!json.ok || !json.messages?.length) return;
-    for(const m of json.messages){
-      _msgLastTs = m.created_at;
-      if(_ADMIN_UID && m.sender_id === _ADMIN_UID && m.receiver_id === _MY_UID){
-        await _handleIncomingMessage(m);
+    if(!json.ok) return;
+
+    // 自分の送信メッセージの is_read を更新
+    let needRender = false;
+    for(const m of (json.messages||[])){
+      if(m.sender_id === _MY_UID){
+        // 自分が送ったメッセージ → DM_CHATS から見つけて is_read を更新
+        for(const dm of DM_CHATS){
+          const localMsg = (dm.msgs||[]).find(x => x._id === m.id);
+          if(localMsg && localMsg.is_read !== m.is_read){
+            localMsg.is_read = m.is_read;
+            needRender = true;
+          }
+        }
+      } else if(_ADMIN_UID && m.sender_id === _ADMIN_UID && m.receiver_id === _MY_UID){
+        // 管理者からの新着 → タイムスタンプ比較して新規なら追加
+        if(new Date(m.created_at) > new Date(_msgLastTs)){
+          _msgLastTs = m.created_at;
+          await _handleIncomingMessage(m);
+        }
       }
+    }
+    // アクティブチャットの既読状態が変わったら再描画
+    if(needRender && ACTIVE_CHAT && !ACTIVE_CHAT.isGroup){
+      renderActiveMsgs();
     }
   }catch(e){ console.warn('[poll] error:', e); }
 }

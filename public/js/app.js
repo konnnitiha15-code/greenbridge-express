@@ -343,7 +343,21 @@ function showExpireAlerts(){
 function renderCL(search){
   const el=document.getElementById('cl-items');if(!el)return;el.innerHTML='';
   let list=WORKERS;
-  if(search)list=list.filter(w=>w.name.toLowerCase().includes(search.toLowerCase()));
+  if(search){
+    const q = search.toLowerCase();
+    // 名前 / 職種 / 国籍 / 部署 / 言語ラベル で部分一致
+    list = list.filter(w =>
+      (w.name||'').toLowerCase().includes(q) ||
+      (w.job||'').toLowerCase().includes(q) ||
+      (w.nationality||'').toLowerCase().includes(q) ||
+      (w.dept||'').toLowerCase().includes(q) ||
+      (w.lLabel||'').toLowerCase().includes(q)
+    );
+  }
+  if(!list.length){
+    el.innerHTML = `<div style="padding:30px 16px;text-align:center;color:var(--t3);font-size:13px">${search?'該当する実習生がいません':'実習生が登録されていません'}</div>`;
+    return;
+  }
   list.forEach(w=>{
     const div=document.createElement('div');div.className='pitem'+(AW?.id===w.id?' on':'');div.onclick=()=>openChat(w);
     div.innerHTML=`<div style="width:36px;height:36px;border-radius:50%;background:${w.bg};color:${w.tc};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;position:relative">${w.init}${(w.unread||0)>0?`<div style="position:absolute;top:-2px;right:-2px;background:var(--red);color:#fff;font-size:8px;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center">${w.unread}</div>`:''}</div>
@@ -394,17 +408,23 @@ function _startChatPoll(w){
   _chatPollTimer = setInterval(async()=>{
     if(!AW || AW.id !== w.id) { clearInterval(_chatPollTimer); return; }
     try{
-      const after = _chatLastTs[w.id] || '';
-      const url   = `/app/api/messages?worker_user_id=${encodeURIComponent(w.authUserId)}${after?'&after='+encodeURIComponent(after):''}`;
-      const res   = await fetch(url);
-      const json  = await res.json();
-      if(!json.ok || !json.messages?.length) return;
-      json.messages.forEach(m=>{
-        if(!HISTORY[w.id]) HISTORY[w.id]=[];
-        HISTORY[w.id].push(_dbMsgToLocal(m, w));
-        _chatLastTs[w.id] = m.created_at;
-      });
-      renderMessages();
+      // 全件取得して既読ステータスも反映（最新100件）
+      const res  = await fetch(`/app/api/messages?worker_user_id=${encodeURIComponent(w.authUserId)}`);
+      const json = await res.json();
+      if(!json.ok) return;
+
+      // メッセージを再構築（既読状態も最新化）
+      const sys = [{t:'sys',txt:'チャット開始'}];
+      const fresh = (json.messages||[]).map(m => _dbMsgToLocal(m, w));
+
+      // 内容比較してから差し替え（チラつき防止）
+      const oldStr = JSON.stringify((HISTORY[w.id]||[]).map(m => `${m._id||''}-${m.read?1:0}`));
+      const newStr = JSON.stringify(fresh.map(m => `${m._id||''}-${m.read?1:0}`));
+      if(oldStr !== newStr){
+        HISTORY[w.id] = [...sys, ...fresh];
+        renderMessages();
+      }
+      if(json.messages?.length) _chatLastTs[w.id] = json.messages.at(-1).created_at;
     }catch{}
   }, 5000);
 }
