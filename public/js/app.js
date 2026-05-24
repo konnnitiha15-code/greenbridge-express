@@ -460,13 +460,14 @@ async function sendMsg(){
     const json = await res.json();
     if(json.ok && json.message){
       _chatLastTs[AW.id] = json.message.created_at;
-      // 送信成功 → 最後のメッセージを既読に
+      // 送信成功 → _id を保存（ポーリング時に既読状態を突き合わせ用）
       const last = HISTORY[AW.id].at(-1);
-      if(last && last.t==='me') last.read=true;
-      renderMessages();
+      if(last && last.t==='me') last._id = json.message.id;
+      // read=false のまま（既読は相手が読んだ時にポーリングで更新）
     }
   }catch(e){
     console.warn('[chat] send error:', e);
+    toast('送信エラー','メッセージの送信に失敗しました','r');
   }
 }
 
