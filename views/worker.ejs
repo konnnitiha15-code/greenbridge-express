@@ -866,6 +866,22 @@ input,textarea,select,button{font-family:inherit}
       </div>
     </div>
 
+    <!-- 今日の日報 ────────────────────────────────────── -->
+    <div class="card" style="margin:14px 13px 0">
+      <div class="card-hdr">
+        <span class="card-title">📋 <span id="h-nippo-today-l">今日の日報</span></span>
+        <span id="h-nippo-status" class="badge bgray" style="font-size:10px">未提出</span>
+      </div>
+      <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
+        <textarea id="h-nippo-quick" class="finp" rows="3" placeholder="本日の作業内容を入力（母国語OK・AIで日本語に翻訳）" style="font-size:13px"></textarea>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-g" style="flex:1" onclick="submitHomeNippo('daily')">📝 日報を送信</button>
+          <button class="btn" style="background:#fef3c7;color:#92400e;border-color:#fcd34d;flex:1" onclick="submitHomeNippo('hayari')">⚠️ ヒヤリハット</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--t3);text-align:center">過去の日報は <a href="#" onclick="go('s-nippo');return false;" style="color:var(--gn);font-weight:600">日報タブ</a> で確認できます</div>
+      </div>
+    </div>
+
     <div class="sos-strip" onclick="go('s-sos')">
       <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="12" stroke="rgba(255,255,255,.5)" stroke-width="2" fill="none"/><path d="M14 8v8M14 19.5v.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
       <div><div class="sos-strip-lbl" id="h-sos-l2">緊急 SOS</div><div class="sos-strip-sub">3秒長押しで担当者に緊急通知</div></div>
@@ -1474,14 +1490,16 @@ async function loadAndRenderNippos(){
     const json = await res.json();
     if(!json.ok) return;
     NIPPOS = (json.reports || []).map(r => ({
-      id:       r.id,
-      type:     r.type || 'daily',
-      content:  r.content || '',
-      jp:       r.translated || r.content || '',
-      date:     (r.report_date || '').slice(0,10) || (r.created_at||'').slice(0,10),
-      status:   r.status || 'pending',
+      id:         r.id,
+      type:       r.type || 'daily',
+      content:    r.content || '',
+      translated: r.translated || '',
+      jp:         r.translated || r.content || '',
+      date:       (r.report_date || '').replace(/-/g,'/') || (r.created_at||'').slice(0,10),
+      status:     r.status || 'pending',
     }));
     renderNPList(typeof npFilter !== 'undefined' ? npFilter : 'all');
+    updateHomeNippoStatus();  // ホームのステータスバッジも更新
   }catch(e){
     console.warn('[nippo] load error:', e);
   }
@@ -2167,6 +2185,10 @@ function go(id){
   document.getElementById('npov')?.classList.remove('on');
   document.getElementById('npov-new')?.classList.remove('on');
   
+  if(id==='s-home'){
+    // ホームを開くたびに日報状況を最新化
+    if(typeof loadAndRenderNippos==='function') loadAndRenderNippos();
+  }
   if(id==='s-tpl'){
     document.getElementById('tpl-form-overlay')?.classList.remove('on');
     const tfr=document.getElementById('tf-result');if(tfr) tfr.className='result-box';
@@ -2780,23 +2802,58 @@ async function submitNippo(){
   const content=document.getElementById('np-inp').value.trim();
   if(!content){toast('エラー','内容を入力してください','r');return;}
   document.getElementById('npov-new').classList.remove('on');
+  await _doSubmitNippo(npType, content);
+}
 
+// ホーム画面のクイック日報入力フォームから送信
+async function submitHomeNippo(type){
+  const inp = document.getElementById('h-nippo-quick');
+  const content = inp?.value?.trim();
+  if(!content){ toast('エラー','内容を入力してください','r'); return; }
+  await _doSubmitNippo(type, content);
+  if(inp) inp.value = '';
+  updateHomeNippoStatus();
+}
+
+// 共通の日報送信処理
+async function _doSubmitNippo(type, content){
   let translated='';
-  try{translated=await aiTx(content,'ja');}catch{translated='';}
+  try{ translated = await aiTx(content,'ja'); }catch{ translated = ''; }
 
   try{
-    const res=await fetch('/worker/api/daily-reports',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({type:npType,content,translated}),
+    const res = await fetch('/worker/api/daily-reports',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({type, content, translated}),
     });
-    const json=await res.json();
-    if(!json.ok) throw new Error(json.error);
-    const now=new Date();
-    NIPPOS.unshift({id:json.report?.id||'n'+Date.now(),date:now.toLocaleDateString('ja-JP'),type:npType,status:'pending',content,translated});
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error || '送信に失敗しました');
+    const now = new Date();
+    NIPPOS.unshift({
+      id: json.report?.id || 'n'+Date.now(),
+      date: now.toLocaleDateString('ja-JP'),
+      type, status: 'pending', content, translated, jp: translated,
+    });
     renderNPList(npFilter);
-    toast('✓ 送信完了','日報を管理者に送信しました');
+    toast(type==='hayari'?'⚠️ ヒヤリハット送信':'✓ 日報送信完了','管理者に送信しました');
   }catch(e){
-    toast('エラー',e.message||'送信に失敗しました','r');
+    toast('エラー', e.message || '送信に失敗しました', 'r');
+  }
+}
+
+// ホーム画面の「今日の日報」ステータス表示を更新
+function updateHomeNippoStatus(){
+  const badge = document.getElementById('h-nippo-status');
+  if(!badge) return;
+  const today = new Date().toLocaleDateString('ja-JP');
+  const todayReport = (NIPPOS||[]).find(n => n.date === today && n.type === 'daily');
+  if(todayReport){
+    if(todayReport.status === 'approved'){
+      badge.textContent = '✓ 承認済'; badge.className = 'badge bg';
+    } else {
+      badge.textContent = '✓ 提出済'; badge.className = 'badge bb';
+    }
+  } else {
+    badge.textContent = '未提出'; badge.className = 'badge bgray';
   }
 }
 
@@ -3207,6 +3264,8 @@ document.querySelectorAll('.lang-opt').forEach(o=>{
 updateProg();loadAndRenderShift();
 // 起動時にグループ一覧を取得（バックグラウンド）
 if(typeof loadWorkerGroups==='function') loadWorkerGroups().then(()=>{ if(typeof renderChatList==='function') renderChatList(); });
+// 起動時に日報も取得（ホーム画面のバッジ表示用）
+if(typeof loadAndRenderNippos==='function') loadAndRenderNippos();
 
 // attendance.js 読み込み後に初期化（script タグの後で呼ぶ）
 

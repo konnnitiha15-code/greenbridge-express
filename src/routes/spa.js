@@ -1150,7 +1150,8 @@ router.get('/api/daily-reports', requireAuth, async (req, res) => {
     author:      r.workers?.name || '不明',
     date:        (r.report_date || '').replace(/-/g, '/'),
     type:        r.type,
-    status:      r.status,
+    // 'pending' / 'reviewed' を UI の 'review' / 'approved' にマッピング
+    status:      r.status === 'pending' ? 'review' : (r.status === 'reviewed' ? 'approved' : r.status),
     original:    r.content,
     translated:  r.translated || r.content,
     title:       r.translated?.slice(0, 30) || r.content?.slice(0, 30) || '',
