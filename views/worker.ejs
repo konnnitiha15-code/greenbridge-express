@@ -2932,9 +2932,13 @@ function updateHomeTodayShift(){
 
 function renderShift(){
   const el=document.getElementById('shift-week');if(!el)return;el.innerHTML='';
-  // ワーカー情報表示（誤認防止）
+  // ワーカー情報表示（誤認防止）— window.SERVER_DATA経由でTDZ回避
   const winfo = document.getElementById('sh-worker-info');
-  if(winfo) winfo.textContent = `${_sw.name || ''}（${_sd.email || ''}）のシフト`;
+  if(winfo){
+    const sd = window.SERVER_DATA || {};
+    const sw = sd.worker || {};
+    winfo.textContent = `${sw.name || ''}（${sd.email || ''}）のシフト`;
+  }
   const L=LS[LANG]||LS.vi;
   const labelMap={
     niku:   L.shiftNiku   ||'日勤',
