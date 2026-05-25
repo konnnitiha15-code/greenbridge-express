@@ -2131,23 +2131,29 @@ async function loadShiftData(year, month){
   SHIFT_DATA = {};
   SHIFT_REQUESTS = [];
 
-  // ── localStorage から先に読む ────────────────────────────────────────────
-  try{
-    const local = JSON.parse(localStorage.getItem(shiftLsKey(year,month))||'{}');
-    Object.assign(SHIFT_DATA, local);
-  }catch{}
-
-  // ── サーバーから取得（上書き） ──────────────────────────────────────────
+  // ── サーバーから取得（常にDBを正とする） ──────────────────────────────
+  let serverOk = false;
   try{
     const r = await fetch(`/app/api/shifts?year=${year}&month=${month}`);
     const d = await r.json();
-    if(d.shifts && d.shifts.length > 0){
-      SHIFT_DATA = {};
-      d.shifts.forEach(s=>{ SHIFT_DATA[`${s.worker_id}_${s.date}`]=s; });
+    if(!d.error){
+      SHIFT_DATA = {};  // 0件でも明示的に空でリセット（削除されたシフトを除去）
+      (d.shifts || []).forEach(s=>{ SHIFT_DATA[`${s.worker_id}_${s.date}`]=s; });
+      SHIFT_REQUESTS = d.requests || [];
+      // 取得結果でlocalStorageキャッシュを上書き保存
+      try{ localStorage.setItem(shiftLsKey(year,month), JSON.stringify(SHIFT_DATA)); }catch{}
+      serverOk = true;
     }
-    SHIFT_REQUESTS = d.requests || [];
   }catch(e){
-    console.warn('shift API unavailable, using local data');
+    console.warn('shift API unavailable, falling back to local cache');
+  }
+
+  // ── サーバー失敗時のみ localStorage から読む（オフラインフォールバック） ──
+  if(!serverOk){
+    try{
+      const local = JSON.parse(localStorage.getItem(shiftLsKey(year,month))||'{}');
+      Object.assign(SHIFT_DATA, local);
+    }catch{}
   }
 }
 
@@ -2173,7 +2179,9 @@ function renderShiftTable(){
   const month = SHIFT_MONTH;
   const days  = new Date(year, month, 0).getDate();
   const dayNames = ['日','月','火','水','木','金','土'];
-  const todayStr = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+  // 「今日」マーカーは毎回フレッシュに計算（日付またぎ対策）
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
   // ── thead ──────────────────────────────────────────────────────────────────
   let html = '<table class="shift-tbl"><thead><tr>';

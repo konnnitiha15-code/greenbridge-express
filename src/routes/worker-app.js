@@ -330,9 +330,10 @@ router.get('/api/shifts', requireWorkerAuth, requireWorker, async (req, res) => 
   const year  = parseInt(req.query.year)  || new Date().getFullYear()
   const month = parseInt(req.query.month) || new Date().getMonth() + 1
 
-  // 月の初日〜末日
+  // 月の初日〜末日（toISOString() は UTC に変換されて1日ズレるため getDate() を使う）
+  const lastDay = new Date(year, month, 0).getDate()
   const from = `${year}-${String(month).padStart(2,'0')}-01`
-  const to   = new Date(year, month, 0).toISOString().slice(0,10) // 末日
+  const to   = `${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
 
   const { data, error } = await adminClient()
     .from('shifts')

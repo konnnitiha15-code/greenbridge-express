@@ -768,7 +768,7 @@ input,textarea,select,button{font-family:inherit}
     <div class="hero-sub" id="w-hero-sub">Nguyen Thi Giang · 溶接 · 1年目</div>
     <div class="hero-stats">
       <div class="hstat"><div class="hstat-val">8日</div><div class="hstat-lbl" id="h-leave-l">有給残日数</div></div>
-      <div class="hstat"><div class="hstat-val">日勤</div><div class="hstat-lbl" id="h-today-shift">今日のシフト</div></div>
+      <div class="hstat"><div class="hstat-val" id="h-today-shift-val">未定</div><div class="hstat-lbl" id="h-today-shift">今日のシフト</div></div>
     </div>
   </div>
   <div class="scroll pb">
@@ -2186,8 +2186,9 @@ function go(id){
   document.getElementById('npov-new')?.classList.remove('on');
   
   if(id==='s-home'){
-    // ホームを開くたびに日報状況を最新化
+    // ホームを開くたびに日報状況とシフトを最新化
     if(typeof loadAndRenderNippos==='function') loadAndRenderNippos();
+    if(typeof loadAndRenderShift==='function') loadAndRenderShift();
   }
   if(id==='s-tpl'){
     document.getElementById('tpl-form-overlay')?.classList.remove('on');
@@ -2902,6 +2903,20 @@ async function loadAndRenderShift(){
   await loadWorkerShifts(year, month);
   if(lastMonth !== month) await loadWorkerShifts(data[6].year, lastMonth);
   renderShift();
+  updateHomeTodayShift();   // ホームの「今日のシフト」も最新化
+}
+
+// ホーム画面の「今日のシフト」ラベルを更新
+function updateHomeTodayShift(){
+  const el = document.getElementById('h-today-shift-val');
+  if(!el) return;
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const raw = workerShifts[todayKey];
+  if(!raw){ el.textContent = '未定'; return; }
+  const type = normalizeShiftType(raw);
+  const labelMap = {niku:'日勤',hayaban:'早番',osoi:'遅番',rest:'休み',yukyuu:'有休',absent:'欠勤',tbd:'未定'};
+  el.textContent = labelMap[type] || raw;
 }
 
 function renderShift(){
