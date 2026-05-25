@@ -2311,26 +2311,25 @@ async function saveShift(workerId, date, shiftType, cellEl){
   }
   // メモリ更新
   SHIFT_DATA[`${workerId}_${date}`]={worker_id:workerId,date,shift_type:shiftType};
-  // localStorage に即保存
-  try{
-    const cur=JSON.parse(localStorage.getItem(shiftLsKey(SHIFT_YEAR,SHIFT_MONTH))||'{}');
-    cur[`${workerId}_${date}`]={worker_id:workerId,date,shift_type:shiftType};
-    localStorage.setItem(shiftLsKey(SHIFT_YEAR,SHIFT_MONTH),JSON.stringify(cur));
-  }catch{}
-  // サーバー保存
+  // サーバー保存（成功時のみ localStorage にも反映）
   try{
     const r = await fetch('/app/api/shifts',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker_id:workerId,date,shift_type:shiftType})});
     const d = await r.json();
-    if(d.local){
-      toast('保存','シフトを保存しました（ローカル）');
-    } else if(d.ok){
-      toast('保存','シフトを更新しました');
+    if(d.ok || d.local){
+      // localStorage キャッシュ更新
+      try{
+        const cur=JSON.parse(localStorage.getItem(shiftLsKey(SHIFT_YEAR,SHIFT_MONTH))||'{}');
+        cur[`${workerId}_${date}`]={worker_id:workerId,date,shift_type:shiftType};
+        localStorage.setItem(shiftLsKey(SHIFT_YEAR,SHIFT_MONTH),JSON.stringify(cur));
+      }catch{}
+      toast('保存', d.local ? 'シフトを保存しました（ローカル）' : 'シフトを更新しました（ワーカー側に反映）');
     } else {
-      throw new Error(d.error);
+      throw new Error(d.error || '保存に失敗しました');
     }
   }catch(e){
-    // localStorage には既に保存済み
-    toast('保存','シフトをローカルに保存しました','b');
+    console.error('[shift] save error:', e);
+    toast('保存エラー', e.message || 'シフトの保存に失敗しました', 'r');
+    // 楽観的UI更新を巻き戻すなら ここで rerenderShiftTable() 呼ぶ
   }
 }
 
