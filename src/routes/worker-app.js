@@ -381,7 +381,8 @@ router.post('/api/daily-reports', requireWorkerAuth, requireWorker, async (req, 
   const { type, content, translated } = req.body
   if (!content?.trim()) return res.json({ ok: false, error: '内容を入力してください' })
 
-  const { data, error } = await adminClient()
+  const sb = adminClient()
+  const { data, error } = await sb
     .from('daily_reports')
     .insert({
       company_id:  companyId,
@@ -395,7 +396,52 @@ router.post('/api/daily-reports', requireWorkerAuth, requireWorker, async (req, 
     .single()
 
   if (error) return res.json({ ok: false, error: error.message })
+
+  // 管理者向け通知（worker_id=NULL で全admin宛て）
+  try {
+    const { data: w } = await sb.from('workers').select('name').eq('id', workerId).maybeSingle()
+    await sb.from('notifications').insert({
+      company_id: companyId,
+      worker_id:  null,
+      title:      type === 'hayari' ? '🚨 ヒヤリ・ハット報告' : '📝 日報が届きました',
+      body:       `${w?.name || 'ワーカー'}：${(translated || content).slice(0, 60)}${(translated || content).length > 60 ? '…' : ''}`,
+      type:       type === 'hayari' ? 'alert' : 'info',
+    })
+  } catch {}
+
   res.json({ ok: true, report: data })
+})
+
+// ── 通知 API（ワーカー側） ───────────────────────────────────
+// GET /worker/api/notifications — 自分宛て通知
+router.get('/api/notifications', requireWorkerAuth, requireWorker, async (req, res) => {
+  const workerId  = req.profile?.worker_id
+  const companyId = req.profile?.company_id
+  const sb = adminClient()
+
+  // worker_id が自分または NULL（全社向け）
+  const { data, error } = await sb
+    .from('notifications')
+    .select('id, title, body, type, is_read, created_at, worker_id')
+    .eq('company_id', companyId)
+    .or(workerId ? `worker_id.eq.${workerId},worker_id.is.null` : 'worker_id.is.null')
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) return res.status(500).json({ ok: false, error: error.message })
+  res.json({ ok: true, notifications: data || [] })
+})
+
+// PUT /worker/api/notifications/:id/read
+router.put('/api/notifications/:id/read', requireWorkerAuth, requireWorker, async (req, res) => {
+  const workerId = req.profile?.worker_id
+  const sb = adminClient()
+  const { error } = await sb.from('notifications')
+    .update({ is_read: true })
+    .eq('id', req.params.id)
+    .or(workerId ? `worker_id.eq.${workerId},worker_id.is.null` : 'worker_id.is.null')
+  if (error) return res.status(500).json({ ok: false, error: error.message })
+  res.json({ ok: true })
 })
 
 // ── メッセージ API ───────────────────────────────────────────────
@@ -470,7 +516,8 @@ router.post('/api/shift-requests', requireWorkerAuth, requireWorker, async (req,
   const { date, shift_type, note } = req.body
   if (!date || !shift_type) return res.json({ ok: false, error: 'date と shift_type は必須です' })
 
-  const { data, error } = await adminClient()
+  const sb = adminClient()
+  const { data, error } = await sb
     .from('shift_requests')
     .insert({
       company_id: companyId,
@@ -483,6 +530,19 @@ router.post('/api/shift-requests', requireWorkerAuth, requireWorker, async (req,
     .single()
 
   if (error) return res.json({ ok: false, error: error.message })
+
+  // 管理者向け通知（worker_id=NULL で全admin宛て）
+  try {
+    const { data: w } = await sb.from('workers').select('name').eq('id', workerId).maybeSingle()
+    await sb.from('notifications').insert({
+      company_id: companyId,
+      worker_id:  null,
+      title:      '🗓 シフト変更申請',
+      body:       `${w?.name || 'ワーカー'} が ${date} の ${shift_type} を申請${note?'：'+note:''}`,
+      type:       'info',
+    })
+  } catch {}
+
   res.json({ ok: true, request: data })
 })
 

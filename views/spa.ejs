@@ -239,6 +239,46 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
         <div class="kpi-sub kpi-sub--muted">出勤＋遅刻含む</div>
       </div>
     </div>
+
+    <!-- 申請待ち・未読通知（管理者向け） -->
+    <div class="kpi-row" style="margin-top:0">
+      <div class="kpi am" onclick="SP('shift')" style="cursor:pointer;position:relative">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--abg)">📋</div>
+          <span class="badge ba" id="kpi-pending-sub">-</span>
+        </div>
+        <div class="kpi-val" id="kpi-pending-val">0</div>
+        <div class="kpi-lbl">申請待ち</div>
+        <div class="kpi-sub kpi-sub--muted">クリックで対応</div>
+      </div>
+      <div class="kpi rd" onclick="openNotificationCenter()" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--rbg)">🔔</div>
+          <span class="badge br" id="kpi-unread-sub">-</span>
+        </div>
+        <div class="kpi-val" id="kpi-unread-val">0</div>
+        <div class="kpi-lbl">未読通知</div>
+        <div class="kpi-sub kpi-sub--muted">クリックで全表示</div>
+      </div>
+      <div class="kpi gn" onclick="SP('nippo')" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--gbg)">📝</div>
+          <span class="badge bg">日報</span>
+        </div>
+        <div class="kpi-val" id="kpi-nippo-val">-</div>
+        <div class="kpi-lbl">本日の日報</div>
+        <div class="kpi-sub kpi-sub--muted">クリックで日報管理へ</div>
+      </div>
+      <div class="kpi bl" onclick="SP('chat')" style="cursor:pointer">
+        <div class="kpi-top">
+          <div class="kpi-ico" style="background:var(--bbg)">💬</div>
+          <span class="badge bb">未読</span>
+        </div>
+        <div class="kpi-val" id="kpi-msg-val">0</div>
+        <div class="kpi-lbl">メッセージ</div>
+        <div class="kpi-sub kpi-sub--muted">ワーカーからの新着</div>
+      </div>
+    </div>
     <% } %>
 
     <!-- メインコンテンツグリッド -->

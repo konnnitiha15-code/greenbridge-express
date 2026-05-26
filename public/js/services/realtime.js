@@ -145,6 +145,24 @@ const GBRealtime = (() => {
     return ch;
   }
 
+  // ── notifications（通知） ───────────────────────────────────────
+  async function subscribeNotifications(onChange) {
+    const client = await _getClient();
+    if (!client) return null;
+
+    const key = 'notifications';
+    if (_channels.has(key)) _channels.get(key).unsubscribe();
+
+    const ch = client.channel(key)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications' },
+        (payload) => { try { onChange?.(payload); } catch (e) { console.warn(e); } })
+      .subscribe();
+
+    _channels.set(key, ch);
+    return ch;
+  }
+
   // ── shift_requests（シフト申請） ────────────────────────────────
   async function subscribeShiftRequests(onChange) {
     const client = await _getClient();
@@ -193,6 +211,7 @@ const GBRealtime = (() => {
     subscribeAttendance,
     subscribeShiftRequests,
     subscribeDailyReports,
+    subscribeNotifications,
     unsubscribeAll,
   };
 })();

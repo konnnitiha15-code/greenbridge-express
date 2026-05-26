@@ -340,13 +340,130 @@ router.put('/api/shift-requests/:id', requireAuth, async (req, res) => {
   if (!['approved', 'rejected'].includes(status))
     return res.status(400).json({ error: '無効なステータス' })
 
+  const companyId = req.profile?.company_id
+  const sbAdmin = createAdminClient()
+
+  // 申請内容取得（通知用）
+  const { data: reqRow } = await sbAdmin
+    .from('shift_requests').select('worker_id, date, shift_type').eq('id', req.params.id).maybeSingle()
+
   const { error } = await req.supabase
     .from('shift_requests')
     .update({ status, reviewed_by: req.user.id, reviewed_at: new Date().toISOString() })
     .eq('id', req.params.id)
 
   if (error) return res.status(500).json({ error: error.message })
+
+  // 承認時はshiftsにも反映 + ワーカーに通知
+  if (reqRow) {
+    if (status === 'approved') {
+      await sbAdmin.from('shifts').upsert({
+        company_id: companyId,
+        worker_id:  reqRow.worker_id,
+        date:       reqRow.date,
+        shift_type: reqRow.shift_type,
+      }, { onConflict: 'worker_id,date' }).catch(()=>{})
+    }
+    // ワーカーへ通知
+    await sbAdmin.from('notifications').insert({
+      company_id: companyId,
+      worker_id:  reqRow.worker_id,
+      title:      status === 'approved' ? '✅ シフト申請が承認されました' : '❌ シフト申請が却下されました',
+      body:       `${reqRow.date} の ${reqRow.shift_type}`,
+      type:       status === 'approved' ? 'approval' : 'info',
+    }).catch(()=>{})
+  }
+
   res.json({ ok: true })
+})
+
+// ── 通知 API ─────────────────────────────────────────────────────
+// GET /app/api/notifications — 会社内の全通知
+router.get('/api/notifications', requireAuth, async (req, res) => {
+  const companyId = req.profile?.company_id
+  const sb = createAdminClient()
+  const { data, error } = await sb
+    .from('notifications')
+    .select('id, worker_id, title, body, type, is_read, created_at')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) {
+    if (isTableMissing(error)) return res.json({ ok: true, notifications: [] })
+    return res.status(500).json({ error: error.message })
+  }
+  res.json({ ok: true, notifications: data || [] })
+})
+
+// PUT /app/api/notifications/:id/read — 既読化
+router.put('/api/notifications/:id/read', requireAuth, async (req, res) => {
+  const sb = createAdminClient()
+  const { error } = await sb.from('notifications').update({ is_read: true }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
+// POST /app/api/notifications/read-all — 全既読化
+router.post('/api/notifications/read-all', requireAuth, async (req, res) => {
+  const companyId = req.profile?.company_id
+  const sb = createAdminClient()
+  const { error } = await sb.from('notifications')
+    .update({ is_read: true })
+    .eq('company_id', companyId)
+    .eq('is_read', false)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
+// ── ダッシュボード統計 API ────────────────────────────────────────
+// GET /app/api/dashboard/stats — KPI一括取得
+router.get('/api/dashboard/stats', requireAuth, async (req, res) => {
+  const companyId = req.profile?.company_id
+  if (!companyId) return res.json({ ok: true, stats: {} })
+
+  const sb = createAdminClient()
+  const today = new Date().toISOString().slice(0, 10)
+
+  try {
+    const [attRes, shiftReqRes, dailyRepRes, notifRes, msgRes, workerRes] = await Promise.all([
+      // 今日の勤怠
+      sb.from('attendance_records').select('status', { count: 'exact' }).eq('company_id', companyId).eq('work_date', today),
+      // pending シフト申請
+      sb.from('shift_requests').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'pending'),
+      // pending 日報
+      sb.from('daily_reports').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'pending').catch(()=>({count:0})),
+      // 未読通知
+      sb.from('notifications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('is_read', false),
+      // 未読メッセージ（ワーカー→管理者）
+      sb.from('messages').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('is_read', false),
+      // 全ワーカー数
+      sb.from('workers').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active'),
+    ])
+
+    const attRecords = attRes.data || []
+    const present = attRecords.filter(r => r.status === 'present').length
+    const late    = attRecords.filter(r => r.status === 'late').length
+    const absent  = attRecords.filter(r => r.status === 'absent').length
+    const totalWorkers = workerRes.count || 0
+    const rate = totalWorkers > 0 ? Math.round(((present + late) / totalWorkers) * 100) : 0
+
+    res.json({
+      ok: true,
+      stats: {
+        attendance: { present, late, absent, total: totalWorkers, rate },
+        pending: {
+          shiftRequests: shiftReqRes.count || 0,
+          dailyReports:  dailyRepRes.count || 0,
+        },
+        unread: {
+          notifications: notifRes.count || 0,
+          messages:      msgRes.count  || 0,
+        },
+      },
+    })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
 })
 
 // ── Documents Upload API ─────────────────────────────────────────────────────
@@ -1175,6 +1292,11 @@ router.put('/api/daily-reports/:id', requireAuth, async (req, res) => {
   const { status } = req.body
   if (!status) return res.status(400).json({ error: 'status は必須です' })
 
+  const sbAdmin = createAdminClient()
+  // 日報情報取得（通知用）
+  const { data: rep } = await sbAdmin
+    .from('daily_reports').select('worker_id, report_date').eq('id', req.params.id).maybeSingle()
+
   const { error } = await req.supabase
     .from('daily_reports')
     .update({ status })
@@ -1182,6 +1304,17 @@ router.put('/api/daily-reports/:id', requireAuth, async (req, res) => {
     .eq('company_id', companyId)
 
   if (error) return res.status(500).json({ ok: false, error: error.message })
+
+  // 承認時のみワーカーに通知
+  if (rep && (status === 'approved' || status === 'reviewed')) {
+    await sbAdmin.from('notifications').insert({
+      company_id: companyId,
+      worker_id:  rep.worker_id,
+      title:      '✅ 日報が承認されました',
+      body:       `${rep.report_date} の日報が承認済みになりました`,
+      type:       'approval',
+    }).catch(()=>{})
+  }
   res.json({ ok: true })
 })
 

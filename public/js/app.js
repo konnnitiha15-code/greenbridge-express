@@ -228,10 +228,100 @@ function SP(id){
   if(id==='home'){
     refreshHomeKPIs();
     loadAttendStats();  // 勤怠統計も最新化
+    loadDashboardStats();  // 申請待ち件数・未読通知などを取得
   }
   if(id==='shift') rerenderShiftTable();
   if(id==='attend') initAttendPage();
   if(id==='roles') loadRoleUsers();
+}
+
+// ── 通知センター ────────────────────────────────────────────────
+async function openNotificationCenter(){
+  try{
+    const res  = await fetch('/app/api/notifications');
+    const json = await res.json();
+    if(!json.ok) return toast('エラー', '通知の取得に失敗しました', 'r');
+    const list = json.notifications || [];
+    if(!list.length){
+      openModal('🔔 通知センター', '<div class="empty-state" style="padding:24px 0"><p>通知はありません ✅</p></div>',
+        '<button class="btn" onclick="closeModal()">閉じる</button>');
+      return;
+    }
+    const iconMap = {info:'ℹ️', alert:'🚨', approval:'✅'};
+    const rows = list.map(n => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border-bottom:1px solid var(--bd);${n.is_read?'opacity:.6':''}">
+        <div style="font-size:20px">${iconMap[n.type] || '🔔'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;${n.is_read?'':'color:var(--gn)'}">${n.title}</div>
+          <div style="font-size:12px;color:var(--t3);margin-top:2px;word-break:break-word">${n.body || ''}</div>
+          <div style="font-size:10.5px;color:var(--t3);margin-top:3px">${new Date(n.created_at).toLocaleString('ja-JP')}</div>
+        </div>
+        ${n.is_read ? '' : '<span class="badge bg" style="font-size:9.5px;flex-shrink:0">新着</span>'}
+      </div>`).join('');
+    openModal('🔔 通知センター',
+      `<div style="max-height:60vh;overflow-y:auto">${rows}</div>`,
+      `<button class="btn" onclick="markAllNotificationsRead()">すべて既読</button>
+       <button class="btn btn-g" onclick="closeModal()">閉じる</button>`
+    );
+  }catch(e){ toast('エラー','ネットワークエラー','r'); }
+}
+
+async function markAllNotificationsRead(){
+  try{
+    await fetch('/app/api/notifications/read-all', {method: 'POST'});
+    closeModal();
+    loadDashboardStats();
+    toast('既読化', 'すべての通知を既読にしました', 'g');
+  }catch{ toast('エラー','処理に失敗しました','r'); }
+}
+
+// ── ダッシュボード統計 (申請待ち、未読通知、勤怠率) ───────────────
+async function loadDashboardStats(){
+  try{
+    const res  = await fetch('/app/api/dashboard/stats');
+    if(!res.ok) return;
+    const json = await res.json();
+    if(!json.ok) return;
+    const s = json.stats || {};
+
+    // 出勤率
+    if(s.attendance){
+      const el = document.getElementById('kpi-attendance-rate');
+      if(el) el.textContent = (s.attendance.rate || 0) + '%';
+      const sub = document.getElementById('kpi-attendance-sub');
+      if(sub) sub.textContent = `出勤 ${s.attendance.present}/${s.attendance.total}`;
+    }
+
+    // 申請待ち件数（シフト+日報）
+    const pendingTotal = (s.pending?.shiftRequests || 0) + (s.pending?.dailyReports || 0);
+    const pendEl = document.getElementById('kpi-pending-val');
+    if(pendEl) pendEl.textContent = pendingTotal;
+    const pendSub = document.getElementById('kpi-pending-sub');
+    if(pendSub) pendSub.textContent = pendingTotal > 0 ? `${pendingTotal}件` : 'OK';
+
+    // 未読通知
+    const unreadEl = document.getElementById('kpi-unread-val');
+    if(unreadEl) unreadEl.textContent = s.unread?.notifications || 0;
+    const unreadSub = document.getElementById('kpi-unread-sub');
+    if(unreadSub) unreadSub.textContent = (s.unread?.notifications || 0) + '件';
+
+    // 未読メッセージ
+    const msgVal = document.getElementById('kpi-msg-val');
+    if(msgVal) msgVal.textContent = s.unread?.messages || 0;
+    const unreadKpi = document.getElementById('unread-val');
+    if(unreadKpi) unreadKpi.textContent = s.unread?.messages || 0;
+
+    // ナビバッジ
+    const navBadge = document.getElementById('nav-pending-badge');
+    if(navBadge){
+      if(pendingTotal > 0){
+        navBadge.textContent = pendingTotal;
+        navBadge.style.display = '';
+      } else {
+        navBadge.style.display = 'none';
+      }
+    }
+  }catch(e){ console.warn('[dashboard] stats error:', e); }
 }
 
 // ── ホームKPI ────────────────────────────────────────────────────────────────
@@ -2833,6 +2923,20 @@ SP('home');
         else { g.unread = (g.unread || 0) + 1; renderGCL(); }
       });
     }
+
+    // 4. 通知 (申請・日報など)
+    await GBRealtime.subscribeNotifications(async (payload) => {
+      if (payload.eventType === 'INSERT') {
+        // 新規通知が届いたら即時KPI更新 + トースト
+        const n = payload.new;
+        toast(n.title || '通知', n.body || '', n.type === 'alert' ? 'r' : 'b');
+      }
+      loadDashboardStats();
+    });
+
+    // 5. シフト申請・日報の変更
+    await GBRealtime.subscribeShiftRequests(() => loadDashboardStats());
+    await GBRealtime.subscribeDailyReports(() => loadDashboardStats());
 
     console.log('[Realtime] admin subscriptions active');
   } catch (e) {

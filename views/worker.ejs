@@ -3269,10 +3269,23 @@ async function pollGroupMessages(){
       await loadAndRenderShift();
       toast('シフト更新', '管理者がシフトを変更しました', 'b');
     } else {
-      // タブを開いた時に最新を取得するように workerShifts をクリア
       workerShifts = {};
     }
     updateHomeTodayShift();
+  });
+})();
+
+// 通知 Realtime 購読（承認等）
+(async () => {
+  if (typeof GBRealtime === 'undefined' || !_MY_UID) return;
+  await GBRealtime.subscribeNotifications(async (payload) => {
+    if (payload.eventType !== 'INSERT') return;
+    const n = payload.new;
+    // 自分宛て or 全社向け (worker_id == null)
+    const isForMe = !n.worker_id || n.worker_id === _sd.workerId;
+    if (!isForMe) return;
+    const tone = n.type === 'alert' ? 'r' : (n.type === 'approval' ? 'g' : 'b');
+    toast(n.title || '通知', n.body || '', tone);
   });
 })();
 
