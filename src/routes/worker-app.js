@@ -4,6 +4,7 @@ const SECURE     = !!(process.env.VERCEL || process.env.NODE_ENV === 'production
 const COOKIE_OPT = { httpOnly: true, sameSite: 'lax', secure: SECURE }
 const { requireWorkerAuth } = require('../middleware/auth')
 const { requireWorker } = require('../middleware/requireRole')
+const push             = require('../lib/push')
 const router          = express.Router()
 
 // ── Worker 専用ログイン ────────────────────────────────────────
@@ -400,13 +401,15 @@ router.post('/api/daily-reports', requireWorkerAuth, requireWorker, async (req, 
   // 管理者向け通知（worker_id=NULL で全admin宛て）
   try {
     const { data: w } = await sb.from('workers').select('name').eq('id', workerId).maybeSingle()
-    await sb.from('notifications').insert({
+    const notif = {
       company_id: companyId,
       worker_id:  null,
       title:      type === 'hayari' ? '🚨 ヒヤリ・ハット報告' : '📝 日報が届きました',
       body:       `${w?.name || 'ワーカー'}：${(translated || content).slice(0, 60)}${(translated || content).length > 60 ? '…' : ''}`,
       type:       type === 'hayari' ? 'alert' : 'info',
-    })
+    }
+    await sb.from('notifications').insert(notif)
+    push.sendFromNotification({ ...notif, url: '/app#daily' }).catch(()=>{})
   } catch {}
 
   res.json({ ok: true, report: data })
@@ -534,13 +537,15 @@ router.post('/api/shift-requests', requireWorkerAuth, requireWorker, async (req,
   // 管理者向け通知（worker_id=NULL で全admin宛て）
   try {
     const { data: w } = await sb.from('workers').select('name').eq('id', workerId).maybeSingle()
-    await sb.from('notifications').insert({
+    const notif = {
       company_id: companyId,
       worker_id:  null,
       title:      '🗓 シフト変更申請',
       body:       `${w?.name || 'ワーカー'} が ${date} の ${shift_type} を申請${note?'：'+note:''}`,
       type:       'info',
-    })
+    }
+    await sb.from('notifications').insert(notif)
+    push.sendFromNotification({ ...notif, url: '/app#shift' }).catch(()=>{})
   } catch {}
 
   res.json({ ok: true, request: data })
@@ -570,15 +575,18 @@ router.post('/api/sos', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
 
-  const { error } = await adminClient()
-    .from('notifications')
-    .insert({
-      company_id: companyId,
-      worker_id:  workerId || null,
-      title:      '【SOS緊急】実習生から緊急連絡',
-      body:       `${req.profile?.full_name || '実習生'} から緊急連絡が届きました`,
-      type:       'alert',
-    })
+  const notif = {
+    company_id: companyId,
+    worker_id:  null, // SOS は全admin/staffに通知
+    title:      '【SOS緊急】実習生から緊急連絡',
+    body:       `${req.profile?.full_name || '実習生'} から緊急連絡が届きました`,
+    type:       'alert',
+  }
+  const { error } = await adminClient().from('notifications').insert(notif)
+
+  // 高優先度 push（requireInteraction + 強バイブ）
+  push.sendFromNotification({ ...notif, url: '/app#notifications', tag: `gb-sos-${workerId}` })
+    .catch(()=>{})
 
   if (error) console.error('[SOS] notification error:', error.message)
   res.json({ ok: true })

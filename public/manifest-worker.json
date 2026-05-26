@@ -1,0 +1,43 @@
+{
+  "name": "GreenBridge ワーカー",
+  "short_name": "GB Worker",
+  "description": "技能実習生向け勤怠・連絡アプリ",
+  "lang": "ja",
+  "start_url": "/worker",
+  "scope": "/worker",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0f2f6",
+  "theme_color": "#00b050",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "出退勤打刻",
+      "short_name": "打刻",
+      "url": "/worker?tab=attendance"
+    },
+    {
+      "name": "シフト確認",
+      "short_name": "シフト",
+      "url": "/worker?tab=shift"
+    },
+    {
+      "name": "チャット",
+      "short_name": "チャット",
+      "url": "/worker?tab=chat"
+    }
+  ]
+}

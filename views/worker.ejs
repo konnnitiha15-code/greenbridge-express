@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#00b050">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="GB Worker">
 <title>GreenBridge</title>
+<link rel="manifest" href="/manifest-worker.json">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<link rel="apple-touch-icon" href="/icons/icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ═══════════════════════════════════
@@ -1222,7 +1229,16 @@ input,textarea,select,button{font-family:inherit}
       <div class="ss-hdr"><div class="ss-hdr-title" id="st-notif-l">機能設定</div></div>
       <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-ai-l">AI自動翻訳</div><div class="ss-desc">メッセージを自動翻訳</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
       <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-tts-l">音声読み上げ</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
-      <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-push-notif">プッシュ通知</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
+      <div class="ss-row">
+        <div class="ss-l">
+          <div class="ss-lbl" id="st-push-notif">プッシュ通知</div>
+          <div class="ss-desc" id="notif-status-label">受信していません</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn-xs" id="btn-test-notif" onclick="gbTestNotification()" style="padding:4px 8px;font-size:11px">テスト</button>
+          <button class="btn-xs" id="btn-toggle-notif" onclick="gbToggleNotifications()" style="padding:4px 10px;font-size:12px;background:#00b050;color:#fff;border:none;border-radius:8px">有効化する</button>
+        </div>
+      </div>
       <div class="ss-row"><div class="ss-l"><div class="ss-lbl">SOS通知</div><div class="ss-desc" id="st-sos-always">常に有効</div></div><button class="tgl on" style="opacity:.5;cursor:not-allowed"></button></div>
     </div>
     <div class="ss-section">
@@ -2238,6 +2254,9 @@ function go(id){
     }, 30000);
   }
   if(id==='s-docs')renderWDocs();
+  if(id==='s-settings'){
+    if(typeof renderNotifSwitch==='function') renderNotifSwitch();
+  }
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────
@@ -3473,7 +3492,68 @@ function addContactDM(contactId) {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 </script>
 <script src="/js/worker/attendance.js"></script>
-<script>Attendance.init();</script>
+<script src="/js/services/push-client.js"></script>
+<script>
+Attendance.init();
+
+// ── PWA + Web Push 初期化 ──────────────────────────────────────
+// SW を登録し、既存購読を最新サーバー状態に同期。
+// 通知許可は ユーザーアクション（設定タブの「通知を有効化」ボタン）からのみ要求する。
+if (window.GBPush) {
+  window.addEventListener('load', () => { GBPush.init().catch(()=>{}) });
+}
+
+// 設定タブで使う通知トグルのヘルパ（HTML側で呼び出し）
+window.gbToggleNotifications = async function () {
+  if (!window.GBPush || !GBPush.isSupported()) {
+    alert('このブラウザはプッシュ通知に対応していません');
+    return;
+  }
+  try {
+    const st = await GBPush.getStatus();
+    if (st.subscribed) {
+      await GBPush.disable();
+      if (typeof toast === 'function') toast('通知を無効化', 'プッシュ通知を停止しました', 'g');
+    } else {
+      await GBPush.enable();
+      if (typeof toast === 'function') toast('通知を有効化', 'プッシュ通知が届くようになりました', 'g');
+    }
+    if (typeof renderNotifSwitch === 'function') renderNotifSwitch();
+  } catch (e) {
+    alert(e.message || '通知設定の変更に失敗しました');
+  }
+};
+
+window.gbTestNotification = async function () {
+  try {
+    const r = await GBPush.test();
+    if (!r.ok) alert('テスト送信失敗: ' + (r.error || 'unknown'));
+  } catch (e) { alert(e.message); }
+};
+
+// 設定タブを開いた時に現状を反映するレンダラ
+window.renderNotifSwitch = async function () {
+  const btn = document.getElementById('btn-toggle-notif');
+  const lbl = document.getElementById('notif-status-label');
+  if (!btn) return;
+  if (!window.GBPush || !GBPush.isSupported()) {
+    btn.disabled = true;
+    btn.textContent = '非対応';
+    if (lbl) lbl.textContent = 'このブラウザは非対応';
+    return;
+  }
+  const st = await GBPush.getStatus();
+  if (st.permission === 'denied') {
+    btn.disabled = true;
+    btn.textContent = 'ブロック中';
+    if (lbl) lbl.textContent = 'ブラウザ設定で通知が拒否されています';
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = st.subscribed ? '無効化する' : '有効化する';
+  if (lbl) lbl.textContent = st.subscribed ? '✅ 受信中' : '受信していません';
+};
+</script>
 </body>
 </html>
 

@@ -25,3 +25,5 @@ Thumbs.db
 # ビルド成果物
 dist/
 build/
+
+.vercel

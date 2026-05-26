@@ -1,0 +1,26 @@
+{
+  "name": "GreenBridge 管理者",
+  "short_name": "GB Admin",
+  "description": "技能実習生管理プラットフォーム",
+  "lang": "ja",
+  "start_url": "/app",
+  "scope": "/app",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f0f2f6",
+  "theme_color": "#00b050",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

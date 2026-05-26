@@ -5,6 +5,7 @@ const fs      = require('fs')
 const { createClient: _createClient } = require('@supabase/supabase-js')
 const { requireAuth }  = require('../middleware/auth')
 const { requireAdmin } = require('../middleware/requireRole')
+const push             = require('../lib/push')
 const router  = express.Router()
 
 // ── /app 配下の全ルートに admin 認証を適用 ──────────────────────────────────
@@ -365,13 +366,15 @@ router.put('/api/shift-requests/:id', requireAuth, async (req, res) => {
       }, { onConflict: 'worker_id,date' }).catch(()=>{})
     }
     // ワーカーへ通知
-    await sbAdmin.from('notifications').insert({
+    const notif = {
       company_id: companyId,
       worker_id:  reqRow.worker_id,
       title:      status === 'approved' ? '✅ シフト申請が承認されました' : '❌ シフト申請が却下されました',
       body:       `${reqRow.date} の ${reqRow.shift_type}`,
       type:       status === 'approved' ? 'approval' : 'info',
-    }).catch(()=>{})
+    }
+    await sbAdmin.from('notifications').insert(notif).catch(()=>{})
+    push.sendFromNotification({ ...notif, url: '/worker?tab=shift' }).catch(()=>{})
   }
 
   res.json({ ok: true })
@@ -1335,7 +1338,8 @@ router.post('/api/messages', requireAuth, requireAdmin, async (req, res) => {
   if (!worker_user_id || !body?.trim())
     return res.status(400).json({ error: 'worker_user_id と body は必須です' })
 
-  const { data, error } = await createAdminClient()
+  const sbAdmin = createAdminClient()
+  const { data, error } = await sbAdmin
     .from('messages')
     .insert({
       company_id:  companyId,
@@ -1347,6 +1351,25 @@ router.post('/api/messages', requireAuth, requireAdmin, async (req, res) => {
     .single()
 
   if (error) return res.status(500).json({ error: error.message })
+
+  // push: 受信ワーカーへ通知（profile から worker_id を解決）
+  ;(async () => {
+    try {
+      const { data: prof } = await sbAdmin
+        .from('profiles').select('worker_id, full_name')
+        .eq('id', worker_user_id).maybeSingle()
+      if (prof?.worker_id) {
+        await push.sendToWorker(companyId, prof.worker_id, {
+          title: '💬 管理者からメッセージ',
+          body:  body.trim().slice(0, 80),
+          type:  'message',
+          url:   '/worker?tab=chat',
+          tag:   `gb-msg-${adminUserId}`,
+        })
+      }
+    } catch {}
+  })()
+
   res.json({ ok: true, message: data })
 })
 
@@ -1451,13 +1474,15 @@ router.put('/api/daily-reports/:id', requireAuth, async (req, res) => {
 
   // 承認時のみワーカーに通知
   if (rep && (status === 'approved' || status === 'reviewed')) {
-    await sbAdmin.from('notifications').insert({
+    const notif = {
       company_id: companyId,
       worker_id:  rep.worker_id,
       title:      '✅ 日報が承認されました',
       body:       `${rep.report_date} の日報が承認済みになりました`,
       type:       'approval',
-    }).catch(()=>{})
+    }
+    await sbAdmin.from('notifications').insert(notif).catch(()=>{})
+    push.sendFromNotification({ ...notif, url: '/worker?tab=daily' }).catch(()=>{})
   }
   res.json({ ok: true })
 })

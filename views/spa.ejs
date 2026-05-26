@@ -3,7 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#00b050">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GB Admin">
 <title>GreenBridge — 管理プラットフォーム</title>
+<link rel="manifest" href="/manifest-admin.json">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<link rel="apple-touch-icon" href="/icons/icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 </head>
@@ -852,7 +858,19 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
           </div>
         </div>
         <div class="stab" id="stab-notif">
-          <div class="ss-section"><div class="ss-hdr"><div class="ss-title">通知設定</div></div>
+          <div class="ss-section"><div class="ss-hdr"><div class="ss-title">プッシュ通知（ブラウザ）</div></div>
+            <div class="ss-row">
+              <div class="ss-l">
+                <div class="ss-lbl">このブラウザで通知を受信</div>
+                <div class="ss-desc" id="admin-notif-status">未設定</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-sm" id="admin-notif-test" onclick="adminTestNotif()">テスト</button>
+                <button class="btn btn-sm" id="admin-notif-toggle" onclick="adminToggleNotif()">有効化</button>
+              </div>
+            </div>
+          </div>
+          <div class="ss-section"><div class="ss-hdr"><div class="ss-title">通知の種類（参考）</div></div>
             <div class="ss-row"><div class="ss-l"><div class="ss-lbl">新着メッセージ</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
             <div class="ss-row"><div class="ss-l"><div class="ss-lbl">申請（休み・残業など）</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
             <div class="ss-row"><div class="ss-l"><div class="ss-lbl">書類確認完了</div></div><button class="tgl on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>
@@ -892,6 +910,59 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 </script>
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
+<script src="/js/services/push-client.js"></script>
 <script src="/js/app.js"></script>
+<script>
+  // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
+  if (window.GBPush) {
+    window.addEventListener('load', () => {
+      GBPush.init().catch(()=>{});
+      renderAdminNotif();
+    });
+  }
+
+  async function renderAdminNotif() {
+    const btn = document.getElementById('admin-notif-toggle');
+    const lbl = document.getElementById('admin-notif-status');
+    if (!btn) return;
+    if (!window.GBPush || !GBPush.isSupported()) {
+      btn.disabled = true; btn.textContent = '非対応';
+      if (lbl) lbl.textContent = 'このブラウザは非対応';
+      return;
+    }
+    const st = await GBPush.getStatus();
+    if (st.permission === 'denied') {
+      btn.disabled = true; btn.textContent = 'ブロック中';
+      if (lbl) lbl.textContent = 'ブラウザ設定で通知が拒否されています';
+      return;
+    }
+    btn.disabled = false;
+    btn.textContent = st.subscribed ? '無効化' : '有効化';
+    if (lbl) lbl.textContent = st.subscribed ? '✅ 受信中' : '受信していません';
+  }
+
+  window.adminToggleNotif = async function () {
+    try {
+      const st = await GBPush.getStatus();
+      if (st.subscribed) {
+        await GBPush.disable();
+        if (typeof toast === 'function') toast('通知無効化', 'プッシュ通知を停止しました', 'g');
+      } else {
+        await GBPush.enable();
+        if (typeof toast === 'function') toast('通知有効化', 'プッシュ通知が届くようになりました', 'g');
+      }
+      renderAdminNotif();
+    } catch (e) {
+      alert(e.message || '通知設定の変更に失敗しました');
+    }
+  };
+
+  window.adminTestNotif = async function () {
+    try {
+      const r = await GBPush.test();
+      if (!r.ok) alert('テスト送信失敗: ' + (r.error || 'unknown'));
+    } catch (e) { alert(e.message); }
+  };
+</script>
 </body>
 </html>

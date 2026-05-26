@@ -120,6 +120,20 @@ greenbridge-express/
 - ✅ shift_requests / daily_reports（KPI即時更新）
 - ✅ ポーリング廃止（フォールバックは残存）
 
+### PWA + Web Push（2026-05-27追加）
+- ✅ `manifest-worker.json` / `manifest-admin.json`（standalone, theme #00b050）
+- ✅ Service Worker `/sw.js`（静的キャッシュ + push/notificationclick）
+- ✅ アイコン `/icons/icon.svg` `/icons/icon-maskable.svg`
+- ✅ ワーカー側ショートカット（打刻 / シフト / チャット）
+- ✅ web-push (VAPID) サーバー配信ヘルパ `src/lib/push.js`
+- ✅ サブスクリプション API `src/routes/push.js`（/api/push/{public-key,subscribe,unsubscribe,resubscribe,test}）
+- ✅ DB: `push_subscriptions` テーブル + RLS（008マイグレーション）
+- ✅ 既存 notifications.insert 箇所すべてに push 配信を追加
+  - 管理者→ワーカー: シフト承認/却下、日報承認、個別チャット
+  - ワーカー→管理者: 日報・ヒヤリ提出、シフト変更申請、SOS
+- ✅ フロント `public/js/services/push-client.js`（init/enable/disable/test）
+- ✅ 設定タブにトグルUI（worker.ejs / spa.ejs）
+
 ---
 
 ## 🗄️ Supabase DB スキーマ
@@ -152,6 +166,7 @@ greenbridge-express/
 005 - groups + group_members + group_messages
 006 - storage bucket (documents)
 007 - Realtime publication 設定（REPLICA IDENTITY FULL）
+008 - push_subscriptions（Web Push サブスクリプション保存）
 ```
 
 すべて **実行済み** ✅
@@ -178,9 +193,14 @@ SUPABASE_ANON_KEY=（.env参照）
 SUPABASE_SERVICE_ROLE_KEY=（.env参照）
 SESSION_SECRET=greenbridge-secret-2025
 PORT=3000
+
+# Web Push（VAPID）— 新規追加。本番Vercelにも要設定
+VAPID_PUBLIC_KEY=BGULrS63UsXoHfRgB-s0Jd73ENg1Lft4dlwTMf0K9n0q2Geeu0I4pfFw5j5UBMXltdW6KKdDnulo-OoAI3Wb3G4
+VAPID_PRIVATE_KEY=（.env参照）
+VAPID_SUBJECT=mailto:admin@greenbridge.example.com
 ```
 
-**Vercel本番にも設定済み** ✅
+**Vercel本番にも設定済み** ✅（※ VAPID_* は次セッションで Vercel に追加要）
 
 ---
 
@@ -416,5 +436,9 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 
 ---
 
-**最終更新: 2026-05 末**
+**最終更新: 2026-05-27**
 **最終コミット: bb86d70 (feat: CSVエクスポート + 言語切替の対象範囲拡大)**
+**次回作業時の TODO:**
+1. ~~マイグレーション008 実行~~ ✅ 2026-05-27 完了
+2. Vercel に `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` を追加
+3. 実機ブラウザで `設定 → プッシュ通知 → 有効化` を押し、許可ダイアログ → テスト送信で受信確認
