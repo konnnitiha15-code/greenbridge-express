@@ -15,6 +15,9 @@ function _saveHistory(){} // 廃止（後方互換のため空関数を残す）
 // チャットポーリング管理
 let _chatPollTimer = null;
 let _chatLastTs    = {};  // worker.id → 最後に取得したメッセージのcreated_at
+let _rtMsgSub      = null;  // Realtime購読
+let _rtShiftsSub   = null;
+let _rtGroupSub    = null;
 
 // ── グループ (localStorage永続化) ──────────────────────────────────────────
 
@@ -2777,6 +2780,65 @@ function addBub(cid,m,worker,scroll=true){
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 SP('home');
+
+// ── Realtime 購読（管理者） ─────────────────────────────────────
+(async () => {
+  if (typeof GBRealtime === 'undefined' || !GB_USER?.id) return;
+  try {
+    // 1. メッセージ受信 + 既読更新
+    _rtMsgSub = await GBRealtime.subscribeMessages(
+      GB_USER.id,
+      (newMsg) => {
+        // ワーカーから管理者への新規メッセージ
+        const w = WORKERS.find(x => x.authUserId === newMsg.sender_id);
+        if (!w) return;
+        if (!HISTORY[w.id]) HISTORY[w.id] = [{t:'sys',txt:'チャット開始'}];
+        HISTORY[w.id].push(_dbMsgToLocal(newMsg, w));
+        _chatLastTs[w.id] = newMsg.created_at;
+        // 表示中のチャットなら即時描画
+        if (AW && AW.id === w.id) renderMessages();
+        else { w.unread = (w.unread || 0) + 1; renderCL(); }
+      },
+      (updatedMsg) => {
+        // 自分の送信メッセージの既読更新
+        const w = WORKERS.find(x => x.authUserId === updatedMsg.receiver_id);
+        if (!w || !HISTORY[w.id]) return;
+        const m = HISTORY[w.id].find(x => x._id === updatedMsg.id);
+        if (m && m.read !== updatedMsg.is_read) {
+          m.read = updatedMsg.is_read;
+          if (AW && AW.id === w.id) renderMessages();
+        }
+      });
+
+    // 2. シフト変更（全社）
+    _rtShiftsSub = await GBRealtime.subscribeShifts(null, async (payload) => {
+      const screen = document.getElementById('page-shift');
+      if (screen && screen.style.display !== 'none') {
+        // シフト管理画面表示中なら即時更新
+        await loadShiftData(SHIFT_YEAR, SHIFT_MONTH);
+        renderShiftTable();
+      }
+    });
+
+    // 3. グループメッセージ受信
+    const groupIds = (GROUPS || []).map(g => g.id);
+    if (groupIds.length) {
+      _rtGroupSub = await GBRealtime.subscribeGroupMessages(GB_USER.id, groupIds, (newMsg) => {
+        const g = GROUPS.find(x => x.id === newMsg.group_id);
+        if (!g) return;
+        g.msgs = g.msgs || [];
+        g.msgs.push(_gMsgToLocal(newMsg));
+        _gMsgLastTs[g.id] = newMsg.created_at;
+        if (AG && AG.id === g.id) renderMsgs('gchat-msgs', g.msgs, {bg:'#f3f4f6',tc:'#374151',init:g.ico});
+        else { g.unread = (g.unread || 0) + 1; renderGCL(); }
+      });
+    }
+
+    console.log('[Realtime] admin subscriptions active');
+  } catch (e) {
+    console.warn('[Realtime] init failed:', e);
+  }
+})();
 
 // ホームの勤怠統計を60秒ごとに自動更新
 setInterval(()=>{

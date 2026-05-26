@@ -185,7 +185,15 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
       company_id: companyId,
     }
 
-    res.render('spa', { workers, docs, gbUser, companyName, profile: req.profile, user: req.user })
+    // Realtime クライアント用の設定
+    const realtimeConfig = {
+      supabaseUrl:     process.env.SUPABASE_URL,
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+      accessToken:     req.cookies['sb-access-token']  || null,
+      refreshToken:    req.cookies['sb-refresh-token'] || null,
+    }
+
+    res.render('spa', { workers, docs, gbUser, companyName, profile: req.profile, user: req.user, realtimeConfig })
   } catch (e) {
     console.error('SPA route error:', e)
     res.status(500).send('サーバーエラーが発生しました')

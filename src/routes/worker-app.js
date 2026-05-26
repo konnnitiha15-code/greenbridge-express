@@ -222,6 +222,11 @@ router.get('/', requireWorkerAuth, requireWorker, async (req, res) => {
       email:       req.user?.email || '',
       adminUserId,               // 管理者のauth user ID（チャット用）
       myUserId:    req.user?.id || null,  // 自分のauth user ID
+      // Realtime用（クライアント側Supabase初期化）
+      supabaseUrl:     process.env.SUPABASE_URL,
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+      accessToken:     req.cookies['gb-worker-token']   || null,
+      refreshToken:    req.cookies['gb-worker-refresh'] || null,
     },
   })
 })

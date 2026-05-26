@@ -840,7 +840,12 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 </div><!-- /main -->
 </div><!-- /app -->
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  window.GB_REALTIME_CONFIG = <%- JSON.stringify(realtimeConfig || {}) %>;
+</script>
 <script src="/js/services/storage.js"></script>
+<script src="/js/services/realtime.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>
