@@ -377,6 +377,145 @@ router.put('/api/shift-requests/:id', requireAuth, async (req, res) => {
   res.json({ ok: true })
 })
 
+// ── CSVエクスポート API ──────────────────────────────────────────
+// CSV文字列のエスケープ
+function csvEscape(v) {
+  if (v == null) return ''
+  const s = String(v)
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+// GET /app/api/attendance/export.csv?from=&to=&worker_id=
+router.get('/api/attendance/export.csv', requireAuth, async (req, res) => {
+  const companyId = req.profile?.company_id
+  if (!companyId) return res.status(403).send('forbidden')
+
+  const sb = createAdminClient()
+  let q = sb.from('attendance_records')
+    .select('work_date, clock_in, clock_out, status, memo, source, workers(name, job_title, department)')
+    .eq('company_id', companyId)
+    .order('work_date', { ascending: false })
+    .limit(5000)
+
+  if (req.query.from)      q = q.gte('work_date', req.query.from)
+  if (req.query.to)        q = q.lte('work_date', req.query.to)
+  if (req.query.worker_id) q = q.eq('worker_id', req.query.worker_id)
+
+  const { data, error } = await q
+  if (error) return res.status(500).send(error.message)
+
+  // 給与計算ソフト向けの一般的な列構成
+  const headers = ['日付','氏名','部署','職種','出勤時刻','退勤時刻','勤務時間(分)','ステータス','種別','メモ']
+  const rows = [headers.map(csvEscape).join(',')]
+
+  for (const r of (data || [])) {
+    const w = r.workers || {}
+    const ci = r.clock_in  ? new Date(r.clock_in)  : null
+    const co = r.clock_out ? new Date(r.clock_out) : null
+    const mins = (ci && co) ? Math.max(0, Math.round((co - ci) / 60000)) : ''
+    const fmt = d => d ? d.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' }) : ''
+    const statusMap = { present:'出勤', late:'遅刻', absent:'欠勤', holiday:'休み' }
+
+    rows.push([
+      r.work_date,
+      w.name || '',
+      w.department || '',
+      w.job_title || '',
+      fmt(ci),
+      fmt(co),
+      mins,
+      statusMap[r.status] || r.status || '',
+      r.source === 'worker' ? '本人' : '管理者',
+      r.memo || '',
+    ].map(csvEscape).join(','))
+  }
+
+  const filename = `attendance_${(req.query.from || 'all')}_${(req.query.to || '')}.csv`.replace(/_$|^_/g, '')
+  // BOM付き UTF-8 (Excel が文字化けしないように)
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.send('﻿' + rows.join('\r\n'))
+})
+
+// GET /app/api/shifts/export.csv?year=&month=&worker_id=
+router.get('/api/shifts/export.csv', requireAuth, async (req, res) => {
+  const companyId = req.profile?.company_id
+  if (!companyId) return res.status(403).send('forbidden')
+
+  const sb = createAdminClient()
+  let q = sb.from('shifts')
+    .select('date, shift_type, note, workers(name, job_title)')
+    .eq('company_id', companyId)
+    .order('date')
+
+  if (req.query.year && req.query.month) {
+    const y = parseInt(req.query.year), m = parseInt(req.query.month)
+    const last = new Date(y, m, 0).getDate()
+    q = q.gte('date', `${y}-${String(m).padStart(2,'0')}-01`)
+         .lte('date', `${y}-${String(m).padStart(2,'0')}-${String(last).padStart(2,'0')}`)
+  }
+  if (req.query.worker_id) q = q.eq('worker_id', req.query.worker_id)
+
+  const { data, error } = await q
+  if (error) return res.status(500).send(error.message)
+
+  const typeMap = { '日':'日勤','早':'早番','遅':'遅番','休':'休み','有':'有休','欠':'欠勤' }
+  const headers = ['日付','氏名','職種','シフト種別','備考']
+  const rows = [headers.map(csvEscape).join(',')]
+  for (const r of (data || [])) {
+    const w = r.workers || {}
+    rows.push([
+      r.date,
+      w.name || '',
+      w.job_title || '',
+      typeMap[r.shift_type] || r.shift_type || '',
+      r.note || '',
+    ].map(csvEscape).join(','))
+  }
+
+  const filename = `shifts_${req.query.year||''}_${req.query.month||''}.csv`.replace(/_+$/, '')
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.send('﻿' + rows.join('\r\n'))
+})
+
+// GET /app/api/daily-reports/export.csv?from=&to=
+router.get('/api/daily-reports/export.csv', requireAuth, async (req, res) => {
+  const companyId = req.profile?.company_id
+  if (!companyId) return res.status(403).send('forbidden')
+
+  const sb = createAdminClient()
+  let q = sb.from('daily_reports')
+    .select('report_date, type, content, translated, status, created_at, workers(name)')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false })
+    .limit(5000)
+
+  if (req.query.from) q = q.gte('report_date', req.query.from)
+  if (req.query.to)   q = q.lte('report_date', req.query.to)
+
+  const { data, error } = await q
+  if (error) return res.status(500).send(error.message)
+
+  const headers = ['日付','氏名','種別','原文','翻訳','ステータス','投稿日時']
+  const rows = [headers.map(csvEscape).join(',')]
+  for (const r of (data || [])) {
+    rows.push([
+      r.report_date,
+      r.workers?.name || '',
+      r.type === 'hayari' ? 'ヒヤリ・ハット' : '日報',
+      r.content || '',
+      r.translated || '',
+      { pending:'未承認', reviewed:'確認済み', approved:'承認済' }[r.status] || r.status,
+      r.created_at,
+    ].map(csvEscape).join(','))
+  }
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="daily_reports.csv"`)
+  res.send('﻿' + rows.join('\r\n'))
+})
+
 // ── 通知 API ─────────────────────────────────────────────────────
 // GET /app/api/notifications — 会社内の全通知
 router.get('/api/notifications', requireAuth, async (req, res) => {

@@ -784,12 +784,12 @@ input,textarea,select,button{font-family:inherit}
           <!-- 出勤・退勤時刻 -->
           <div style="display:flex;gap:28px;align-items:flex-end">
             <div style="text-align:center">
-              <div style="font-size:11.5px;color:var(--t3);margin-bottom:3px">出勤</div>
+              <div style="font-size:11.5px;color:var(--t3);margin-bottom:3px" id="cw-in-lbl">出勤</div>
               <div id="cw-in" style="font-size:28px;font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums;letter-spacing:-.5px">--:--</div>
             </div>
             <div style="font-size:20px;color:var(--bd2);margin-bottom:8px">→</div>
             <div style="text-align:center">
-              <div style="font-size:11.5px;color:var(--t3);margin-bottom:3px">退勤</div>
+              <div style="font-size:11.5px;color:var(--t3);margin-bottom:3px" id="cw-out-lbl">退勤</div>
               <div id="cw-out" style="font-size:28px;font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums;letter-spacing:-.5px">--:--</div>
             </div>
           </div>
@@ -800,12 +800,12 @@ input,textarea,select,button{font-family:inherit}
             <button class="btn btn-g" id="cw-btn-in" onclick="clockIn()"
               style="padding:14px;font-size:15px;flex-direction:column;gap:5px">
               <span style="font-size:22px">🟢</span>
-              <span>出勤打刻</span>
+              <span id="cw-btn-in-lbl">出勤打刻</span>
             </button>
             <button class="btn btn-r" id="cw-btn-out" onclick="clockOut()" disabled
               style="padding:14px;font-size:15px;flex-direction:column;gap:5px;opacity:.4">
               <span style="font-size:22px">🔴</span>
-              <span>退勤打刻</span>
+              <span id="cw-btn-out-lbl">退勤打刻</span>
             </button>
           </div>
         </div>
@@ -893,7 +893,7 @@ input,textarea,select,button{font-family:inherit}
 <div class="scr" id="s-chat">
   <div class="cl-panel">
     <div class="clp-top">
-      <span class="clp-title">チャット</span>
+      <span class="clp-title" id="clp-title">チャット</span>
       <button class="cl-add" onclick="openAddContactModal()" title="関係者を追加">＋</button>
     </div>
     <div class="cl-items" id="cl-items"></div>
@@ -1226,7 +1226,7 @@ input,textarea,select,button{font-family:inherit}
       <div class="ss-row"><div class="ss-l"><div class="ss-lbl">SOS通知</div><div class="ss-desc" id="st-sos-always">常に有効</div></div><button class="tgl on" style="opacity:.5;cursor:not-allowed"></button></div>
     </div>
     <div class="ss-section">
-      <div class="ss-hdr"><div class="ss-hdr-title">サポート・情報</div></div>
+      <div class="ss-hdr"><div class="ss-hdr-title" id="st-support-l">サポート・情報</div></div>
       <div class="ss-row"><span class="ss-lbl" id="st-app-name">アプリ名</span><span class="ss-val">GreenBridge v4</span></div>
       <div class="ss-row"><span class="ss-lbl" id="st-ai-engine">AIエンジン</span><span class="ss-val">Claude Sonnet 4</span></div>
       <div class="ss-row"><div class="ss-l"><div class="ss-lbl" id="st-help-lbl">ヘルプ・FAQ</div></div><button class="btn-xs" id="st-help-btn" onclick="toast('ヘルプ','マニュアルを開きます','b')">開く</button></div>
@@ -1553,7 +1553,7 @@ let currentVideo=null,currentGroup=null,npFilter='all',npType='daily';
 
 // ── LS (language strings) ─────────────────────────────────────────────────────
 const LS={
-  vi:{greet:'Xin chào',leave:'Ngày phép còn lại',todayShift:'Ca hôm nay',notice:'Thông báo',tplBtn:'Đơn & Báo cáo',docBtn:'Xác nhận tài liệu',sosBtn:'Khẩn cấp SOS',nippoBtn:'Nhật ký',videoBtn:'Video hướng dẫn',
+  vi:{greet:'Xin chào',clockInBtn:"Chấm công vào",clockOutBtn:"Chấm công ra",stSupport:"Hỗ trợ & Thông tin",clockIn:'Vào ca',clockOut:'Tan ca',leave:'Ngày phép còn lại',todayShift:'Ca hôm nay',notice:'Thông báo',tplBtn:'Đơn & Báo cáo',docBtn:'Xác nhận tài liệu',sosBtn:'Khẩn cấp SOS',nippoBtn:'Nhật ký',videoBtn:'Video hướng dẫn',
     tplTitle:'Đơn & Báo cáo',tplSub:'Nhập tiếng mẹ đẻ → AI dịch sang tiếng Nhật',tplSend:'Dịch AI và gửi',detail:'Viết chi tiết',
     docTitle:'Tài liệu',docSub:'Tài liệu đã xác nhận hiển thị màu xanh',progL:'Tiến độ',confirmQ:'Bạn đã hiểu nội dung tài liệu chưa?',understood:'Tôi đã hiểu · Xác nhận',back:'Quay lại',ttsL:'Nghe to',
     sosTitle:'Khẩn cấp SOS',sosDesc:'Giữ nút đỏ 3 giây\nđể gửi liên lạc khẩn cấp',sosSent:'Đã gửi SOS',
@@ -1628,7 +1628,7 @@ const LS={
     shiftRest:'Nghỉ',
     docNav:'Tài liệu',
 lLabel:'ベトナム語'},
-  id:{greet:'Halo',leave:'Sisa cuti',todayShift:'Jadwal hari ini',notice:'Pemberitahuan',tplBtn:'Permohonan',docBtn:'Dokumen',sosBtn:'SOS Darurat',nippoBtn:'Laporan Harian',videoBtn:'Video Manual',
+  id:{greet:'Halo',clockInBtn:"Catat Masuk",clockOutBtn:"Catat Pulang",stSupport:"Dukungan & Info",clockIn:'Masuk',clockOut:'Keluar',leave:'Sisa cuti',todayShift:'Jadwal hari ini',notice:'Pemberitahuan',tplBtn:'Permohonan',docBtn:'Dokumen',sosBtn:'SOS Darurat',nippoBtn:'Laporan Harian',videoBtn:'Video Manual',
     tplTitle:'Permohonan & Laporan',tplSub:'Masukkan bahasa ibu → AI terjemahkan',tplSend:'Terjemahkan & kirim',detail:'Tulis detail',
     docTitle:'Dokumen',docSub:'Dokumen terkonfirmasi berwarna hijau',progL:'Progres',confirmQ:'Apakah Anda mengerti isi dokumen ini?',understood:'Saya mengerti · Konfirmasi',back:'Kembali',ttsL:'Bacakan',
     sosTitle:'SOS Darurat',sosDesc:'Tahan tombol merah 3 detik\nuntuk mengirim darurat',sosSent:'SOS berhasil terkirim',
@@ -1703,7 +1703,7 @@ lLabel:'ベトナム語'},
     shiftRest:'Libur',
     docNav:'Dokumen',
 lLabel:'インドネシア語'},
-  tl:{greet:'Kumusta',leave:'Natitirang leave',todayShift:'Shift ngayon',notice:'Mga abiso',tplBtn:'Kahilingan',docBtn:'Mga Dokumento',sosBtn:'SOS Emergency',nippoBtn:'Daily Report',videoBtn:'Video Manual',
+  tl:{greet:'Kumusta',clockInBtn:"Mag-time In",clockOutBtn:"Mag-time Out",stSupport:"Suporta at Impormasyon",clockIn:'Pasok',clockOut:'Uwi',leave:'Natitirang leave',todayShift:'Shift ngayon',notice:'Mga abiso',tplBtn:'Kahilingan',docBtn:'Mga Dokumento',sosBtn:'SOS Emergency',nippoBtn:'Daily Report',videoBtn:'Video Manual',
     tplTitle:'Kahilingan & Ulat',tplSub:'I-input sa sariling wika → AI isalin sa Japanese',tplSend:'Isalin ng AI at ipadala',detail:'Isulat ang detalye',
     docTitle:'Mga Dokumento',docSub:'Ang nakumpirmang dokumento ay berde',progL:'Progreso',confirmQ:'Naiintindihan mo ba ang dokumento?',understood:'Naiintindihan · Kumpirmahin',back:'Bumalik',ttsL:'Basahin',
     sosTitle:'SOS Emergency',sosDesc:'Pindutin ang pulang pindutan 3 segundo\npara magpadala ng emergency',sosSent:'SOS naipadala na',
@@ -1778,7 +1778,7 @@ lLabel:'インドネシア語'},
     shiftRest:'Pahinga',
     docNav:'Mga Dokumento',
 lLabel:'フィリピン語'},
-  zh:{greet:'你好',leave:'剩余年假',todayShift:'今天班次',notice:'通知',tplBtn:'申请·报告',docBtn:'文件确认',sosBtn:'紧急SOS',nippoBtn:'日报',videoBtn:'视频手册',
+  zh:{greet:'你好',clockInBtn:"打卡上班",clockOutBtn:"打卡下班",stSupport:"支持・信息",clockIn:'上班',clockOut:'下班',leave:'剩余年假',todayShift:'今天班次',notice:'通知',tplBtn:'申请·报告',docBtn:'文件确认',sosBtn:'紧急SOS',nippoBtn:'日报',videoBtn:'视频手册',
     tplTitle:'申请·报告',tplSub:'用母语输入 → AI翻译成日语',tplSend:'AI翻译后发送',detail:'请详细填写',
     docTitle:'文件',docSub:'已确认的文件显示为绿色',progL:'确认进度',confirmQ:'您理解该文件的内容了吗？',understood:'我已理解 · 确认',back:'返回',ttsL:'朗读',
     sosTitle:'紧急SOS',sosDesc:'长按红色按钮3秒\n发送紧急联系',sosSent:'SOS发送成功',
@@ -1853,7 +1853,7 @@ lLabel:'フィリピン語'},
     shiftRest:'休息',
     docNav:'文件',
 lLabel:'中国語'},
-  my:{greet:'မင်္ဂလာပါ',leave:'ကျန်ရှိသောနားရက်',todayShift:'ယနေ့ အချိန်',notice:'သတိပေးချက်',tplBtn:'လျှောက်လွှာ',docBtn:'စာရွက်',sosBtn:'SOS',nippoBtn:'နေ့စဉ်အစီရင်ခံ',videoBtn:'ဗီဒီယိုလမ်းညွှန်',
+  my:{greet:'မင်္ဂလာပါ',clockInBtn:"ဝင်ချိန်မှတ်",clockOutBtn:"ထွက်ချိန်မှတ်",stSupport:"အကူအညီနှင့်အချက်အလက်",clockIn:'အလုပ်ဝင်',clockOut:'အလုပ်ပြန်',leave:'ကျန်ရှိသောနားရက်',todayShift:'ယနေ့ အချိန်',notice:'သတိပေးချက်',tplBtn:'လျှောက်လွှာ',docBtn:'စာရွက်',sosBtn:'SOS',nippoBtn:'နေ့စဉ်အစီရင်ခံ',videoBtn:'ဗီဒီယိုလမ်းညွှန်',
     tplTitle:'လျှောက်လွှာ',tplSub:'မိခင်ဘာသာ → AI ဘာသာပြန်',tplSend:'AI ပို့ပါ',detail:'အသေးစိတ်ရေးပါ',
     docTitle:'စာရွက်',docSub:'အတည်ပြုပြီး → အစိမ်းရောင်',progL:'တိုးတက်မှု',confirmQ:'နားလည်ပြီးပြီလား?',understood:'နားလည်ပြီ',back:'နောက်သို့',ttsL:'ဖတ်ပြ',
     sosTitle:'SOS',sosDesc:'3 စက္ကန့် ဖိထား\nSOS ပို့ပါ',sosSent:'SOS ပေးပို့ပြီး',
@@ -1928,7 +1928,7 @@ lLabel:'中国語'},
     shiftRest:'နားရက်',
     docNav:'ဆောင်ရွက်',
 lLabel:'ミャンマー語'},
-  ja:{greet:'こんにちは',leave:'有給残日数',todayShift:'今日のシフト',notice:'お知らせ',tplBtn:'申請・報告',docBtn:'書類確認',sosBtn:'緊急SOS',nippoBtn:'日報・報告',videoBtn:'動画マニュアル',
+  ja:{greet:'こんにちは',clockInBtn:"出勤打刻",clockOutBtn:"退勤打刻",stSupport:"サポート・情報",clockIn:'出勤',clockOut:'退勤',leave:'有給残日数',todayShift:'今日のシフト',notice:'お知らせ',tplBtn:'申請・報告',docBtn:'書類確認',sosBtn:'緊急SOS',nippoBtn:'日報・報告',videoBtn:'動画マニュアル',
     tplTitle:'申請・報告',tplSub:'母国語で入力 → AI が日本語に変換して送信',tplSend:'AIで日本語に変換して送信',detail:'詳しく書いてください',
     docTitle:'書類',docSub:'確認済みの書類は緑色になります',progL:'確認の進捗',confirmQ:'この書類の内容を理解しましたか？',understood:'理解した・確認完了',back:'戻る',ttsL:'音声で聞く',
     sosTitle:'緊急 SOS',sosDesc:'赤いボタンを3秒長押しすると\n担当者に緊急連絡が届きます',sosSent:'SOS 送信完了',
@@ -2129,6 +2129,19 @@ function applyL(code) {
   s('st-name-lbl',   L.stName);       s('st-company-lbl',L.stCompany);
   s('st-manager-lbl',L.stManager);    s('st-tenure-lbl', L.stTenure);
   s('st-tenure-val', L.stTenureVal);
+
+  // ── 打刻カード
+  s('cw-in-lbl',  L.clockIn  || '出勤');
+  s('cw-out-lbl', L.clockOut || '退勤');
+  s('cw-btn-in-lbl',  L.clockInBtn  || L.clockIn  || '出勤打刻');
+  s('cw-btn-out-lbl', L.clockOutBtn || L.clockOut || '退勤打刻');
+  s('st-support-l',   L.stSupport   || 'サポート・情報');
+  // ── ナビゲーション（モバイル下部）
+  s('nl-tpl',      L.navTpl      || L.tplBtn      || '申請');
+  s('nl-shift',    L.navShift    || L.shiftTitle  || 'シフト');
+  s('nl-settings', L.navSettings || L.stTitle     || '設定');
+  // ── チャットパネルタイトル
+  s('clp-title',   L.navChat     || L.chatName    || 'チャット');
 
   renderTpls();
   Object.keys(docTranslateCache).forEach(k=>delete docTranslateCache[k]);

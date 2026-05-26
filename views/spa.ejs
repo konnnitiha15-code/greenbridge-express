@@ -564,7 +564,10 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
       <div class="left-panel" style="width:280px">
         <div class="panel-hdr">
           <span class="panel-title">日報・報告</span>
-          <button class="btn btn-g btn-sm" onclick="openNewNippo()">+ 作成</button>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-sm" onclick="exportDailyReportsCsv()" title="CSV出力">📥</button>
+            <button class="btn btn-g btn-sm" onclick="openNewNippo()">+ 作成</button>
+          </div>
         </div>
         <div class="panel-filters">
           <div class="fc on" onclick="this.parentElement.querySelectorAll('.fc').forEach(d=>d.classList.remove('on'));this.classList.add('on');renderNPL()">すべて</div>
@@ -652,7 +655,10 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
             <div style="font-size:13px;color:var(--t3);margin-top:3px">従業員の出退勤を記録・管理します（管理者専用）</div>
           </div>
           <% if (profile?.role === 'admin') { %>
-          <button class="btn btn-g" onclick="openAddAttend()">+ 勤怠登録</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn" onclick="exportAttendanceCsv()">📥 CSV出力</button>
+            <button class="btn btn-g" onclick="openAddAttend()">+ 勤怠登録</button>
+          </div>
           <% } %>
         </div>
 

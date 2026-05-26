@@ -2489,7 +2489,30 @@ function openEditShift(){
   toast('編集モード','セルをクリックするとシフトを変更できます','b');
 }
 
-// ── CSV出力 ────────────────────────────────────────────────────────────────────
+// ── 勤怠CSV出力 ─────────────────────────────────────────────────────────────
+function exportAttendanceCsv(){
+  const date     = document.getElementById('att-filter-date')?.value     || '';
+  const workerId = document.getElementById('att-filter-worker')?.value   || '';
+  const status   = document.getElementById('att-filter-status')?.value   || '';
+
+  const params = new URLSearchParams();
+  if(date)     { params.set('from', date); params.set('to', date); }
+  if(workerId)   params.set('worker_id', workerId);
+  if(status)     params.set('status', status);
+
+  const url = '/app/api/attendance/export.csv' + (params.toString() ? '?'+params.toString() : '');
+  // ブラウザのナビゲーションでダウンロード（Content-Disposition: attachment）
+  window.location.href = url;
+  toast('CSV出力', '勤怠データをダウンロードしました', 'g');
+}
+
+// ── 日報CSV出力 ────────────────────────────────────────────────────────────
+function exportDailyReportsCsv(){
+  window.location.href = '/app/api/daily-reports/export.csv';
+  toast('CSV出力', '日報データをダウンロードしました', 'g');
+}
+
+// ── CSV出力（シフトマトリクス：従来のクライアント側生成） ───────────────────
 function exportShiftCSV(){
   const year=SHIFT_YEAR, month=SHIFT_MONTH;
   const days=new Date(year,month,0).getDate();
