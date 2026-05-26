@@ -2896,6 +2896,12 @@ function normalizeShiftType(raw){
 async function loadWorkerShifts(year, month){
   try {
     const res  = await fetch(`/worker/api/shifts?year=${year}&month=${month}`);
+    // セッション切れなどでHTMLが返った時のガード
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      console.warn('[shift] non-JSON response, possibly session expired');
+      return;
+    }
     const json = await res.json();
     if(!json.ok) return;
     (json.shifts || []).forEach(s => { workerShifts[s.date] = s.shift_type; });
