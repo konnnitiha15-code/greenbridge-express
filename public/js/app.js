@@ -311,6 +311,10 @@ async function loadDashboardStats(){
     const unreadKpi = document.getElementById('unread-val');
     if(unreadKpi) unreadKpi.textContent = s.unread?.messages || 0;
 
+    // 本日の日報総数
+    const nippoVal = document.getElementById('kpi-nippo-val');
+    if(nippoVal) nippoVal.textContent = s.today?.nippoCount || 0;
+
     // ナビバッジ
     const navBadge = document.getElementById('nav-pending-badge');
     if(navBadge){

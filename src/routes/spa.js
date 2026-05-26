@@ -425,7 +425,7 @@ router.get('/api/dashboard/stats', requireAuth, async (req, res) => {
   const today = new Date().toISOString().slice(0, 10)
 
   try {
-    const [attRes, shiftReqRes, dailyRepRes, notifRes, msgRes, workerRes] = await Promise.all([
+    const [attRes, shiftReqRes, dailyRepRes, notifRes, msgRes, workerRes, todayNippoRes] = await Promise.all([
       // 今日の勤怠
       sb.from('attendance_records').select('status', { count: 'exact' }).eq('company_id', companyId).eq('work_date', today),
       // pending シフト申請
@@ -438,6 +438,8 @@ router.get('/api/dashboard/stats', requireAuth, async (req, res) => {
       sb.from('messages').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('is_read', false),
       // 全ワーカー数
       sb.from('workers').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active'),
+      // 本日の日報総数
+      sb.from('daily_reports').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('report_date', today).catch(()=>({count:0})),
     ])
 
     const attRecords = attRes.data || []
@@ -458,6 +460,9 @@ router.get('/api/dashboard/stats', requireAuth, async (req, res) => {
         unread: {
           notifications: notifRes.count || 0,
           messages:      msgRes.count  || 0,
+        },
+        today: {
+          nippoCount: todayNippoRes.count || 0,
         },
       },
     })
