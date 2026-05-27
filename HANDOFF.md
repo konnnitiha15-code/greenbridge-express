@@ -440,5 +440,6 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 **最終コミット: bb86d70 (feat: CSVエクスポート + 言語切替の対象範囲拡大)**
 **次回作業時の TODO:**
 1. ~~マイグレーション008 実行~~ ✅ 2026-05-27 完了
-2. Vercel に `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` を追加
-3. 実機ブラウザで `設定 → プッシュ通知 → 有効化` を押し、許可ダイアログ → テスト送信で受信確認
+2. ~~Vercel に `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` を追加~~ ✅ 2026-05-27 完了（Production/Preview/Development）
+3. ~~Vercel 本番再デプロイ~~ ✅ 2026-05-27 完了（コミット 1e37e1c）
+4. 実機ブラウザで `設定 → プッシュ通知 → 有効化` を押し、許可ダイアログ → テスト送信で受信確認

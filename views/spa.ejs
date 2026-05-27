@@ -19,6 +19,38 @@
      サーバー注入データ
 ════════════════════════════════════════════════════════════ -->
 <script>
+// ── fetch クッキー認証保証 + 401自動ハンドリング ─────────────────
+// 同一オリジンのみ credentials を強制（Supabase SDK 等の cross-origin fetch は触らない）
+(function patchFetch(){
+  const orig = window.fetch;
+  const sameOrigin = (input) => {
+    try {
+      const urlStr = typeof input === 'string' ? input : (input && input.url) || '';
+      if (urlStr.startsWith('/')) return true;
+      const u = new URL(urlStr, window.location.origin);
+      return u.origin === window.location.origin;
+    } catch { return false; }
+  };
+  window.fetch = function(input, init){
+    init = init || {};
+    if (!init.credentials && sameOrigin(input)) init.credentials = 'include';
+    return orig(input, init).then(async (res) => {
+      try {
+        const url = typeof input === 'string' ? input : input.url || '';
+        if (res.status === 401 && sameOrigin(input)
+            && !url.includes('/api/push/') && !url.includes('/login')) {
+          if (!window._sessionExpiredHandled) {
+            window._sessionExpiredHandled = true;
+            console.warn('[auth] 401 detected, redirecting to login');
+            setTimeout(() => { window.location.href = '/login'; }, 100);
+          }
+        }
+      } catch {}
+      return res;
+    });
+  };
+})();
+
 const WORKERS     = <%- JSON.stringify(workers) %>;
 const DOCS        = <%- JSON.stringify(docs) %>;
 const GB_USER     = <%- JSON.stringify(gbUser) %>;

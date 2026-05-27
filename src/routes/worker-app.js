@@ -117,6 +117,13 @@ router.get('/', requireWorkerAuth, requireWorker, async (req, res) => {
 
   if (companyId) {
     try {
+      // contacts は profiles テーブルから取得するが、RLS で worker は他人の profiles を見られない。
+      // そのため service role の admin client を使う（同じ company_id 内のみ取得するので安全）。
+      const sbAdmin = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      )
       const [docsRes, compRes, workerRes, contactsRes] = await Promise.all([
         // 自分宛て OR 全社共通書類
         req.supabase
@@ -141,8 +148,8 @@ router.get('/', requireWorkerAuth, requireWorker, async (req, res) => {
               .single()
           : Promise.resolve({ data: null }),
 
-        // 同じ会社の admin/staff（チャット相手候補）
-        req.supabase
+        // 同じ会社の admin/staff（チャット相手候補）— service role で取得
+        sbAdmin
           .from('profiles')
           .select('id, full_name, role')
           .eq('company_id', companyId)

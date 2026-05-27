@@ -1330,6 +1330,41 @@ input,textarea,select,button{font-family:inherit}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/js/services/realtime.js"></script>
 <script>
+// ── fetch クッキー認証保証 + 401自動ハンドリング ─────────────────
+// PWA環境（iOS Safari等）で credentials が省略されることがあるため明示。
+// ただし、CORSの問題を避けるため同一オリジンのリクエストにのみ適用する。
+(function patchFetch(){
+  const orig = window.fetch;
+  const sameOrigin = (input) => {
+    try {
+      const urlStr = typeof input === 'string' ? input : (input && input.url) || '';
+      if (urlStr.startsWith('/')) return true;            // 相対パスは同一オリジン
+      const u = new URL(urlStr, window.location.origin);
+      return u.origin === window.location.origin;
+    } catch { return false; }
+  };
+  window.fetch = function(input, init){
+    init = init || {};
+    // 同一オリジンのみ credentials を強制する（Supabase SDK 等の cross-origin fetch を壊さない）
+    if (!init.credentials && sameOrigin(input)) init.credentials = 'include';
+    return orig(input, init).then(async (res) => {
+      // 401: セッション切れ → 同一オリジン API の場合のみ自動リダイレクト
+      try {
+        const url = typeof input === 'string' ? input : input.url || '';
+        if (res.status === 401 && sameOrigin(input)
+            && !url.includes('/api/push/') && !url.includes('/login')) {
+          if (!window._sessionExpiredHandled) {
+            window._sessionExpiredHandled = true;
+            console.warn('[auth] 401 detected, redirecting to login');
+            setTimeout(() => { window.location.href = '/worker/login'; }, 100);
+          }
+        }
+      } catch {}
+      return res;
+    });
+  };
+})();
+
 // ── サーバーデータ（EJS注入）────────────────────────────────────────────────
 window.SERVER_DATA = <%- JSON.stringify(serverData) %>;
 
@@ -2235,6 +2270,8 @@ function go(id){
     } else {
       renderChatList();
     }
+    // ★ 既存メッセージから DM_CHATS を構築（初回・タブ切替時に毎回）
+    if(typeof _loadChatHistory==='function') _loadChatHistory();
     if(typeof pollMessages==='function') pollMessages();        // 個別メッセージ即時取得
     if(typeof pollGroupMessages==='function') pollGroupMessages(); // グループ即時取得
   }
@@ -2364,8 +2401,39 @@ async function submitTpl(){
     const jp=await aiTx(txt,'ja');
     const full=`【${jpKey}】\n${jp}`;
     res.textContent='✓ 送信完了\n\n'+full;
-    // 申請をメッセージとして管理者に送信
-    fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:full,translated:full})}).catch(e=>{console.warn('[msg]',e);toast('送信エラー','担当者への通知に失敗しました','r');});
+    // ★ 申請を「チャットメッセージ」として管理者に送信（receiver_id=管理者UID）
+    //   これによりワーカーのチャット一覧にも自分の送信履歴として残り、
+    //   管理者側のチャット画面にも届く。
+    if(_ADMIN_UID){
+      try{
+        const r = await fetch('/worker/api/messages',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          credentials:'include',
+          body: JSON.stringify({ body: full, translated: full, receiver_id: _ADMIN_UID }),
+        });
+        const j = await r.json().catch(()=>null);
+        if(!j || !j.ok){
+          toast('送信エラー','担当者への通知に失敗しました','r');
+        } else {
+          // 自分のローカル DM_CHATS にも追加（即時表示用）
+          const dm = getOrCreateDM(_ADMIN_UID);
+          const now = new Date();
+          dm.msgs.push({
+            t:'me', txt: full, tl: full,
+            time: now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}),
+            _id: j.message?.id,
+            is_read: false,
+          });
+          if(typeof renderChatList==='function') renderChatList();
+        }
+      }catch(e){
+        console.warn('[msg]',e);
+        toast('送信エラー','担当者への通知に失敗しました','r');
+      }
+    } else {
+      toast('注意','管理者が見つかりません','a');
+    }
     toast('✓ '+jpKey,jp.slice(0,50));
   }catch(e){res.textContent='エラー: '+e.message;toast('翻訳エラー',e.message.slice(0,50),'r');}
   btn.disabled=false;
@@ -2668,12 +2736,21 @@ async function sendActive() {
       const dm = DM_CHATS.find(d=>d.id===ACTIVE_CHAT?.id);
       if(dm) dm.msgs.push(m);
       addActiveBubble(m, true);
-      // DB に保存（receiver は ACTIVE_CHAT の相手）
-      const rcv = ACTIVE_CHAT?.contactId || null;
+      // DB に保存（receiver は ACTIVE_CHAT の相手 or 管理者）
+      const rcv = ACTIVE_CHAT?.contactId || _ADMIN_UID || null;
       try{
-        const sendRes = await fetch('/worker/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:txt,translated:jp,receiver_id:rcv})});
-        const sendJson = await sendRes.json();
-        if(sendJson.ok && sendJson.message) m._id = sendJson.message.id;
+        const sendRes = await fetch('/worker/api/messages',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          credentials:'include',
+          body:JSON.stringify({body:txt,translated:jp,receiver_id:rcv})
+        });
+        const sendJson = await sendRes.json().catch(()=>null);
+        if(sendJson && sendJson.ok && sendJson.message){
+          m._id = sendJson.message.id;
+        } else if(sendJson && !sendJson.ok){
+          toast('送信エラー', sendJson.error || 'メッセージの送信に失敗しました', 'r');
+        }
       }catch(e){ console.warn('[msg]',e); toast('送信エラー','メッセージの送信に失敗しました','r'); }
       toast('✓','担当者に送信しました');
     } catch(e) {
@@ -3122,8 +3199,9 @@ function addContactDM(contactId) {
 
 // ── メッセージ受信 API Polling（Supabase DB経由・全デバイス対応） ───────────────
 // gb_msg localStorage ポーリングを廃止し、API polling に移行
-const _ADMIN_UID  = _sd.adminUserId  || null;  // 管理者のauth user ID
-const _MY_UID     = _sd.myUserId     || null;  // 自分のauth user ID
+// ※ _sd は INIT セクションで宣言されるが、TDZ 回避のため window.SERVER_DATA を直接参照
+const _ADMIN_UID  = (window.SERVER_DATA || {}).adminUserId  || null;  // 管理者のauth user ID
+const _MY_UID     = (window.SERVER_DATA || {}).myUserId     || null;  // 自分のauth user ID
 let   _msgLastTs  = new Date().toISOString();  // 最後に取得したメッセージのタイムスタンプ
 
 async function _handleIncomingMessage(m){
@@ -3131,13 +3209,19 @@ async function _handleIncomingMessage(m){
   let tl = m.translated || body;
   if(LANG !== 'ja'){ try{ tl = await aiTx(body, LANG); }catch{} }
   const time = new Date(m.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
-  const incomingM = { t:'other', txt: body, tl, time };
+  const incomingM = { t:'other', txt: body, tl, time, _id: m.id };
 
-  // 管理者のcontactIdを特定（CONTACTS配列から）
-  const adminContact = CONTACTS.find(c => c.id === _ADMIN_UID);
-  const contactId    = adminContact?.id || (_ADMIN_UID || 'admin');
+  // ★ 送信者の auth user_id を contactId として使用
+  //   （特定の _ADMIN_UID 固定をやめ、複数 admin/staff からの受信に対応）
+  const contactId = m.sender_id;
+  if(!contactId) return;
 
+  // 自動で DM_CHATS に追加（連絡先未登録でも自動表示）
   const dm = getOrCreateDM(contactId);
+
+  // 重複排除（既に同じ id があればスキップ）
+  if(dm.msgs.find(x => x._id === m.id)) return;
+
   dm.msgs.push(incomingM);
   dm.unread = (dm.unread || 0) + 1;
 
@@ -3150,7 +3234,48 @@ async function _handleIncomingMessage(m){
   const badge = document.getElementById('chat-badge');
   if(badge){ badge.textContent=total; badge.style.display=total>0?'':'none'; }
   renderChatList();
-  toast('担当者からメッセージ', tl.slice(0, 40));
+
+  // 送信者名を表示
+  const senderCt   = getContact(contactId);
+  const senderName = senderCt?.name || '担当者';
+  toast(senderName + 'からメッセージ', tl.slice(0, 40));
+}
+
+// ── 起動時の履歴ロード: 既存メッセージから DM_CHATS を構築 ──────
+async function _loadChatHistory(){
+  if(!_MY_UID) return;
+  try{
+    const res  = await fetch('/worker/api/messages');
+    const json = await res.json();
+    if(!json.ok || !json.messages) return;
+
+    let maxTs = _msgLastTs;
+    for(const m of json.messages){
+      // 自分が関与するメッセージのみ（receiver_id=null は全社向け = 自分宛て）
+      const counterpartId = m.sender_id === _MY_UID
+        ? m.receiver_id
+        : m.sender_id;
+      if(!counterpartId) continue;  // 全社broadcast は個別チャットには出さない
+
+      const dm = getOrCreateDM(counterpartId);
+      if(dm.msgs.find(x => x._id === m.id)) continue;  // 重複
+
+      const time = new Date(m.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+      const isMe = m.sender_id === _MY_UID;
+      dm.msgs.push({
+        t:    isMe ? 'me' : 'other',
+        txt:  m.body || '',
+        tl:   m.translated || m.body || '',
+        time,
+        _id:  m.id,
+        is_read: m.is_read,
+      });
+      if(m.created_at > maxTs) maxTs = m.created_at;
+    }
+    _msgLastTs = maxTs;
+
+    renderChatList();
+  }catch(e){ console.warn('[chat] history load error:', e); }
 }
 
 // メッセージ取得（共通関数）
@@ -3174,8 +3299,9 @@ async function pollMessages(){
             needRender = true;
           }
         }
-      } else if(_ADMIN_UID && m.sender_id === _ADMIN_UID && m.receiver_id === _MY_UID){
-        // 管理者からの新着 → タイムスタンプ比較して新規なら追加
+      } else if(m.receiver_id === _MY_UID) {
+        // ★ 自分以外（誰か）からの自分宛て新着メッセージ
+        //   送信者が _ADMIN_UID でなくても処理する（複数admin/staff対応）
         if(new Date(m.created_at) > new Date(_msgLastTs)){
           _msgLastTs = m.created_at;
           await _handleIncomingMessage(m);
@@ -3200,8 +3326,8 @@ async function pollMessages(){
     // 新規メッセージ受信
     const sub = await GBRealtime.subscribeMessages(_MY_UID,
       async (newMsg) => {
-        // 管理者からの自分宛て → 既存 _handleIncomingMessage に流す
-        if (newMsg.sender_id === _ADMIN_UID && newMsg.receiver_id === _MY_UID) {
+        // ★ 自分以外からの自分宛て新着メッセージ（複数admin/staff対応）
+        if (newMsg.sender_id !== _MY_UID && newMsg.receiver_id === _MY_UID) {
           await _handleIncomingMessage(newMsg);
           _msgLastTs = newMsg.created_at;
         }
@@ -3495,6 +3621,15 @@ function addContactDM(contactId) {
 <script src="/js/services/push-client.js"></script>
 <script>
 Attendance.init();
+
+// ── 起動時にチャット履歴をロード（バッジ・連絡先即時表示用） ──
+if(typeof _loadChatHistory === 'function'){
+  _loadChatHistory().catch(()=>{});
+}
+// グループも先読みしておく
+if(typeof loadWorkerGroups === 'function'){
+  loadWorkerGroups().catch(()=>{});
+}
 
 // ── PWA + Web Push 初期化 ──────────────────────────────────────
 // SW を登録し、既存購読を最新サーバー状態に同期。
