@@ -1333,10 +1333,19 @@ router.post('/api/groups/:id/messages', requireAuth, requireAdmin, async (req, r
 router.post('/api/messages', requireAuth, requireAdmin, async (req, res) => {
   const companyId    = req.profile?.company_id
   const adminUserId  = req.user?.id
-  const { worker_user_id, body } = req.body
+  const {
+    worker_user_id, body, translated,
+    attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size,
+  } = req.body
 
-  if (!worker_user_id || !body?.trim())
-    return res.status(400).json({ error: 'worker_user_id と body は必須です' })
+  if (!worker_user_id)
+    return res.status(400).json({ error: 'worker_user_id は必須です' })
+
+  const hasBody       = body && body.trim().length > 0
+  const hasAttachment = !!attachment_path
+  if (!hasBody && !hasAttachment) {
+    return res.status(400).json({ error: 'メッセージまたは添付ファイルが必要です' })
+  }
 
   const sbAdmin = createAdminClient()
   const { data, error } = await sbAdmin
@@ -1345,9 +1354,16 @@ router.post('/api/messages', requireAuth, requireAdmin, async (req, res) => {
       company_id:  companyId,
       sender_id:   adminUserId,
       receiver_id: worker_user_id,
-      body:        body.trim(),
+      body:        hasBody ? body.trim() : null,
+      translated:  translated || null,
+      attachment_url:   attachment_url   || null,
+      attachment_path:  attachment_path  || null,
+      attachment_type:  attachment_type  || null,
+      attachment_mime:  attachment_mime  || null,
+      attachment_name:  attachment_name  || null,
+      attachment_size:  attachment_size  || null,
     })
-    .select('id, created_at')
+    .select('id, created_at, attachment_url, attachment_type, attachment_mime, attachment_name')
     .single()
 
   if (error) return res.status(500).json({ error: error.message })
@@ -1384,7 +1400,7 @@ router.get('/api/messages', requireAuth, requireAdmin, async (req, res) => {
 
   let query = createAdminClient()
     .from('messages')
-    .select('id, sender_id, receiver_id, body, translated, is_read, created_at')
+    .select('id, sender_id, receiver_id, body, translated, is_read, created_at, attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size')
     .eq('company_id', companyId)
     .or(
       `and(sender_id.eq.${adminUserId},receiver_id.eq.${worker_user_id}),` +
@@ -1485,6 +1501,120 @@ router.put('/api/daily-reports/:id', requireAuth, async (req, res) => {
     push.sendFromNotification({ ...notif, url: '/worker?tab=daily' }).catch(()=>{})
   }
   res.json({ ok: true })
+})
+
+// ── チャット添付アップロード ──────────────────────────────────────
+// POST /app/api/chat/upload — 管理者から画像/ファイル
+const _chatUploadAdmin = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+})
+router.post('/api/chat/upload', requireAuth, requireAdmin, _chatUploadAdmin.single('file'), async (req, res) => {
+  const companyId = req.profile?.company_id
+  const userId    = req.user?.id
+  if (!req.file) return res.status(400).json({ ok: false, error: 'file is required' })
+
+  const mime    = req.file.mimetype || 'application/octet-stream'
+  const isImage = mime.startsWith('image/')
+  const ext     = path.extname(req.file.originalname || '').toLowerCase() || (isImage ? '.jpg' : '.bin')
+  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2,8)}${ext}`
+  const storagePath = `chat/${companyId}/${userId}/${safeName}`
+
+  try {
+    const sb = createAdminClient()
+    const { error: upErr } = await sb.storage
+      .from('documents')
+      .upload(storagePath, req.file.buffer, { contentType: mime, upsert: false })
+    if (upErr) {
+      console.error('[chat upload admin]', upErr.message)
+      return res.status(500).json({ ok: false, error: upErr.message })
+    }
+    const { data: signed } = await sb.storage
+      .from('documents').createSignedUrl(storagePath, 60 * 60 * 24)
+
+    res.json({
+      ok: true,
+      attachment: {
+        url:  signed?.signedUrl || null,
+        path: storagePath,
+        type: isImage ? 'image' : 'file',
+        mime,
+        name: req.file.originalname,
+        size: req.file.size,
+      }
+    })
+  } catch (e) {
+    console.error('[chat upload admin] exception:', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── チャット履歴 CSV エクスポート ────────────────────────────────
+// GET /app/api/messages/export.csv?worker_user_id=&from=&to=
+//   worker_user_id 省略時 = 会社の全チャット
+router.get('/api/messages/export.csv', requireAuth, requireAdmin, async (req, res) => {
+  const companyId = req.profile?.company_id
+  if (!companyId) return res.status(403).send('forbidden')
+
+  const sb = createAdminClient()
+  let q = sb.from('messages')
+    .select(`
+      id, sender_id, receiver_id, body, translated, is_read, created_at,
+      attachment_name, attachment_type, attachment_url
+    `)
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: true })
+    .limit(5000)
+
+  if (req.query.worker_user_id) {
+    const wid = req.query.worker_user_id
+    q = q.or(`sender_id.eq.${wid},receiver_id.eq.${wid}`)
+  }
+  if (req.query.from) q = q.gte('created_at', req.query.from)
+  if (req.query.to)   q = q.lte('created_at', req.query.to)
+
+  const { data: msgs = [], error } = await q
+  if (error) return res.status(500).send('error: ' + error.message)
+
+  // 送受信者の氏名解決用に profiles を一括取得
+  const userIds = Array.from(new Set(msgs.flatMap(m => [m.sender_id, m.receiver_id]).filter(Boolean)))
+  let profileMap = {}
+  if (userIds.length) {
+    const { data: profs } = await sb.from('profiles')
+      .select('id, full_name, role')
+      .in('id', userIds)
+    profileMap = Object.fromEntries((profs || []).map(p => [p.id, p]))
+  }
+
+  const escape = v => {
+    if (v == null) return ''
+    const s = String(v)
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const headers = ['日時(JST)', '送信者', '送信者ロール', '受信者', '受信者ロール', 'メッセージ', '翻訳', '添付ファイル', '既読']
+  const rows = msgs.map(m => {
+    const dt = new Date(m.created_at)
+    const jst = dt.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+    const sndP = profileMap[m.sender_id]
+    const rcvP = m.receiver_id ? profileMap[m.receiver_id] : null
+    return [
+      jst,
+      sndP?.full_name || m.sender_id || '',
+      sndP?.role || '',
+      rcvP?.full_name || m.receiver_id || '(全社/未指定)',
+      rcvP?.role || '',
+      m.body || '',
+      m.translated || '',
+      m.attachment_name || (m.attachment_type === 'image' ? '【画像】' : ''),
+      m.is_read ? '既読' : '未読',
+    ].map(escape).join(',')
+  })
+  const csv = '﻿' + headers.join(',') + '\n' + rows.join('\n')
+
+  const fname = `chat_${req.query.worker_user_id ? req.query.worker_user_id.slice(0,8) + '_' : ''}${new Date().toISOString().slice(0,10)}.csv`
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="${fname}"`)
+  res.send(csv)
 })
 
 module.exports = router

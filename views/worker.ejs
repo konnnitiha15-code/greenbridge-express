@@ -925,10 +925,23 @@ input,textarea,select,button{font-family:inherit}
         <button class="qbtn" id="qb-otsukare"  onclick="insertActiveQ('otsukare')">お疲れ様</button>
       </div>
       <div class="msgs" id="active-msgs"></div>
+      <!-- 添付画像プレビュー -->
+      <div id="chat-attach-preview" style="display:none;padding:8px 12px;background:var(--gbg);border-top:1px solid var(--bd);display:none">
+        <div style="display:flex;align-items:center;gap:8px">
+          <img id="chat-attach-img" style="max-height:60px;max-width:120px;border-radius:8px;border:1px solid var(--bd)">
+          <div style="flex:1;font-size:12px" id="chat-attach-name">—</div>
+          <button onclick="clearChatAttach()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px">✕</button>
+        </div>
+      </div>
       <div class="cinp-bar">
         <button class="voice-btn" id="voice-btn" onclick="toggleVoice()" title="音声入力">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="1" width="6" height="9" rx="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2 8a6 6 0 0012 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M8 14v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
+        <!-- 📷 カメラ/画像添付 -->
+        <button class="voice-btn" id="attach-btn" onclick="document.getElementById('chat-file-input').click()" title="画像を添付" style="margin-right:4px">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="6" cy="7.5" r="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2 12.5L5.5 9l3 3 2-1.5L14 12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/></svg>
+        </button>
+        <input type="file" id="chat-file-input" accept="image/*" style="display:none" onchange="onChatFilePick(event)">
         <textarea class="cinp" id="active-inp" rows="1"
           placeholder="メッセージを入力..."
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendActive()}"
@@ -2621,7 +2634,14 @@ function addActiveBubble(m, scroll=true) {
   if (!isMe && ACTIVE_CHAT?.isGroup && m.sender) {
     mainHtml += `<span style="font-size:11px;font-weight:700;color:var(--gn);display:block;margin-bottom:2px">${m.sender}</span>`;
   }
-  mainHtml += m.txt;
+  // 画像添付があれば表示
+  if (m.attachment_url && m.attachment_type === 'image') {
+    mainHtml += `<a href="${m.attachment_url}" target="_blank" rel="noopener" style="display:block;margin-bottom:${m.txt?'6px':'0'}"><img src="${m.attachment_url}" style="max-width:220px;max-height:280px;border-radius:10px;display:block" alt="${(m.attachment_name||'画像').replace(/"/g,'&quot;')}"></a>`;
+  } else if (m.attachment_url) {
+    // 画像以外のファイル
+    mainHtml += `<a href="${m.attachment_url}" target="_blank" rel="noopener" style="display:inline-block;padding:6px 10px;background:#fff;border:1px solid var(--bd);border-radius:8px;font-size:12px;margin-bottom:${m.txt?'6px':'0'}">📎 ${m.attachment_name||'ファイル'}</a>`;
+  }
+  if (m.txt) mainHtml += m.txt;
   // Show translation
   if (m.tl && !isMe) {
     mainHtml += `<div style="margin-top:4px;font-size:12px;color:#065f46;background:#ecfdf5;border-radius:6px;padding:4px 8px"><span style="font-size:10.5px;font-weight:700;display:block;margin-bottom:1px">【AI翻訳】</span>${m.tl}</div>`;
@@ -2691,10 +2711,58 @@ function insertActiveQ(key){
 }
 
 
+// ── チャット添付 (画像) 機能 ─────────────────────────────────
+let _pendingChatAttach = null;  // {file, dataUrl, name, mime, size}
+
+function onChatFilePick(ev){
+  const f = ev.target.files && ev.target.files[0];
+  if(!f) return;
+  if(!f.type.startsWith('image/')){
+    toast('エラー','画像ファイルを選択してください','r');
+    ev.target.value = '';
+    return;
+  }
+  if(f.size > 10 * 1024 * 1024){
+    toast('エラー','10MB以下の画像を選択してください','r');
+    ev.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    _pendingChatAttach = { file: f, dataUrl: reader.result, name: f.name, mime: f.type, size: f.size };
+    const wrap = document.getElementById('chat-attach-preview');
+    const img  = document.getElementById('chat-attach-img');
+    const nm   = document.getElementById('chat-attach-name');
+    if(wrap) wrap.style.display = 'block';
+    if(img)  img.src = reader.result;
+    if(nm)   nm.textContent = f.name + ' (' + Math.round(f.size/1024) + ' KB)';
+  };
+  reader.readAsDataURL(f);
+  ev.target.value = '';  // 同じファイルを再選択できるようリセット
+}
+
+function clearChatAttach(){
+  _pendingChatAttach = null;
+  const wrap = document.getElementById('chat-attach-preview');
+  if(wrap) wrap.style.display = 'none';
+}
+
+// 画像をサーバーにアップロード → {url, path, type, mime, name, size}
+async function _uploadChatAttachment(file){
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await fetch('/worker/api/chat/upload', { method:'POST', body: fd });
+  const j = await r.json();
+  if(!j.ok || !j.attachment) throw new Error(j.error || '画像のアップロードに失敗しました');
+  return j.attachment;
+}
+
 async function sendActive() {
   const inp = document.getElementById('active-inp');
   const txt = inp.value.trim();
-  if(!txt || !ACTIVE_CHAT) return;
+  // 添付があれば本文なしでも送信OK
+  if(!ACTIVE_CHAT) return;
+  if(!txt && !_pendingChatAttach) return;
   const btn = document.getElementById('active-send');
   inp.value=''; inp.style.height='auto'; btn.disabled=true;
   const time = new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
@@ -2723,27 +2791,59 @@ async function sendActive() {
     } catch(e) { toast('翻訳エラー',e.message,'r'); }
   } else {
     // Direct: translate and send to supervisor
-    addActiveBubble({t:'me',txt,time}, true);
+    // 画像添付がある場合は先にアップロード
+    let att = null;
+    if(_pendingChatAttach){
+      try{
+        att = await _uploadChatAttachment(_pendingChatAttach.file);
+      }catch(e){
+        toast('画像アップロード失敗', e.message || '', 'r');
+        btn.disabled = false;
+        return;
+      }
+    }
+
+    // 楽観UI: 添付付きバブルを先に表示
+    const optimistic = {
+      t:'me', txt, time, is_read:false,
+      attachment_url:  att?.url  || null,
+      attachment_type: att?.type || null,
+      attachment_name: att?.name || null,
+    };
+    addActiveBubble(optimistic, true);
+
     const tid='typ-'+Date.now();
     const area=document.getElementById('active-msgs');
     const tr=document.createElement('div');tr.id=tid;tr.className='mrow';
     tr.innerHTML='<div class="mav" style="background:var(--gbg);color:var(--gn)">田</div><div style="display:flex;gap:4px;align-items:center;padding:9px 13px;background:#fff;border-radius:4px 16px 16px 16px"><span style="width:7px;height:7px;border-radius:50%;background:var(--t3);animation:td 1.3s infinite;display:inline-block"></span><span style="width:7px;height:7px;border-radius:50%;background:var(--t3);animation:td 1.3s .2s infinite;display:inline-block"></span><span style="width:7px;height:7px;border-radius:50%;background:var(--t3);animation:td 1.3s .4s infinite;display:inline-block"></span></div>';
     area.appendChild(tr);area.scrollTop=area.scrollHeight;
     try {
-      const jp = await aiTx(txt, 'ja');
+      const jp = txt ? await aiTx(txt, 'ja') : '';
       document.getElementById(tid)?.remove();
-      const m = {t:'me', txt, tl:jp, time, is_read:false};
+      const m = { ...optimistic, tl: jp };
       const dm = DM_CHATS.find(d=>d.id===ACTIVE_CHAT?.id);
       if(dm) dm.msgs.push(m);
-      addActiveBubble(m, true);
       // DB に保存（receiver は ACTIVE_CHAT の相手 or 管理者）
       const rcv = ACTIVE_CHAT?.contactId || _ADMIN_UID || null;
       try{
+        const payload = {
+          body: txt || null,
+          translated: jp || null,
+          receiver_id: rcv,
+        };
+        if(att){
+          payload.attachment_url   = att.url;
+          payload.attachment_path  = att.path;
+          payload.attachment_type  = att.type;
+          payload.attachment_mime  = att.mime;
+          payload.attachment_name  = att.name;
+          payload.attachment_size  = att.size;
+        }
         const sendRes = await fetch('/worker/api/messages',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           credentials:'include',
-          body:JSON.stringify({body:txt,translated:jp,receiver_id:rcv})
+          body: JSON.stringify(payload),
         });
         const sendJson = await sendRes.json().catch(()=>null);
         if(sendJson && sendJson.ok && sendJson.message){
@@ -2752,6 +2852,7 @@ async function sendActive() {
           toast('送信エラー', sendJson.error || 'メッセージの送信に失敗しました', 'r');
         }
       }catch(e){ console.warn('[msg]',e); toast('送信エラー','メッセージの送信に失敗しました','r'); }
+      clearChatAttach();
       toast('✓','担当者に送信しました');
     } catch(e) {
       document.getElementById(tid)?.remove();
@@ -3207,9 +3308,14 @@ let   _msgLastTs  = new Date().toISOString();  // 最後に取得したメッセ
 async function _handleIncomingMessage(m){
   const body = m.body || '';
   let tl = m.translated || body;
-  if(LANG !== 'ja'){ try{ tl = await aiTx(body, LANG); }catch{} }
+  if(body && LANG !== 'ja'){ try{ tl = await aiTx(body, LANG); }catch{} }
   const time = new Date(m.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
-  const incomingM = { t:'other', txt: body, tl, time, _id: m.id };
+  const incomingM = {
+    t:'other', txt: body, tl, time, _id: m.id,
+    attachment_url:  m.attachment_url  || null,
+    attachment_type: m.attachment_type || null,
+    attachment_name: m.attachment_name || null,
+  };
 
   // ★ 送信者の auth user_id を contactId として使用
   //   （特定の _ADMIN_UID 固定をやめ、複数 admin/staff からの受信に対応）
@@ -3269,6 +3375,9 @@ async function _loadChatHistory(){
         time,
         _id:  m.id,
         is_read: m.is_read,
+        attachment_url:  m.attachment_url  || null,
+        attachment_type: m.attachment_type || null,
+        attachment_name: m.attachment_name || null,
       });
       if(m.created_at > maxTs) maxTs = m.created_at;
     }

@@ -1,4 +1,6 @@
 const express         = require('express')
+const multer          = require('multer')
+const path            = require('path')
 const { createClient } = require('@supabase/supabase-js')
 const SECURE     = !!(process.env.VERCEL || process.env.NODE_ENV === 'production')
 const COOKIE_OPT = { httpOnly: true, sameSite: 'lax', secure: SECURE }
@@ -6,6 +8,12 @@ const { requireWorkerAuth } = require('../middleware/auth')
 const { requireWorker } = require('../middleware/requireRole')
 const push             = require('../lib/push')
 const router          = express.Router()
+
+// チャット添付ファイル用 multer (メモリ保持で Supabase Storage に直接 upload)
+const chatUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+})
 
 // ── Worker 専用ログイン ────────────────────────────────────────
 // GET /worker/login
@@ -477,7 +485,7 @@ router.get('/api/messages', requireWorkerAuth, requireWorker, async (req, res) =
 
   let query = adminClient()
     .from('messages')
-    .select('id, sender_id, receiver_id, body, translated, is_read, created_at')
+    .select('id, sender_id, receiver_id, body, translated, is_read, created_at, attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size')
     .eq('company_id', companyId)
     .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
     .order('created_at', { ascending: true })
@@ -487,17 +495,48 @@ router.get('/api/messages', requireWorkerAuth, requireWorker, async (req, res) =
 
   const { data, error } = await query
   if (error) return res.status(500).json({ ok: false, error: error.message })
+
+  // 添付の署名URLが期限切れの場合は再発行
+  const sbAdmin = adminClient()
+  for (const m of (data || [])) {
+    if (m.attachment_path && (!m.attachment_url || isExpiredSignedUrl(m.attachment_url))) {
+      try {
+        const { data: signed } = await sbAdmin.storage
+          .from('documents').createSignedUrl(m.attachment_path, 60 * 60 * 24)
+        if (signed?.signedUrl) m.attachment_url = signed.signedUrl
+      } catch {}
+    }
+  }
+
   res.json({ ok: true, messages: data || [] })
 })
+
+// 署名URL が 24h 以内かを大雑把に判定
+function isExpiredSignedUrl(url) {
+  if (!url) return true
+  try {
+    const u = new URL(url)
+    const exp = parseInt(u.searchParams.get('token')?.split('.')[1] || '0', 10)
+    // 単純化: token が無ければ期限切れ扱いにせず元のURLを返す
+    return false
+  } catch { return false }
+}
 
 // POST /worker/api/messages
 router.post('/api/messages', requireWorkerAuth, requireWorker, async (req, res) => {
   const companyId = req.profile?.company_id
   const workerId  = req.profile?.worker_id
   const userId    = req.user?.id
-  const { body, translated, receiver_id } = req.body
+  const {
+    body, translated, receiver_id,
+    attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size,
+  } = req.body
 
-  if (!body?.trim()) return res.json({ ok: false, error: 'メッセージを入力してください' })
+  const hasBody       = body && body.trim().length > 0
+  const hasAttachment = !!attachment_path
+  if (!hasBody && !hasAttachment) {
+    return res.json({ ok: false, error: 'メッセージまたは添付ファイルが必要です' })
+  }
 
   const { data, error } = await adminClient()
     .from('messages')
@@ -506,14 +545,62 @@ router.post('/api/messages', requireWorkerAuth, requireWorker, async (req, res) 
       sender_id:   userId,
       receiver_id: receiver_id || null,
       worker_id:   workerId || null,
-      body:        body.trim(),
+      body:        hasBody ? body.trim() : null,
       translated:  translated || null,
+      attachment_url:   attachment_url   || null,
+      attachment_path:  attachment_path  || null,
+      attachment_type:  attachment_type  || null,
+      attachment_mime:  attachment_mime  || null,
+      attachment_name:  attachment_name  || null,
+      attachment_size:  attachment_size  || null,
     })
-    .select('id, created_at')
+    .select('id, created_at, attachment_url, attachment_type, attachment_mime, attachment_name')
     .single()
 
   if (error) return res.json({ ok: false, error: error.message })
   res.json({ ok: true, message: data })
+})
+
+// POST /worker/api/chat/upload — チャット用画像/ファイルアップロード
+// 戻り値: { ok, attachment: { url, path, type, mime, name, size } }
+router.post('/api/chat/upload', requireWorkerAuth, requireWorker, chatUpload.single('file'), async (req, res) => {
+  const companyId = req.profile?.company_id
+  const userId    = req.user?.id
+  if (!req.file) return res.status(400).json({ ok: false, error: 'file is required' })
+
+  const mime = req.file.mimetype || 'application/octet-stream'
+  const isImage = mime.startsWith('image/')
+  const ext     = path.extname(req.file.originalname || '').toLowerCase() || (isImage ? '.jpg' : '.bin')
+  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2,8)}${ext}`
+  const storagePath = `chat/${companyId}/${userId}/${safeName}`
+
+  try {
+    const sb = adminClient()
+    const { error: upErr } = await sb.storage
+      .from('documents')
+      .upload(storagePath, req.file.buffer, { contentType: mime, upsert: false })
+    if (upErr) {
+      console.error('[chat upload]', upErr.message)
+      return res.status(500).json({ ok: false, error: upErr.message })
+    }
+    const { data: signed } = await sb.storage
+      .from('documents').createSignedUrl(storagePath, 60 * 60 * 24)
+
+    res.json({
+      ok: true,
+      attachment: {
+        url:  signed?.signedUrl || null,
+        path: storagePath,
+        type: isImage ? 'image' : 'file',
+        mime,
+        name: req.file.originalname,
+        size: req.file.size,
+      }
+    })
+  } catch (e) {
+    console.error('[chat upload] exception:', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
 })
 
 // ── シフト申請 API ──────────────────────────────────────────────

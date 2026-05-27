@@ -384,16 +384,33 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
             <div style="display:flex;gap:6px"><button class="btn btn-g btn-sm" onclick="doApprove()">✓ 承認</button><button class="btn btn-sm" onclick="openWorkerProfile()">👤 詳細</button></div>
           </div>
           <div class="msgs" id="msgs"></div>
+          <!-- 添付画像プレビュー -->
+          <div id="msg-attach-preview" style="display:none;padding:8px 14px;background:#f0fdf4;border-top:1px solid var(--bd)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <img id="msg-attach-img" style="max-height:64px;max-width:120px;border-radius:8px;border:1px solid var(--bd)">
+              <div style="flex:1;font-size:12px" id="msg-attach-name">—</div>
+              <button onclick="clearMsgAttach()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:18px">✕</button>
+            </div>
+          </div>
           <div class="chat-inp">
-            <div class="chat-toolbar">
+            <div class="chat-toolbar" style="flex-wrap:wrap;gap:6px">
               <span style="font-size:12px;color:var(--t3)">翻訳先:</span>
               <select class="lang-sel" id="tgt-lang"><option value="vi">🇻🇳 ベトナム語</option><option value="id">🇮🇩 インドネシア語</option><option value="tl">🇵🇭 フィリピン語</option><option value="zh">🇨🇳 中国語</option><option value="my">🇲🇲 ミャンマー語</option></select>
               <div class="ai-pill"><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.1"/><path d="M3.5 5.5l1.5 1.5 2.5-2.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>AI翻訳オン</div>
-              <button class="quick-btn" onclick="insertQuick('お疲れ様です。')">定型: お疲れ様</button>
-              <button class="quick-btn" onclick="insertQuick('確認しました。')">定型: 確認</button>
-              <button class="quick-btn" onclick="insertQuick('申請を承認しました。')">定型: 承認</button>
+              <button class="quick-btn" onclick="insertQuick('✓ 確認しました。')">✓ 確認</button>
+              <button class="quick-btn" onclick="insertQuick('お疲れ様です。')">お疲れ様</button>
+              <button class="quick-btn" onclick="insertQuick('申請を承認しました。')">承認</button>
+              <button class="quick-btn" onclick="insertQuick('却下します。理由：')">却下</button>
+              <button class="quick-btn" onclick="insertQuick('明日対応します。')">明日対応</button>
+              <button class="quick-btn" onclick="insertQuick('後ほど連絡します。')">後で連絡</button>
+              <button class="quick-btn" onclick="insertQuick('体調はいかがですか？')">体調確認</button>
+              <button class="quick-btn" onclick="insertQuick('ご相談ください。')">相談</button>
+              <span style="flex:1"></span>
+              <button class="quick-btn" onclick="exportChatCsv()" title="このワーカーとのチャット履歴をCSV出力">📥 CSV</button>
             </div>
             <div class="inp-row">
+              <button class="send-btn" onclick="document.getElementById('chat-file-input').click()" title="画像添付" style="background:#f1f5f9;color:#475569;margin-right:4px"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2.5" width="11" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="5" cy="6" r="1.2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M2 11l3-3 2.5 2.5L9 9l3 2.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/></svg></button>
+              <input type="file" id="chat-file-input" accept="image/*" style="display:none" onchange="onMsgFilePick(event)">
               <textarea class="msg-inp" id="msg-inp" rows="1" placeholder="日本語で入力 → AIが実習生の言語に自動翻訳して送信" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}" oninput="autoH(this)"></textarea>
               <button class="send-btn" id="send-btn" onclick="sendMsg()"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.5L14 1.5l-5 12-2.5-4.5L2 7.5z" fill="white"/></svg></button>
             </div>

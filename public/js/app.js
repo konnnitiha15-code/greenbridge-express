@@ -496,7 +496,16 @@ async function _loadChatHistory(w){
 function _dbMsgToLocal(m, w){
   const time = new Date(m.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
   const isMe = (m.sender_id !== w.authUserId); // 管理者が送ったもの
-  return { t: isMe?'me':'other', txt: m.body, time, read: m.is_read, _id: m.id };
+  return {
+    t: isMe?'me':'other',
+    txt: m.body || '',
+    time,
+    read: m.is_read,
+    _id: m.id,
+    attachment_url:  m.attachment_url  || null,
+    attachment_type: m.attachment_type || null,
+    attachment_name: m.attachment_name || null,
+  };
 }
 
 function _startChatPoll(w){
@@ -534,34 +543,118 @@ function renderMessages(){
   area.scrollTop=area.scrollHeight;
 }
 
+// ── 管理者チャット: 画像添付 ────────────────────────────────────
+let _pendingMsgAttach = null;  // {file, dataUrl, name, mime, size}
+
+function onMsgFilePick(ev){
+  const f = ev.target.files && ev.target.files[0];
+  if(!f) return;
+  if(!f.type.startsWith('image/')){
+    toast('エラー','画像ファイルを選択してください','r');
+    ev.target.value = ''; return;
+  }
+  if(f.size > 10 * 1024 * 1024){
+    toast('エラー','10MB以下の画像を選択してください','r');
+    ev.target.value = ''; return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    _pendingMsgAttach = { file: f, dataUrl: reader.result, name: f.name, mime: f.type, size: f.size };
+    const wrap = document.getElementById('msg-attach-preview');
+    const img  = document.getElementById('msg-attach-img');
+    const nm   = document.getElementById('msg-attach-name');
+    if(wrap) wrap.style.display = 'block';
+    if(img)  img.src = reader.result;
+    if(nm)   nm.textContent = f.name + ' (' + Math.round(f.size/1024) + ' KB)';
+  };
+  reader.readAsDataURL(f);
+  ev.target.value = '';
+}
+
+function clearMsgAttach(){
+  _pendingMsgAttach = null;
+  const wrap = document.getElementById('msg-attach-preview');
+  if(wrap) wrap.style.display = 'none';
+}
+
+async function _uploadMsgAttachment(file){
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await fetch('/app/api/chat/upload', { method:'POST', body: fd });
+  const j = await r.json();
+  if(!j.ok || !j.attachment) throw new Error(j.error || '画像のアップロードに失敗しました');
+  return j.attachment;
+}
+
+// チャット履歴 CSV 出力
+async function exportChatCsv(){
+  if(!AW){ toast('対象なし','ワーカーを選択してください','b'); return; }
+  if(!AW.authUserId){ toast('注意','このワーカーはアカウント未紐付けです','b'); return; }
+  const url = `/app/api/messages/export.csv?worker_user_id=${encodeURIComponent(AW.authUserId)}`;
+  // ダウンロード起動
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `chat_${(AW.name||'worker').replace(/[^\w-]/g,'')}_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  toast('✓ CSV出力', AW.name + ' とのチャット履歴をダウンロードします');
+}
+
 async function sendMsg(){
   const inp=document.getElementById('msg-inp'); if(!inp||!AW)return;
-  const txt=inp.value.trim(); if(!txt)return;
+  const txt=inp.value.trim();
+  if(!txt && !_pendingMsgAttach) return;  // テキストも添付も無い → 送信しない
   inp.value=''; inp.style.height='auto';
   const time=new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
 
+  // 画像があればアップロード
+  let att = null;
+  if(_pendingMsgAttach){
+    try{
+      att = await _uploadMsgAttachment(_pendingMsgAttach.file);
+    }catch(e){
+      toast('画像アップロード失敗', e.message || '', 'r');
+      return;
+    }
+  }
+
   // 楽観的UI更新
-  HISTORY[AW.id].push({t:'me',txt,time,read:false}); renderMessages();
+  HISTORY[AW.id].push({
+    t:'me', txt, time, read:false,
+    attachment_url:  att?.url  || null,
+    attachment_type: att?.type || null,
+    attachment_name: att?.name || null,
+  });
+  renderMessages();
 
   if(!AW.authUserId){
-    // アカウント未紐付けの場合はローカル表示のみ
     toast('注意','このワーカーはアカウントが紐付けられていないため、メッセージはDBに保存されません','b');
+    clearMsgAttach();
     return;
   }
 
   try{
+    const payload = { worker_user_id: AW.authUserId, body: txt };
+    if(att){
+      payload.attachment_url   = att.url;
+      payload.attachment_path  = att.path;
+      payload.attachment_type  = att.type;
+      payload.attachment_mime  = att.mime;
+      payload.attachment_name  = att.name;
+      payload.attachment_size  = att.size;
+    }
     const res  = await fetch('/app/api/messages',{
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ worker_user_id: AW.authUserId, body: txt }),
+      body: JSON.stringify(payload),
     });
     const json = await res.json();
     if(json.ok && json.message){
       _chatLastTs[AW.id] = json.message.created_at;
-      // 送信成功 → _id を保存（ポーリング時に既読状態を突き合わせ用）
       const last = HISTORY[AW.id].at(-1);
       if(last && last.t==='me') last._id = json.message.id;
-      // read=false のまま（既読は相手が読んだ時にポーリングで更新）
     }
+    clearMsgAttach();
   }catch(e){
     console.warn('[chat] send error:', e);
     toast('送信エラー','メッセージの送信に失敗しました','r');
@@ -2886,7 +2979,14 @@ function addBub(cid,m,worker,scroll=true){
   wrap.className='mrow'+(me?' r':'');
   const userInit=typeof GB_USER!=='undefined'?GB_USER.full_name?.charAt(0):'田';
   const avHtml=me?`<div class="mav" style="background:#064e3b;color:#6ee7b7">${userInit}</div>`:`<div class="mav" style="background:${worker?.bg||'#ddd'};color:${worker?.tc||'#333'}">${worker?.init||'?'}</div>`;
-  let main=m.txt||'';
+  let main='';
+  // 添付画像があれば最初に表示
+  if(m.attachment_url && m.attachment_type === 'image'){
+    main += `<a href="${m.attachment_url}" target="_blank" rel="noopener" style="display:block;margin-bottom:${m.txt?'6px':'0'}"><img src="${m.attachment_url}" style="max-width:240px;max-height:300px;border-radius:10px;display:block" alt="${(m.attachment_name||'image').replace(/"/g,'&quot;')}"></a>`;
+  } else if(m.attachment_url){
+    main += `<a href="${m.attachment_url}" target="_blank" rel="noopener" style="display:inline-block;padding:6px 10px;background:#fff;border:1px solid #d8dce6;border-radius:8px;font-size:12px;margin-bottom:${m.txt?'6px':'0'}">📎 ${m.attachment_name||'ファイル'}</a>`;
+  }
+  main += m.txt||'';
   if(m.tpl)main=`<div class="tpl-tag">📋 ${m.tpl}</div><br>`+main;
   if(!me&&m.jp)main=`<span class="tl-lbl">【AI翻訳 → 日本語】</span>${m.jp}<span class="orig">原文: ${m.txt}</span>`;
   const tlBub=me&&m.tl?`<div class="bub bai" style="margin-top:2px"><span class="tl-lbl">【翻訳済み】</span>${m.tl}</div>`:'';
