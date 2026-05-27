@@ -37,6 +37,10 @@ self.addEventListener('activate', (event) => {
 // ── fetch: API/動的HTMLはネットワーク優先、静的アセットはキャッシュ優先 ──
 self.addEventListener('fetch', (event) => {
   const { request } = event
+
+  // 非GET（POST/PUT/DELETE等）は明示的にパススルー
+  // ・iOS Safari の PWA で SW 経由のリクエストから Cookie/認証が消える既知バグへの保険
+  // ・request 自体を fetch することで credentials などのモードを保持
   if (request.method !== 'GET') return
 
   const url = new URL(request.url)

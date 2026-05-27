@@ -2,11 +2,44 @@ const { createClient } = require('@supabase/supabase-js')
 const SECURE     = !!(process.env.VERCEL || process.env.NODE_ENV === 'production')
 const COOKIE_OPT = { httpOnly: true, sameSite: 'lax', secure: SECURE }
 
+// API/AJAX リクエスト判定: 失敗時は 302 redirect ではなく 401 JSON を返す
+// （HTML を JSON.parse して "Unexpected token" になるのを防ぐ）
+function isApiRequest(req) {
+  if (req.path.startsWith('/api/') || req.path.includes('/api/')) return true
+  const accept = req.headers.accept || ''
+  if (accept.includes('application/json')) return true
+  const xrw = req.headers['x-requested-with']
+  if (xrw && xrw.toLowerCase() === 'xmlhttprequest') return true
+  // fetch() による JSON body 送信
+  const ct = req.headers['content-type'] || ''
+  if (req.method !== 'GET' && ct.includes('application/json')) return true
+  return false
+}
+
+function unauthorized(req, res, loginUrl, reason = 'no_session') {
+  // 診断ログ: なぜ認証失敗したかを把握する
+  // origin URL / method / path / Cookie の有無 を出力
+  const cookieNames = Object.keys(req.cookies || {})
+  console.warn('[auth] unauthorized', {
+    method: req.method,
+    path: req.originalUrl || req.path,
+    reason,
+    cookies: cookieNames,
+    ua: (req.headers['user-agent'] || '').slice(0, 80),
+    referer: req.headers.referer || null,
+    origin:  req.headers.origin  || null,
+  })
+  if (isApiRequest(req)) {
+    return res.status(401).json({ ok: false, error: 'unauthorized', code: 'AUTH_REQUIRED', reason })
+  }
+  return res.redirect(loginUrl)
+}
+
 async function requireAuth(req, res, next) {
   const accessToken  = req.cookies['sb-access-token']
   const refreshToken = req.cookies['sb-refresh-token']
 
-  if (!accessToken) return res.redirect('/login')
+  if (!accessToken) return unauthorized(req, res, '/login', 'no_cookie')
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -23,7 +56,7 @@ async function requireAuth(req, res, next) {
     if (error || !session) {
       res.clearCookie('sb-access-token')
       res.clearCookie('sb-refresh-token')
-      return res.redirect('/login')
+      return unauthorized(req, res, '/login', 'session_invalid:' + (error?.message || 'no_session'))
     }
 
     // トークンが更新された場合はクッキーを更新
@@ -50,7 +83,7 @@ async function requireAuth(req, res, next) {
   } catch (e) {
     res.clearCookie('sb-access-token')
     res.clearCookie('sb-refresh-token')
-    return res.redirect('/login')
+    return unauthorized(req, res, '/login', 'exception:' + (e?.message || 'unknown'))
   }
 }
 
@@ -61,7 +94,7 @@ async function requireWorkerAuth(req, res, next) {
   const accessToken  = req.cookies['gb-worker-token']
   const refreshToken = req.cookies['gb-worker-refresh']
 
-  if (!accessToken) return res.redirect('/worker/login')
+  if (!accessToken) return unauthorized(req, res, '/worker/login', 'no_cookie')
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -78,7 +111,7 @@ async function requireWorkerAuth(req, res, next) {
     if (error || !session) {
       res.clearCookie('gb-worker-token')
       res.clearCookie('gb-worker-refresh')
-      return res.redirect('/worker/login')
+      return unauthorized(req, res, '/worker/login', 'session_invalid:' + (error?.message || 'no_session'))
     }
 
     // トークンが更新された場合はCookieを更新
@@ -101,10 +134,10 @@ async function requireWorkerAuth(req, res, next) {
     res.locals.profile = profile
 
     next()
-  } catch {
+  } catch (e) {
     res.clearCookie('gb-worker-token')
     res.clearCookie('gb-worker-refresh')
-    return res.redirect('/worker/login')
+    return unauthorized(req, res, '/worker/login', 'exception:' + (e?.message || 'unknown'))
   }
 }
 
