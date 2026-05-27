@@ -5,7 +5,10 @@ const COOKIE_OPT = { httpOnly: true, sameSite: 'lax', secure: SECURE }
 // API/AJAX リクエスト判定: 失敗時は 302 redirect ではなく 401 JSON を返す
 // （HTML を JSON.parse して "Unexpected token" になるのを防ぐ）
 function isApiRequest(req) {
-  if (req.path.startsWith('/api/') || req.path.includes('/api/')) return true
+  // req.originalUrl は常にフルパス（/worker/api/messages 等）
+  // req.path はミドルウェアのマウントによって相対化されることがある
+  const fullPath = req.originalUrl || req.url || req.path || ''
+  if (fullPath.includes('/api/')) return true
   const accept = req.headers.accept || ''
   if (accept.includes('application/json')) return true
   const xrw = req.headers['x-requested-with']
