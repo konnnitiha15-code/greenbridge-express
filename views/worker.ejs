@@ -3387,53 +3387,77 @@ async function _loadChatHistory(){
   }catch(e){ console.warn('[chat] history load error:', e); }
 }
 
-// メッセージ取得（共通関数）
+// メッセージ取得（共通関数）— 既読 + 新着 + 未追加メッセージを補完
 async function pollMessages(){
   if(!_MY_UID) return;
   try{
-    // 全件取得（既読ステータスも反映するため）
     const res  = await fetch('/worker/api/messages');
     const json = await res.json();
     if(!json.ok) return;
 
-    // 自分の送信メッセージの is_read を更新
     let needRender = false;
+    let needRenderList = false;
+
     for(const m of (json.messages||[])){
       if(m.sender_id === _MY_UID){
         // 自分が送ったメッセージ → DM_CHATS から見つけて is_read を更新
-        for(const dm of DM_CHATS){
-          const localMsg = (dm.msgs||[]).find(x => x._id === m.id);
-          if(localMsg && localMsg.is_read !== m.is_read){
-            localMsg.is_read = m.is_read;
+        // 見つからなければ追加（マルチデバイス送信対応）
+        const counterpartId = m.receiver_id;
+        if(!counterpartId) continue;
+        const dm = getOrCreateDM(counterpartId);
+        let local = dm.msgs.find(x => x._id === m.id);
+        if(!local){
+          const time = new Date(m.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+          local = {
+            t:'me', txt: m.body || '', tl: m.translated || m.body || '', time,
+            _id: m.id, is_read: m.is_read,
+            attachment_url:  m.attachment_url  || null,
+            attachment_type: m.attachment_type || null,
+            attachment_name: m.attachment_name || null,
+          };
+          dm.msgs.push(local);
+          needRenderList = true;
+          if(ACTIVE_CHAT && !ACTIVE_CHAT.isGroup && ACTIVE_CHAT.contactId === counterpartId){
             needRender = true;
           }
+        } else if(local.is_read !== m.is_read){
+          local.is_read = m.is_read;
+          needRender = true;
         }
       } else if(m.receiver_id === _MY_UID) {
-        // ★ 自分以外（誰か）からの自分宛て新着メッセージ
-        //   送信者が _ADMIN_UID でなくても処理する（複数admin/staff対応）
-        if(new Date(m.created_at) > new Date(_msgLastTs)){
-          _msgLastTs = m.created_at;
+        // 自分以外からの自分宛て新着メッセージ
+        const dm = getOrCreateDM(m.sender_id);
+        if(!dm.msgs.find(x => x._id === m.id)){
+          // 新着 → _handleIncomingMessage に流す（trans/toast/badge含む）
+          if(new Date(m.created_at) > new Date(_msgLastTs)){
+            _msgLastTs = m.created_at;
+          }
           await _handleIncomingMessage(m);
+          needRenderList = true;
         }
       }
     }
-    // アクティブチャットの既読状態が変わったら再描画
     if(needRender && ACTIVE_CHAT && !ACTIVE_CHAT.isGroup){
       renderActiveMsgs();
+    }
+    if(needRenderList && typeof renderChatList === 'function'){
+      renderChatList();
     }
   }catch(e){ console.warn('[poll] error:', e); }
 }
 
-// Realtime購読を試み、失敗時はポーリングにフォールバック
+// Realtime購読を試み + 並行してポーリングも実行（Realtimeのサイレント失敗対策）
 (async () => {
-  if (typeof GBRealtime === 'undefined' || !_MY_UID) {
-    // Realtime未対応 → ポーリング
-    setInterval(pollMessages, 8000);
-    return;
-  }
+  if (!_MY_UID) return;
+  // ★ Realtime に関わらずポーリングを常時動かす（5秒間隔）
+  //   Realtime が動いていても重複は _id で除外されるので問題なし
+  setInterval(pollMessages, 5000);
+  // 起動直後にも即実行
+  setTimeout(pollMessages, 1000);
+
+  if (typeof GBRealtime === 'undefined') return;
   try {
-    // 新規メッセージ受信
-    const sub = await GBRealtime.subscribeMessages(_MY_UID,
+    await GBRealtime.subscribeMessages(_MY_UID,
       async (newMsg) => {
         // ★ 自分以外からの自分宛て新着メッセージ（複数admin/staff対応）
         if (newMsg.sender_id !== _MY_UID && newMsg.receiver_id === _MY_UID) {
@@ -3452,11 +3476,9 @@ async function pollMessages(){
           }
         }
       });
-    if (!sub) setInterval(pollMessages, 8000);  // フォールバック
-    else console.log('[Realtime] messages active, polling disabled');
+    console.log('[Realtime] messages subscribed');
   } catch (e) {
-    console.warn('[Realtime] init failed, falling back to polling:', e);
-    setInterval(pollMessages, 8000);
+    console.warn('[Realtime] init failed (polling still active):', e);
   }
 })();
 

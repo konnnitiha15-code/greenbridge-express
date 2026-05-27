@@ -2998,6 +2998,44 @@ function addBub(cid,m,worker,scroll=true){
 // ── INIT ──────────────────────────────────────────────────────────────────────
 SP('home');
 
+// ── 管理者用 統合メッセージポーリング（Realtime のサイレント失敗対策）
+// 全ワーカーからの新着メッセージを 5 秒毎に取得して HISTORY/UI に反映する
+let _adminLastMsgTs = new Date(Date.now() - 24*60*60*1000).toISOString();  // 起動時は直近24h
+async function pollAdminMessages(){
+  if(!GB_USER?.id) return;
+  try{
+    const url = '/app/api/messages/recent?since=' + encodeURIComponent(_adminLastMsgTs);
+    const res = await fetch(url);
+    const json = await res.json();
+    if(!json.ok || !json.messages?.length) return;
+    let changed = false;
+    let listChanged = false;
+    for(const m of json.messages){
+      _adminLastMsgTs = m.created_at;
+      // ワーカー特定: sender か receiver が認識できるワーカー
+      const w = WORKERS.find(x => x.authUserId === m.sender_id || x.authUserId === m.receiver_id);
+      if(!w) continue;  // 認識できないワーカー（紐付け前）はスキップ
+      if(!HISTORY[w.id]) HISTORY[w.id] = [{t:'sys',txt:'チャット開始'}];
+      // 重複排除
+      if(HISTORY[w.id].find(x => x._id === m.id)) continue;
+      HISTORY[w.id].push(_dbMsgToLocal(m, w));
+      _chatLastTs[w.id] = m.created_at;
+      if(AW && AW.id === w.id){
+        changed = true;
+      } else if(m.sender_id !== GB_USER.id){
+        // ワーカー発の未読
+        w.unread = (w.unread || 0) + 1;
+        listChanged = true;
+      }
+    }
+    if(changed) renderMessages();
+    if(listChanged && typeof renderCL === 'function') renderCL();
+  }catch(e){ console.warn('[admin poll]', e); }
+}
+// 5秒ごとに統合ポーリング
+setInterval(pollAdminMessages, 5000);
+setTimeout(pollAdminMessages, 1500);
+
 // ── Realtime 購読（管理者） ─────────────────────────────────────
 (async () => {
   if (typeof GBRealtime === 'undefined' || !GB_USER?.id) return;
@@ -3008,10 +3046,17 @@ SP('home');
       (newMsg) => {
         // ワーカーから管理者への新規メッセージ
         const w = WORKERS.find(x => x.authUserId === newMsg.sender_id);
-        if (!w) return;
+        if (!w) {
+          // WORKERS に未登録 → 強制再フェッチで補完して再描画（次回のpollMessages待ち）
+          console.warn('[Realtime] sender not in WORKERS:', newMsg.sender_id);
+          return;
+        }
         if (!HISTORY[w.id]) HISTORY[w.id] = [{t:'sys',txt:'チャット開始'}];
+        // 重複排除
+        if (HISTORY[w.id].find(x => x._id === newMsg.id)) return;
         HISTORY[w.id].push(_dbMsgToLocal(newMsg, w));
         _chatLastTs[w.id] = newMsg.created_at;
+        if (newMsg.created_at > _adminLastMsgTs) _adminLastMsgTs = newMsg.created_at;
         // 表示中のチャットなら即時描画
         if (AW && AW.id === w.id) renderMessages();
         else { w.unread = (w.unread || 0) + 1; renderCL(); }

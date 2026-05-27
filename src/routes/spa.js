@@ -1503,6 +1503,30 @@ router.put('/api/daily-reports/:id', requireAuth, async (req, res) => {
   res.json({ ok: true })
 })
 
+// ── 管理者向け統合チャットポーリング ────────────────────────────
+// GET /app/api/messages/recent?since=ISO
+//   会社内の最近のメッセージを一括取得（admin側の全チャット更新用）
+//   since 省略時は直近5分
+router.get('/api/messages/recent', requireAuth, async (req, res) => {
+  const companyId = req.profile?.company_id
+  if (!companyId) return res.json({ ok: true, messages: [] })
+
+  const since = req.query.since
+    || new Date(Date.now() - 5 * 60 * 1000).toISOString()
+
+  const sb = createAdminClient()
+  const { data, error } = await sb
+    .from('messages')
+    .select('id, sender_id, receiver_id, body, translated, is_read, created_at, attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size')
+    .eq('company_id', companyId)
+    .gt('created_at', since)
+    .order('created_at', { ascending: true })
+    .limit(200)
+
+  if (error) return res.status(500).json({ ok: false, error: error.message })
+  res.json({ ok: true, messages: data || [] })
+})
+
 // ── チャット添付アップロード ──────────────────────────────────────
 // POST /app/api/chat/upload — 管理者から画像/ファイル
 const _chatUploadAdmin = multer({
