@@ -479,86 +479,96 @@ router.post('/api/messages/read', requireWorkerAuth, requireWorker, async (req, 
 
 // GET /worker/api/messages?after=<ISO>
 router.get('/api/messages', requireWorkerAuth, requireWorker, async (req, res) => {
-  const companyId = req.profile?.company_id
-  const userId    = req.user?.id
-  const after     = req.query.after  // 未読チェック用タイムスタンプ
-
-  let query = adminClient()
-    .from('messages')
-    .select('id, sender_id, receiver_id, body, translated, is_read, created_at, attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size')
-    .eq('company_id', companyId)
-    .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-    .order('created_at', { ascending: true })
-    .limit(100)
-
-  if (after) query = query.gt('created_at', after)
-
-  const { data, error } = await query
-  if (error) return res.status(500).json({ ok: false, error: error.message })
-
-  // 添付の署名URLが期限切れの場合は再発行
-  const sbAdmin = adminClient()
-  for (const m of (data || [])) {
-    if (m.attachment_path && (!m.attachment_url || isExpiredSignedUrl(m.attachment_url))) {
-      try {
-        const { data: signed } = await sbAdmin.storage
-          .from('documents').createSignedUrl(m.attachment_path, 60 * 60 * 24)
-        if (signed?.signedUrl) m.attachment_url = signed.signedUrl
-      } catch {}
-    }
-  }
-
-  res.json({ ok: true, messages: data || [] })
-})
-
-// 署名URL が 24h 以内かを大雑把に判定
-function isExpiredSignedUrl(url) {
-  if (!url) return true
   try {
-    const u = new URL(url)
-    const exp = parseInt(u.searchParams.get('token')?.split('.')[1] || '0', 10)
-    // 単純化: token が無ければ期限切れ扱いにせず元のURLを返す
-    return false
-  } catch { return false }
-}
+    const companyId = req.profile?.company_id
+    const userId    = req.user?.id
+    const after     = req.query.after
+
+    const sb = adminClient()
+    const fullCols = 'id, sender_id, receiver_id, body, translated, is_read, created_at, attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size'
+    const baseCols = 'id, sender_id, receiver_id, body, translated, is_read, created_at'
+
+    const baseQ = (cols) => {
+      let q = sb.from('messages').select(cols)
+        .eq('company_id', companyId)
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .order('created_at', { ascending: true })
+        .limit(100)
+      if (after) q = q.gt('created_at', after)
+      return q
+    }
+
+    let { data, error } = await baseQ(fullCols)
+    if (error && /column .* does not exist|attachment_/i.test(error.message || '')) {
+      ;({ data, error } = await baseQ(baseCols))
+    }
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+
+    res.json({ ok: true, messages: data || [] })
+  } catch (e) {
+    console.error('[/worker/api/messages] exception:', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
 
 // POST /worker/api/messages
 router.post('/api/messages', requireWorkerAuth, requireWorker, async (req, res) => {
-  const companyId = req.profile?.company_id
-  const workerId  = req.profile?.worker_id
-  const userId    = req.user?.id
-  const {
-    body, translated, receiver_id,
-    attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size,
-  } = req.body
+  try {
+    const companyId = req.profile?.company_id
+    const workerId  = req.profile?.worker_id
+    const userId    = req.user?.id
+    const {
+      body, translated, receiver_id,
+      attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size,
+    } = req.body
 
-  const hasBody       = body && body.trim().length > 0
-  const hasAttachment = !!attachment_path
-  if (!hasBody && !hasAttachment) {
-    return res.json({ ok: false, error: 'メッセージまたは添付ファイルが必要です' })
-  }
+    const hasBody       = body && body.trim().length > 0
+    const hasAttachment = !!attachment_path
+    if (!hasBody && !hasAttachment) {
+      return res.json({ ok: false, error: 'メッセージまたは添付ファイルが必要です' })
+    }
 
-  const { data, error } = await adminClient()
-    .from('messages')
-    .insert({
+    // 基本フィールド
+    const row = {
       company_id:  companyId,
       sender_id:   userId,
       receiver_id: receiver_id || null,
       worker_id:   workerId || null,
-      body:        hasBody ? body.trim() : null,
+      body:        hasBody ? body.trim() : '',  // body NOT NULL の旧スキーマ互換のため空文字
       translated:  translated || null,
-      attachment_url:   attachment_url   || null,
-      attachment_path:  attachment_path  || null,
-      attachment_type:  attachment_type  || null,
-      attachment_mime:  attachment_mime  || null,
-      attachment_name:  attachment_name  || null,
-      attachment_size:  attachment_size  || null,
-    })
-    .select('id, created_at, attachment_url, attachment_type, attachment_mime, attachment_name')
-    .single()
+    }
+    // ★ 添付付きの場合のみ attachment_* カラムを含める
+    //   (migration 009 未実行時に「カラム存在しない」エラーを避けるため)
+    if (hasAttachment) {
+      row.attachment_url   = attachment_url   || null
+      row.attachment_path  = attachment_path  || null
+      row.attachment_type  = attachment_type  || null
+      row.attachment_mime  = attachment_mime  || null
+      row.attachment_name  = attachment_name  || null
+      row.attachment_size  = attachment_size  || null
+    }
 
-  if (error) return res.json({ ok: false, error: error.message })
-  res.json({ ok: true, message: data })
+    let { data, error } = await adminClient()
+      .from('messages')
+      .insert(row)
+      .select('id, created_at')
+      .single()
+
+    // 添付カラム存在しない（migration 009 未実行）→ 添付を除いて再試行
+    if (error && hasAttachment && /column .* does not exist|attachment_/i.test(error.message || '')) {
+      const fallback = {
+        company_id: row.company_id, sender_id: row.sender_id, receiver_id: row.receiver_id,
+        worker_id: row.worker_id, body: row.body || '[画像]', translated: row.translated,
+      }
+      ;({ data, error } = await adminClient().from('messages').insert(fallback).select('id, created_at').single())
+    }
+
+    if (error) return res.json({ ok: false, error: error.message })
+    res.json({ ok: true, message: data })
+  } catch (e) {
+    console.error('[POST /worker/api/messages] exception:', e.message)
+    res.json({ ok: false, error: e.message })
+  }
 })
 
 // POST /worker/api/chat/upload — チャット用画像/ファイルアップロード

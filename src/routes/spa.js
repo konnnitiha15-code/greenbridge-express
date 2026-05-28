@@ -1348,23 +1348,35 @@ router.post('/api/messages', requireAuth, requireAdmin, async (req, res) => {
   }
 
   const sbAdmin = createAdminClient()
-  const { data, error } = await sbAdmin
+  const row = {
+    company_id:  companyId,
+    sender_id:   adminUserId,
+    receiver_id: worker_user_id,
+    body:        hasBody ? body.trim() : '',  // 旧スキーマ body NOT NULL 互換
+    translated:  translated || null,
+  }
+  if (hasAttachment) {
+    row.attachment_url   = attachment_url   || null
+    row.attachment_path  = attachment_path  || null
+    row.attachment_type  = attachment_type  || null
+    row.attachment_mime  = attachment_mime  || null
+    row.attachment_name  = attachment_name  || null
+    row.attachment_size  = attachment_size  || null
+  }
+
+  let { data, error } = await sbAdmin
     .from('messages')
-    .insert({
-      company_id:  companyId,
-      sender_id:   adminUserId,
-      receiver_id: worker_user_id,
-      body:        hasBody ? body.trim() : null,
-      translated:  translated || null,
-      attachment_url:   attachment_url   || null,
-      attachment_path:  attachment_path  || null,
-      attachment_type:  attachment_type  || null,
-      attachment_mime:  attachment_mime  || null,
-      attachment_name:  attachment_name  || null,
-      attachment_size:  attachment_size  || null,
-    })
-    .select('id, created_at, attachment_url, attachment_type, attachment_mime, attachment_name')
+    .insert(row)
+    .select('id, created_at')
     .single()
+
+  if (error && hasAttachment && /column .* does not exist|attachment_/i.test(error.message || '')) {
+    const fallback = {
+      company_id: row.company_id, sender_id: row.sender_id, receiver_id: row.receiver_id,
+      body: row.body || '[画像]', translated: row.translated,
+    }
+    ;({ data, error } = await sbAdmin.from('messages').insert(fallback).select('id, created_at').single())
+  }
 
   if (error) return res.status(500).json({ error: error.message })
 
@@ -1391,42 +1403,55 @@ router.post('/api/messages', requireAuth, requireAdmin, async (req, res) => {
 
 // GET /app/api/messages?worker_user_id=xxx&after=ISO — 管理者とワーカー間のメッセージ取得
 router.get('/api/messages', requireAuth, requireAdmin, async (req, res) => {
-  const companyId   = req.profile?.company_id
-  const adminUserId = req.user?.id
-  const { worker_user_id, after } = req.query
+  try {
+    const companyId   = req.profile?.company_id
+    const adminUserId = req.user?.id
+    const { worker_user_id, after } = req.query
 
-  if (!worker_user_id)
-    return res.status(400).json({ error: 'worker_user_id は必須です' })
+    if (!worker_user_id)
+      return res.status(400).json({ error: 'worker_user_id は必須です' })
 
-  let query = createAdminClient()
-    .from('messages')
-    .select('id, sender_id, receiver_id, body, translated, is_read, created_at, attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size')
-    .eq('company_id', companyId)
-    .or(
-      `and(sender_id.eq.${adminUserId},receiver_id.eq.${worker_user_id}),` +
-      `and(sender_id.eq.${worker_user_id},receiver_id.eq.${adminUserId})`
-    )
-    .order('created_at', { ascending: true })
-    .limit(100)
+    // ★ 添付カラム対応 (migration 009) 済みかどうか分からないので、まず全カラムで試し、
+    //   失敗（カラムなし等）したら基本カラムで再試行する
+    const baseFilter = (q) => q
+      .eq('company_id', companyId)
+      .or(
+        `and(sender_id.eq.${adminUserId},receiver_id.eq.${worker_user_id}),` +
+        `and(sender_id.eq.${worker_user_id},receiver_id.eq.${adminUserId})`
+      )
+      .order('created_at', { ascending: true })
+      .limit(100)
+    const withAfter = (q) => after ? q.gt('created_at', after) : q
 
-  if (after) query = query.gt('created_at', after)
+    const fullCols = 'id, sender_id, receiver_id, body, translated, is_read, created_at, attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size'
+    const baseCols = 'id, sender_id, receiver_id, body, translated, is_read, created_at'
 
-  const { data, error } = await query
-  if (error) return res.status(500).json({ error: error.message })
+    const sb = createAdminClient()
+    let data, error
+    ;({ data, error } = await withAfter(baseFilter(sb.from('messages').select(fullCols))))
+    if (error && /column .* does not exist|attachment_/i.test(error.message || '')) {
+      // 添付カラムが無い → migration 009 未実行 → 基本カラムで再試行
+      ;({ data, error } = await withAfter(baseFilter(sb.from('messages').select(baseCols))))
+    }
+    if (error) return res.status(500).json({ error: error.message })
 
-  // 未読を既読に更新（管理者が読んだので）
-  const unreadIds = (data || [])
-    .filter(m => m.sender_id === worker_user_id && !m.is_read)
-    .map(m => m.id)
-  if (unreadIds.length) {
-    await createAdminClient()
-      .from('messages')
-      .update({ is_read: true })
-      .in('id', unreadIds)
-      .catch(() => {})
+    // 未読を既読に更新（管理者が読んだので）
+    const unreadIds = (data || [])
+      .filter(m => m.sender_id === worker_user_id && !m.is_read)
+      .map(m => m.id)
+    if (unreadIds.length) {
+      await createAdminClient()
+        .from('messages')
+        .update({ is_read: true })
+        .in('id', unreadIds)
+        .catch(() => {})
+    }
+
+    res.json({ ok: true, messages: data || [] })
+  } catch (e) {
+    console.error('[/app/api/messages] exception:', e.message)
+    res.status(500).json({ ok: false, error: e.message })
   }
-
-  res.json({ ok: true, messages: data || [] })
 })
 
 // ── 日報 API（Admin用） ──────────────────────────────────────────
@@ -1505,26 +1530,34 @@ router.put('/api/daily-reports/:id', requireAuth, async (req, res) => {
 
 // ── 管理者向け統合チャットポーリング ────────────────────────────
 // GET /app/api/messages/recent?since=ISO
-//   会社内の最近のメッセージを一括取得（admin側の全チャット更新用）
-//   since 省略時は直近5分
 router.get('/api/messages/recent', requireAuth, async (req, res) => {
-  const companyId = req.profile?.company_id
-  if (!companyId) return res.json({ ok: true, messages: [] })
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.json({ ok: true, messages: [] })
 
-  const since = req.query.since
-    || new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const since = req.query.since
+      || new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
-  const sb = createAdminClient()
-  const { data, error } = await sb
-    .from('messages')
-    .select('id, sender_id, receiver_id, body, translated, is_read, created_at, attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size')
-    .eq('company_id', companyId)
-    .gt('created_at', since)
-    .order('created_at', { ascending: true })
-    .limit(200)
+    const sb = createAdminClient()
+    const fullCols = 'id, sender_id, receiver_id, body, translated, is_read, created_at, attachment_url, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size'
+    const baseCols = 'id, sender_id, receiver_id, body, translated, is_read, created_at'
 
-  if (error) return res.status(500).json({ ok: false, error: error.message })
-  res.json({ ok: true, messages: data || [] })
+    const baseQ = (cols) => sb.from('messages').select(cols)
+      .eq('company_id', companyId)
+      .gt('created_at', since)
+      .order('created_at', { ascending: true })
+      .limit(200)
+
+    let { data, error } = await baseQ(fullCols)
+    if (error && /column .* does not exist|attachment_/i.test(error.message || '')) {
+      ;({ data, error } = await baseQ(baseCols))
+    }
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    res.json({ ok: true, messages: data || [] })
+  } catch (e) {
+    console.error('[/api/messages/recent] exception:', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
 })
 
 // ── チャット添付アップロード ──────────────────────────────────────
