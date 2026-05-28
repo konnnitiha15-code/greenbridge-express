@@ -568,22 +568,26 @@ router.get('/api/dashboard/stats', requireAuth, async (req, res) => {
   const sb = createAdminClient()
   const today = new Date().toISOString().slice(0, 10)
 
+  // Supabase クエリビルダは .catch を持たないため、Promise でラップして安全化
+  const safe = (builder, fallback = { count: 0, data: [] }) =>
+    Promise.resolve(builder).then(r => r).catch(() => fallback)
+
   try {
     const [attRes, shiftReqRes, dailyRepRes, notifRes, msgRes, workerRes, todayNippoRes] = await Promise.all([
       // 今日の勤怠
-      sb.from('attendance_records').select('status', { count: 'exact' }).eq('company_id', companyId).eq('work_date', today),
+      safe(sb.from('attendance_records').select('status', { count: 'exact' }).eq('company_id', companyId).eq('work_date', today)),
       // pending シフト申請
-      sb.from('shift_requests').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'pending'),
+      safe(sb.from('shift_requests').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'pending')),
       // pending 日報
-      sb.from('daily_reports').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'pending').catch(()=>({count:0})),
+      safe(sb.from('daily_reports').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'pending')),
       // 未読通知
-      sb.from('notifications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('is_read', false),
+      safe(sb.from('notifications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('is_read', false)),
       // 未読メッセージ（ワーカー→管理者）
-      sb.from('messages').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('is_read', false),
+      safe(sb.from('messages').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('is_read', false)),
       // 全ワーカー数
-      sb.from('workers').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active'),
+      safe(sb.from('workers').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active')),
       // 本日の日報総数
-      sb.from('daily_reports').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('report_date', today).catch(()=>({count:0})),
+      safe(sb.from('daily_reports').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('report_date', today)),
     ])
 
     const attRecords = attRes.data || []

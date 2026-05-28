@@ -185,7 +185,7 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 
   <!-- ─── HOME ──────────────────────────────────────────── -->
   <div class="page on" id="page-home"><div class="pscroll">
-    <!-- グリーティング -->
+    <!-- ── グリーティング ──────────────────────────────────────── -->
     <div class="home-header">
       <div>
         <h1 class="home-greeting">おはようございます、<%= (profile?.full_name||'ゲスト').split(/[\s　]/)[0] %>さん 👋</h1>
@@ -197,141 +197,109 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
       </button>
     </div>
 
-    <!-- KPI -->
-    <div class="kpi-row">
-      <div class="kpi gn" onclick="SP('workers')" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--gbg)">👥</div>
-          <span class="badge bg" id="kpi-workers-sub">0名</span>
-        </div>
-        <div class="kpi-val" id="kpi-workers-val">0</div>
-        <div class="kpi-lbl">総実習生数</div>
-        <div class="kpi-sub kpi-sub--gn" id="kpi-workers-detail">-</div>
-      </div>
-      <div class="kpi bl" onclick="SP('chat')" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--bbg)">💬</div>
-          <span class="badge br" id="unread-kpi">0件</span>
-        </div>
-        <div class="kpi-val" id="unread-val">0</div>
-        <div class="kpi-lbl">未読メッセージ</div>
-        <div class="kpi-sub kpi-sub--muted">チャットを確認</div>
-      </div>
-      <div class="kpi am" onclick="SP('docs')" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--abg)">📄</div>
-          <span class="badge bb">書類</span>
-        </div>
-        <div class="kpi-val" id="doc-kpi-val">0</div>
-        <div class="kpi-lbl">登録書類数</div>
-        <div class="kpi-sub kpi-sub--muted" id="doc-kpi-sub">-</div>
-      </div>
-      <div class="kpi rd" onclick="showExpireAlerts()" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--rbg)">⏰</div>
-          <span class="badge br" id="expire-kpi-badge">0件</span>
-        </div>
-        <div class="kpi-val" id="expire-kpi-val">0</div>
-        <div class="kpi-lbl">在留期限通知</div>
-        <div class="kpi-sub kpi-sub--muted" id="expire-kpi-sub">クリックで詳細</div>
-      </div>
+    <!-- ── 1. ⚠ 今日対応すべきこと（Action Bar）─ Tier1 最優先 ── -->
+    <div class="home-section-hdr">今日対応すべきこと</div>
+    <div class="action-bar" id="home-action-bar">
+      <div class="action-bar-empty">読み込み中...</div>
     </div>
 
-    <!-- 勤怠KPIカード（管理者向け） -->
     <% if (profile?.role === 'admin') { %>
-    <div class="kpi-row" style="margin-top:0">
-      <div class="kpi gn" onclick="SP('attend')" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--gbg)">✅</div>
-          <span class="badge bg">本日</span>
+    <!-- ── 2. 📊 今日の状況（Today Strip）─ Tier3 compact統計 ── -->
+    <div class="home-section-hdr">今日の状況</div>
+    <div class="today-strip">
+      <div class="stat-mini" onclick="SP('attend')" style="cursor:pointer">
+        <div class="stat-mini-ico" style="background:var(--gbg);color:var(--gn)">✓</div>
+        <div class="stat-mini-body">
+          <div class="stat-mini-val" id="home-att-present">-</div>
+          <div class="stat-mini-lbl">本日出勤</div>
         </div>
-        <div class="kpi-val" id="home-att-present">-</div>
-        <div class="kpi-lbl">本日の出勤人数</div>
-        <div class="kpi-sub kpi-sub--gn">クリックで勤怠管理へ</div>
       </div>
-      <div class="kpi rd" onclick="SP('attend')" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--rbg)">❌</div>
-          <span class="badge br">本日</span>
+      <div class="stat-mini" onclick="SP('attend')" style="cursor:pointer">
+        <div class="stat-mini-ico" style="background:#fee2e2;color:#dc2626">✗</div>
+        <div class="stat-mini-body">
+          <div class="stat-mini-val" id="home-att-absent">-</div>
+          <div class="stat-mini-lbl">未出勤</div>
         </div>
-        <div class="kpi-val" id="home-att-absent">-</div>
-        <div class="kpi-lbl">未出勤人数</div>
-        <div class="kpi-sub kpi-sub--muted">欠勤・未登録</div>
       </div>
-      <div class="kpi am" onclick="SP('attend')" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--abg)">⏰</div>
-          <span class="badge ba">本日</span>
+      <div class="stat-mini" onclick="SP('attend')" style="cursor:pointer">
+        <div class="stat-mini-ico" style="background:#fef3c7;color:#b45309">⏰</div>
+        <div class="stat-mini-body">
+          <div class="stat-mini-val" id="home-att-late">-</div>
+          <div class="stat-mini-lbl">遅刻</div>
         </div>
-        <div class="kpi-val" id="home-att-late">-</div>
-        <div class="kpi-lbl">遅刻人数</div>
-        <div class="kpi-sub kpi-sub--muted">本日の遅刻者</div>
       </div>
-      <div class="kpi bl" onclick="SP('attend')" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--bbg)">📊</div>
-          <span class="badge bb">本日</span>
+      <div class="stat-mini" onclick="SP('attend')" style="cursor:pointer">
+        <div class="stat-mini-ico" style="background:#dbeafe;color:#1d4ed8">📊</div>
+        <div class="stat-mini-body">
+          <div class="stat-mini-val" id="home-att-rate">-%</div>
+          <div class="stat-mini-lbl">出勤率</div>
         </div>
-        <div class="kpi-val" id="home-att-rate">-%</div>
-        <div class="kpi-lbl">出勤率</div>
-        <div class="kpi-sub kpi-sub--muted">出勤＋遅刻含む</div>
       </div>
-    </div>
-
-    <!-- 申請待ち・未読通知（管理者向け） -->
-    <div class="kpi-row" style="margin-top:0">
-      <div class="kpi am" onclick="SP('shift')" style="cursor:pointer;position:relative">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--abg)">📋</div>
-          <span class="badge ba" id="kpi-pending-sub">-</span>
+      <div class="stat-mini" onclick="SP('workers')" style="cursor:pointer">
+        <div class="stat-mini-ico" style="background:#f1f5f9;color:#475569">👥</div>
+        <div class="stat-mini-body">
+          <div class="stat-mini-val" id="kpi-workers-val">-</div>
+          <div class="stat-mini-lbl">在籍実習生</div>
         </div>
-        <div class="kpi-val" id="kpi-pending-val">0</div>
-        <div class="kpi-lbl">申請待ち</div>
-        <div class="kpi-sub kpi-sub--muted">クリックで対応</div>
       </div>
-      <div class="kpi rd" onclick="openNotificationCenter()" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--rbg)">🔔</div>
-          <span class="badge br" id="kpi-unread-sub">-</span>
+      <div class="stat-mini" onclick="SP('nippo')" style="cursor:pointer">
+        <div class="stat-mini-ico" style="background:#ecfdf5;color:var(--gn)">📝</div>
+        <div class="stat-mini-body">
+          <div class="stat-mini-val" id="kpi-nippo-val">-</div>
+          <div class="stat-mini-lbl">本日の日報</div>
         </div>
-        <div class="kpi-val" id="kpi-unread-val">0</div>
-        <div class="kpi-lbl">未読通知</div>
-        <div class="kpi-sub kpi-sub--muted">クリックで全表示</div>
-      </div>
-      <div class="kpi gn" onclick="SP('nippo')" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--gbg)">📝</div>
-          <span class="badge bg">日報</span>
-        </div>
-        <div class="kpi-val" id="kpi-nippo-val">-</div>
-        <div class="kpi-lbl">本日の日報</div>
-        <div class="kpi-sub kpi-sub--muted">クリックで日報管理へ</div>
-      </div>
-      <div class="kpi bl" onclick="SP('chat')" style="cursor:pointer">
-        <div class="kpi-top">
-          <div class="kpi-ico" style="background:var(--bbg)">💬</div>
-          <span class="badge bb">未読</span>
-        </div>
-        <div class="kpi-val" id="kpi-msg-val">0</div>
-        <div class="kpi-lbl">メッセージ</div>
-        <div class="kpi-sub kpi-sub--muted">ワーカーからの新着</div>
       </div>
     </div>
     <% } %>
 
-    <!-- メインコンテンツグリッド -->
+    <!-- 旧 KPI のID互換用 (非表示) — JS が書き込むので残す -->
+    <div style="display:none">
+      <span id="kpi-workers-sub"></span>
+      <span id="kpi-workers-detail"></span>
+      <span id="unread-kpi"></span>
+      <span id="unread-val"></span>
+      <span id="doc-kpi-val"></span>
+      <span id="doc-kpi-sub"></span>
+      <span id="expire-kpi-badge"></span>
+      <span id="expire-kpi-val"></span>
+      <span id="expire-kpi-sub"></span>
+      <span id="kpi-pending-val"></span>
+      <span id="kpi-pending-sub"></span>
+      <span id="kpi-unread-val"></span>
+      <span id="kpi-unread-sub"></span>
+      <span id="kpi-msg-val"></span>
+    </div>
+
+    <!-- ── 3. メイングリッド（2カラム）──────────────────────────── -->
     <div class="home-grid">
-      <div class="card">
-        <div class="card-hdr">
-          <span class="card-title">⏰ 在留期限アラート</span>
-          <button class="btn btn-sm" onclick="SP('workers')">一覧 →</button>
+      <div class="home-main">
+        <!-- ⏰ 在留期限アラート — Tier2 中 -->
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">⏰ 在留期限アラート</span>
+            <button class="btn btn-sm" onclick="SP('workers')">一覧 →</button>
+          </div>
+          <div id="home-expire-list" class="card-body">
+            <div class="empty-state" style="padding:18px 0">
+              <p>期限切れ・期限間近の実習生がいません ✅</p>
+            </div>
+          </div>
         </div>
-        <div id="home-expire-list" class="card-body">
-          <div class="empty-state" style="padding:24px 0">
-            <p>期限切れ・期限間近の実習生がいません ✅</p>
+
+        <!-- 🔄 最近の活動 — Tier2 動的Feed -->
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">🔄 最近の活動</span>
+            <span style="font-size:11px;color:var(--t3)">自動更新</span>
+          </div>
+          <div id="home-activity-feed" class="card-body">
+            <div class="skeleton" style="height:24px;margin-bottom:8px"></div>
+            <div class="skeleton" style="height:24px;width:85%;margin-bottom:8px"></div>
+            <div class="skeleton" style="height:24px;width:75%"></div>
           </div>
         </div>
       </div>
+
       <div class="home-side">
         <% if (profile?.role === 'admin') { %>
         <div class="card">
@@ -340,8 +308,8 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
             <button class="btn btn-sm" onclick="SP('attend')">一覧 →</button>
           </div>
           <div id="home-att-recent" class="card-body">
-            <div class="skeleton" style="height:40px;margin-bottom:8px"></div>
-            <div class="skeleton" style="height:40px;width:90%"></div>
+            <div class="skeleton" style="height:36px;margin-bottom:6px"></div>
+            <div class="skeleton" style="height:36px;width:90%"></div>
           </div>
         </div>
         <% } %>

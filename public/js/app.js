@@ -227,8 +227,9 @@ function SP(id){
   if(id==='tasks') renderKanban();
   if(id==='home'){
     refreshHomeKPIs();
-    loadAttendStats();  // 勤怠統計も最新化
-    loadDashboardStats();  // 申請待ち件数・未読通知などを取得
+    loadAttendStats();        // 勤怠統計も最新化
+    loadDashboardStats();     // 申請待ち件数・未読通知 + Action Bar 再構築
+    loadActivityFeed();       // 最近の活動 Feed
   }
   if(id==='shift') rerenderShiftTable();
   if(id==='attend') initAttendPage();
@@ -325,7 +326,103 @@ async function loadDashboardStats(){
         navBadge.style.display = 'none';
       }
     }
+
+    // ★ Action Bar (今日対応すべきこと) を再構築
+    renderActionBar(s);
   }catch(e){ console.warn('[dashboard] stats error:', e); }
+}
+
+// ── Action Bar: 今日対応すべき項目を動的生成 ────────────────────
+function renderActionBar(stats){
+  const bar = document.getElementById('home-action-bar');
+  if (!bar) return;
+  const items = [];
+
+  const pendingTotal = (stats?.pending?.shiftRequests || 0) + (stats?.pending?.dailyReports || 0);
+  if (pendingTotal > 0) {
+    items.push({
+      ico: '📋', label: '未承認申請', count: pendingTotal,
+      color: 'amber', onclick: "SP('shift')",
+    });
+  }
+
+  // 在留期限アラート
+  const expireAlerts = (typeof checkExpireAlerts === 'function') ? checkExpireAlerts() : [];
+  const urgent = expireAlerts.filter(a => a.level === 'expired' || a.level === 'urgent').length;
+  if (urgent > 0) {
+    items.push({
+      ico: '⏰', label: '在留期限が近い', count: urgent,
+      color: 'red', onclick: 'showExpireAlerts()',
+    });
+  }
+
+  const unrNotif = stats?.unread?.notifications || 0;
+  if (unrNotif > 0) {
+    items.push({
+      ico: '🔔', label: '未読通知', count: unrNotif,
+      color: 'red', onclick: 'openNotificationCenter()',
+    });
+  }
+
+  const unrMsg = stats?.unread?.messages || 0;
+  if (unrMsg > 0) {
+    items.push({
+      ico: '💬', label: '未読メッセージ', count: unrMsg,
+      color: 'blue', onclick: "SP('chat')",
+    });
+  }
+
+  if (items.length === 0) {
+    bar.innerHTML = '<div class="action-bar-empty">✓ 今日対応すべき項目はありません</div>';
+    return;
+  }
+  bar.innerHTML = items.map(it => `
+    <div class="alert-chip ${it.color}" onclick="${it.onclick}">
+      <div class="alert-chip-ico">${it.ico}</div>
+      <div class="alert-chip-text">
+        <span class="alert-chip-label">${it.label}</span>
+        <span class="alert-chip-count">${it.count}<span style="font-size:13px;font-weight:600;margin-left:3px;opacity:.7">件</span></span>
+      </div>
+      <span class="alert-chip-arrow">→</span>
+    </div>
+  `).join('');
+}
+
+// ── 最近の活動Feed ──────────────────────────────────────────
+async function loadActivityFeed(){
+  const feed = document.getElementById('home-activity-feed');
+  if (!feed) return;
+  try {
+    const r = await fetch('/app/api/notifications');
+    const j = await r.json();
+    if (!j.ok) return;
+    const items = (j.notifications || []).slice(0, 8);
+    if (!items.length) {
+      feed.innerHTML = '<div class="empty-state" style="padding:14px 0;color:var(--t3);font-size:12.5px">最近の活動はありません</div>';
+      return;
+    }
+    feed.innerHTML = '<div class="activity-feed">' + items.map(n => {
+      const cls = n.type === 'alert' ? 'alert' : (n.type === 'approval' ? '' : 'info');
+      const ago = _fmtAgo(n.created_at);
+      const title = (n.title || '').replace(/</g,'&lt;');
+      const body  = (n.body  || '').replace(/</g,'&lt;');
+      return `<div class="activity-row" onclick="openNotificationCenter()">
+        <div class="activity-dot ${cls}">●</div>
+        <div class="activity-body">
+          <div class="activity-title">${title}${body ? ' — ' + body : ''}</div>
+          <div class="activity-time">${ago}</div>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+  } catch (e) { console.warn('[activity feed]', e); }
+}
+function _fmtAgo(iso){
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000) return 'たった今';
+  if (diff < 3600000) return Math.floor(diff/60000) + '分前';
+  if (diff < 86400000) return Math.floor(diff/3600000) + '時間前';
+  if (diff < 604800000) return Math.floor(diff/86400000) + '日前';
+  return new Date(iso).toLocaleDateString('ja-JP');
 }
 
 // ── ホームKPI ────────────────────────────────────────────────────────────────
@@ -3104,11 +3201,14 @@ setTimeout(pollAdminMessages, 1500);
         toast(n.title || '通知', n.body || '', n.type === 'alert' ? 'r' : 'b');
       }
       loadDashboardStats();
+      // ホーム画面が見えていれば活動Feedも更新
+      const home = document.getElementById('page-home');
+      if (home && home.style.display !== 'none') loadActivityFeed();
     });
 
     // 5. シフト申請・日報の変更
-    await GBRealtime.subscribeShiftRequests(() => loadDashboardStats());
-    await GBRealtime.subscribeDailyReports(() => loadDashboardStats());
+    await GBRealtime.subscribeShiftRequests(() => { loadDashboardStats(); loadActivityFeed(); });
+    await GBRealtime.subscribeDailyReports(() => { loadDashboardStats(); loadActivityFeed(); });
 
     console.log('[Realtime] admin subscriptions active');
   } catch (e) {
