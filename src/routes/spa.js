@@ -358,12 +358,14 @@ router.put('/api/shift-requests/:id', requireAuth, async (req, res) => {
   // 承認時はshiftsにも反映 + ワーカーに通知
   if (reqRow) {
     if (status === 'approved') {
-      await sbAdmin.from('shifts').upsert({
-        company_id: companyId,
-        worker_id:  reqRow.worker_id,
-        date:       reqRow.date,
-        shift_type: reqRow.shift_type,
-      }, { onConflict: 'worker_id,date' }).catch(()=>{})
+      try {
+        await sbAdmin.from('shifts').upsert({
+          company_id: companyId,
+          worker_id:  reqRow.worker_id,
+          date:       reqRow.date,
+          shift_type: reqRow.shift_type,
+        }, { onConflict: 'worker_id,date' })
+      } catch {}
     }
     // ワーカーへ通知
     const notif = {
@@ -373,7 +375,7 @@ router.put('/api/shift-requests/:id', requireAuth, async (req, res) => {
       body:       `${reqRow.date} の ${reqRow.shift_type}`,
       type:       status === 'approved' ? 'approval' : 'info',
     }
-    await sbAdmin.from('notifications').insert(notif).catch(()=>{})
+    try { await sbAdmin.from('notifications').insert(notif) } catch {}
     push.sendFromNotification({ ...notif, url: '/worker?tab=shift' }).catch(()=>{})
   }
 
@@ -1440,11 +1442,14 @@ router.get('/api/messages', requireAuth, requireAdmin, async (req, res) => {
       .filter(m => m.sender_id === worker_user_id && !m.is_read)
       .map(m => m.id)
     if (unreadIds.length) {
-      await createAdminClient()
-        .from('messages')
-        .update({ is_read: true })
-        .in('id', unreadIds)
-        .catch(() => {})
+      try {
+        await createAdminClient()
+          .from('messages')
+          .update({ is_read: true })
+          .in('id', unreadIds)
+      } catch (e) {
+        console.warn('[messages] mark as read failed:', e.message)
+      }
     }
 
     res.json({ ok: true, messages: data || [] })
@@ -1522,7 +1527,7 @@ router.put('/api/daily-reports/:id', requireAuth, async (req, res) => {
       body:       `${rep.report_date} の日報が承認済みになりました`,
       type:       'approval',
     }
-    await sbAdmin.from('notifications').insert(notif).catch(()=>{})
+    try { await sbAdmin.from('notifications').insert(notif) } catch {}
     push.sendFromNotification({ ...notif, url: '/worker?tab=daily' }).catch(()=>{})
   }
   res.json({ ok: true })
