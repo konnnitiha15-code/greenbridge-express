@@ -595,12 +595,14 @@ router.get('/api/dashboard/stats', requireAuth, async (req, res) => {
     const late    = attRecords.filter(r => r.status === 'late').length
     const absent  = attRecords.filter(r => r.status === 'absent').length
     const totalWorkers = workerRes.count || 0
+    // 未打刻 = 在籍数 − (出勤 + 遅刻 + 欠勤)。負値はゼロ扱い
+    const unpunched = Math.max(0, totalWorkers - (present + late + absent))
     const rate = totalWorkers > 0 ? Math.round(((present + late) / totalWorkers) * 100) : 0
 
     res.json({
       ok: true,
       stats: {
-        attendance: { present, late, absent, total: totalWorkers, rate },
+        attendance: { present, late, absent, unpunched, total: totalWorkers, rate },
         pending: {
           shiftRequests: shiftReqRes.count || 0,
           dailyReports:  dailyRepRes.count || 0,
@@ -1535,6 +1537,87 @@ router.put('/api/daily-reports/:id', requireAuth, async (req, res) => {
     push.sendFromNotification({ ...notif, url: '/worker?tab=daily' }).catch(()=>{})
   }
   res.json({ ok: true })
+})
+
+// ── ホームタイムライン: 今日の出来事を統合 ─────────────────────────
+// GET /app/api/home/activity
+//   勤怠(打刻) / 日報 / シフト申請 / 通知 を統合して時系列で返す
+router.get('/api/home/activity', requireAuth, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.json({ ok: true, events: [] })
+
+    const sb = createAdminClient()
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' })
+    const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+    const safe = (b, fb = { data: [] }) => Promise.resolve(b).then(r => r).catch(() => fb)
+    const [att, reports, shiftReqs] = await Promise.all([
+      safe(sb.from('attendance_records')
+        .select('id, work_date, clock_in, clock_out, status, worker_id, workers(name)')
+        .eq('company_id', companyId)
+        .eq('work_date', today)
+        .order('clock_in', { ascending: false, nullsFirst: false })
+        .limit(15)),
+      safe(sb.from('daily_reports')
+        .select('id, type, status, created_at, content, worker_id, workers(name)')
+        .eq('company_id', companyId)
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(10)),
+      safe(sb.from('shift_requests')
+        .select('id, date, shift_type, status, created_at, worker_id, workers(name)')
+        .eq('company_id', companyId)
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(10)),
+    ])
+
+    const events = []
+    ;(att.data || []).forEach(a => {
+      const name = a.workers?.name || '実習生'
+      if (a.clock_in) events.push({
+        time: a.clock_in, type: 'attendance',
+        icon: '✓', color: a.status === 'late' ? 'warn' : 'success',
+        actor: name,
+        action: a.status === 'late' ? '遅刻出勤しました' : '出勤しました',
+        typeLabel: '勤怠',
+      })
+      if (a.clock_out) events.push({
+        time: a.clock_out, type: 'attendance',
+        icon: '⏏', color: 'muted',
+        actor: name, action: '退勤しました',
+        typeLabel: '勤怠',
+      })
+    })
+    ;(reports.data || []).forEach(r => {
+      const name = r.workers?.name || '実習生'
+      events.push({
+        time: r.created_at, type: 'report',
+        icon: r.type === 'hayari' ? '⚠' : '📝',
+        color:  r.type === 'hayari' ? 'alert' : 'info',
+        actor: name,
+        action: r.type === 'hayari' ? 'ヒヤリ・ハットを報告' : '日報を提出',
+        typeLabel: r.type === 'hayari' ? 'ヒヤリ' : '日報',
+      })
+    })
+    ;(shiftReqs.data || []).forEach(s => {
+      const name = s.workers?.name || '実習生'
+      events.push({
+        time: s.created_at, type: 'shift',
+        icon: '🗓', color: 'warn',
+        actor: name,
+        action: `${s.date} ${s.shift_type} を申請`,
+        typeLabel: 'シフト',
+      })
+    })
+
+    events.sort((a, b) => new Date(b.time) - new Date(a.time))
+    res.json({ ok: true, events: events.slice(0, 15) })
+  } catch (e) {
+    console.error('[/api/home/activity] exception:', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
 })
 
 // ── 管理者向け統合チャットポーリング ────────────────────────────

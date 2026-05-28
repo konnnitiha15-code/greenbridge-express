@@ -329,7 +329,88 @@ async function loadDashboardStats(){
 
     // ★ Action Bar (今日対応すべきこと) を再構築
     renderActionBar(s);
+    // ★ 今日の申請 / 最近の異常 / 在留期限pill も同タイミングで更新
+    renderTodayApplications(s);
+    renderRecentAnomalies(s);
+    renderExpirePill();
   }catch(e){ console.warn('[dashboard] stats error:', e); }
+}
+
+// ── 在留期限 PILL: 件数で見た目を変える ───────────────────────────
+function renderExpirePill(){
+  const pill = document.getElementById('home-expire-pill');
+  const sub  = document.getElementById('expire-pill-sub');
+  if (!pill || !sub) return;
+  const alerts = (typeof checkExpireAlerts === 'function') ? checkExpireAlerts() : [];
+  const urgent = alerts.filter(a => a.level === 'expired' || a.level === 'urgent').length;
+  const warn   = alerts.filter(a => a.level === 'warn').length;
+
+  pill.classList.remove('warn', 'alert');
+  if (urgent > 0) {
+    pill.classList.add('alert');
+    sub.textContent = `⚠️ 緊急 ${urgent}件 — 即対応が必要です`;
+  } else if (warn > 0) {
+    pill.classList.add('warn');
+    sub.textContent = `期限間近 ${warn}件・要確認`;
+  } else {
+    sub.textContent = '正常 — 期限超過・期限間近なし ✓';
+  }
+}
+
+// ── 今日の申請カード: 申請内訳をリスト化 ───────────────────────────
+function renderTodayApplications(stats){
+  const wrap = document.getElementById('home-today-applications');
+  if (!wrap) return;
+  const shift  = stats?.pending?.shiftRequests || 0;
+  const report = stats?.pending?.dailyReports || 0;
+  const items = [
+    { ico: '🗓', label: 'シフト変更申請', sub: '承認待ち',     count: shift,  onclick: "SP('shift')",  color: shift  > 0 ? 'amber' : null },
+    { ico: '📝', label: '日報・ヒヤリ',     sub: 'レビュー待ち', count: report, onclick: "SP('nippo')",  color: report > 0 ? 'amber' : null },
+  ];
+  if (items.every(i => i.count === 0)) {
+    wrap.innerHTML = '<div class="empty-row">本日の未対応はありません</div>';
+    return;
+  }
+  wrap.innerHTML = items.map(it => `
+    <div class="action-row ${it.color || ''} ${it.count > 0 ? 'has' : ''}" onclick="${it.onclick}">
+      <div class="action-row-ico">${it.ico}</div>
+      <div class="action-row-text">
+        <div class="action-row-title">${it.label}</div>
+        <div class="action-row-sub">${it.sub}</div>
+      </div>
+      <div class="action-row-count">${it.count}</div>
+    </div>
+  `).join('');
+}
+
+// ── 最近の異常カード: 遅刻/未打刻/未返信などを列挙 ─────────────────
+function renderRecentAnomalies(stats){
+  const wrap = document.getElementById('home-anomalies');
+  if (!wrap) return;
+  const items = [];
+  const late      = stats?.attendance?.late      || 0;
+  const absent    = stats?.attendance?.absent    || 0;
+  const unpunched = stats?.attendance?.unpunched || 0;
+  const unrMsg    = stats?.unread?.messages      || 0;
+  if (late > 0)      items.push({ ico: '⏰', label: '遅刻',          sub: '本日',    count: late,      color: 'amber', onclick: "SP('attend')" });
+  if (absent > 0)    items.push({ ico: '✗',  label: '欠勤',          sub: '本日',    count: absent,    color: 'red',   onclick: "SP('attend')" });
+  if (unpunched > 0) items.push({ ico: '⏱', label: '未打刻',        sub: '出勤情報なし', count: unpunched, color: 'amber', onclick: "SP('attend')" });
+  if (unrMsg > 0)    items.push({ ico: '💬', label: '未返信チャット', sub: 'ワーカー発', count: unrMsg,    color: 'blue',  onclick: "SP('chat')" });
+
+  if (!items.length) {
+    wrap.innerHTML = '<div class="empty-row">本日の異常は検知されていません</div>';
+    return;
+  }
+  wrap.innerHTML = items.map(it => `
+    <div class="action-row ${it.color} has" onclick="${it.onclick}">
+      <div class="action-row-ico">${it.ico}</div>
+      <div class="action-row-text">
+        <div class="action-row-title">${it.label}</div>
+        <div class="action-row-sub">${it.sub}</div>
+      </div>
+      <div class="action-row-count">${it.count}</div>
+    </div>
+  `).join('');
 }
 
 // ── Action Bar: 今日対応すべき項目を動的生成 ────────────────────
@@ -388,33 +469,45 @@ function renderActionBar(stats){
   `).join('');
 }
 
-// ── 最近の活動Feed ──────────────────────────────────────────
+// ── タイムライン (Slack風): 勤怠/日報/シフトを統合 ─────────────
 async function loadActivityFeed(){
   const feed = document.getElementById('home-activity-feed');
   if (!feed) return;
   try {
-    const r = await fetch('/app/api/notifications');
+    const r = await fetch('/app/api/home/activity');
     const j = await r.json();
     if (!j.ok) return;
-    const items = (j.notifications || []).slice(0, 8);
-    if (!items.length) {
-      feed.innerHTML = '<div class="empty-state" style="padding:14px 0;color:var(--t3);font-size:12.5px">最近の活動はありません</div>';
+    const events = j.events || [];
+    if (!events.length) {
+      feed.innerHTML = '<div class="empty-state" style="padding:14px 0;color:var(--t3);font-size:12.5px">本日のアクティビティはまだありません</div>';
       return;
     }
-    feed.innerHTML = '<div class="activity-feed">' + items.map(n => {
-      const cls = n.type === 'alert' ? 'alert' : (n.type === 'approval' ? '' : 'info');
-      const ago = _fmtAgo(n.created_at);
-      const title = (n.title || '').replace(/</g,'&lt;');
-      const body  = (n.body  || '').replace(/</g,'&lt;');
-      return `<div class="activity-row" onclick="openNotificationCenter()">
-        <div class="activity-dot ${cls}">●</div>
-        <div class="activity-body">
-          <div class="activity-title">${title}${body ? ' — ' + body : ''}</div>
-          <div class="activity-time">${ago}</div>
+    feed.innerHTML = '<div class="timeline">' + events.map((e, i) => {
+      const time   = _fmtTime(e.time);
+      const actor  = (e.actor  || '').replace(/</g,'&lt;');
+      const action = (e.action || '').replace(/</g,'&lt;');
+      const meta   = (e.typeLabel || '').replace(/</g,'&lt;');
+      const isLast = i === events.length - 1;
+      return `<div class="timeline-item">
+        <div class="timeline-time">${time}</div>
+        <div class="timeline-rail">
+          <span class="timeline-dot ${e.color || ''}">${e.icon || '●'}</span>
+          ${!isLast ? '<span class="timeline-line"></span>' : ''}
+        </div>
+        <div class="timeline-body">
+          <div class="timeline-text">
+            <span class="timeline-actor">${actor}</span><span class="timeline-action">${action}</span>
+          </div>
+          ${meta ? `<div class="timeline-meta">${meta}</div>` : ''}
         </div>
       </div>`;
     }).join('') + '</div>';
-  } catch (e) { console.warn('[activity feed]', e); }
+  } catch (e) { console.warn('[timeline]', e); }
+}
+function _fmtTime(iso){
+  try {
+    return new Date(iso).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
+  } catch { return ''; }
 }
 function _fmtAgo(iso){
   const diff = Date.now() - new Date(iso).getTime();

@@ -1354,6 +1354,161 @@ select.modal-inp   { cursor: pointer; }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
+   ADMIN HOME v3 — 実務向け監視UI（在留期限pill / Action Rows / Timeline）
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 在留期限 PILL（通常時は控えめ、異常時のみ赤）─────────────────── */
+.expire-pill {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  background: #fafbfc;
+  border: 1px solid var(--bd);
+  border-radius: var(--r-md);
+  margin-bottom: 16px;
+  transition: background .2s, border-color .2s;
+}
+.expire-pill-ico {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: #f1f5f9; color: var(--t2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.expire-pill-body { flex: 1; min-width: 0; }
+.expire-pill-title {
+  font-size: 11.5px; font-weight: 600; color: var(--t2);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.expire-pill-sub {
+  font-size: 13px; color: var(--t2); margin-top: 2px; font-weight: 500;
+}
+.expire-pill .btn { flex-shrink: 0; }
+
+.expire-pill.warn {
+  background: #fffbeb; border-color: #fcd34d;
+}
+.expire-pill.warn .expire-pill-ico { background: #fef3c7; color: #b45309; }
+.expire-pill.warn .expire-pill-title { color: #b45309; }
+.expire-pill.warn .expire-pill-sub { color: #92400e; }
+
+.expire-pill.alert {
+  background: linear-gradient(135deg, #fef2f2 0%, #ffffff 70%);
+  border-color: #fca5a5;
+  box-shadow: 0 0 0 1px #fca5a533;
+}
+.expire-pill.alert .expire-pill-ico { background: #fee2e2; color: var(--red); }
+.expire-pill.alert .expire-pill-title { color: var(--red); }
+.expire-pill.alert .expire-pill-sub { color: #b91c1c; font-weight: 600; }
+
+/* ── Action Rows: 今日の申請 / 最近の異常 ──────────────────────── */
+.action-rows { display: flex; flex-direction: column; }
+.action-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--bd);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background .15s, padding .15s;
+}
+.action-row:last-child { border-bottom: none; }
+.action-row:hover { background: #fafbfc; padding-left: 8px; padding-right: 8px; }
+.action-row-ico {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: #f1f5f9; color: var(--t2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.action-row.amber .action-row-ico { background: #fef3c7; color: #b45309; }
+.action-row.red   .action-row-ico { background: #fee2e2; color: #dc2626; }
+.action-row.blue  .action-row-ico { background: #dbeafe; color: #1d4ed8; }
+.action-row-text { flex: 1; min-width: 0; }
+.action-row-title { font-size: 13px; font-weight: 500; color: var(--tx); }
+.action-row-sub { font-size: 11px; color: var(--t3); margin-top: 1px; }
+.action-row-count {
+  font-size: 13px; font-weight: 700;
+  padding: 2px 11px; border-radius: 999px;
+  background: #f1f5f9; color: var(--t3);
+  min-width: 36px; text-align: center;
+}
+.action-row.has .action-row-count { background: #1e293b; color: #fff; }
+.action-row.amber .action-row-count { background: #fef3c7; color: #b45309; }
+.action-row.red   .action-row-count { background: #fee2e2; color: #b91c1c; }
+.action-row.blue  .action-row-count { background: #dbeafe; color: #1d4ed8; }
+
+.empty-row {
+  padding: 14px 4px; color: var(--t3); font-size: 12.5px;
+  display: flex; align-items: center; gap: 8px;
+}
+.empty-row::before {
+  content: '✓'; color: var(--gn); font-weight: 700;
+}
+
+/* ── Timeline UI: Slack/Discord風 ────────────────────────────── */
+.timeline { display: flex; flex-direction: column; padding: 4px 0; }
+.timeline-item {
+  display: grid;
+  grid-template-columns: 50px 24px 1fr;
+  gap: 10px;
+  padding: 8px 0;
+  align-items: flex-start;
+}
+.timeline-time {
+  font-size: 11px; color: var(--t3); font-weight: 600;
+  padding-top: 4px;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  letter-spacing: .02em;
+  text-align: right;
+}
+.timeline-rail {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  align-self: stretch;
+}
+.timeline-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #f1f5f9; color: var(--t2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  z-index: 1;
+  border: 2px solid var(--sf);
+  flex-shrink: 0;
+}
+.timeline-dot.success { background: var(--gbg); color: var(--gn); }
+.timeline-dot.warn    { background: #fef3c7; color: #b45309; }
+.timeline-dot.alert   { background: #fee2e2; color: var(--red); }
+.timeline-dot.info    { background: #dbeafe; color: #1d4ed8; }
+.timeline-dot.muted   { background: #f1f5f9; color: var(--t3); }
+.timeline-line {
+  width: 1.5px;
+  flex: 1;
+  background: var(--bd);
+  margin-top: 2px;
+  min-height: 14px;
+}
+.timeline-body {
+  padding-top: 2px;
+  min-width: 0;
+}
+.timeline-text {
+  font-size: 12.5px; color: var(--tx);
+  line-height: 1.45;
+}
+.timeline-actor { font-weight: 600; color: var(--tx); }
+.timeline-action { color: var(--t2); margin-left: 3px; }
+.timeline-meta {
+  font-size: 10.5px; color: var(--t3); margin-top: 2px;
+  text-transform: uppercase; letter-spacing: .04em;
+  font-weight: 600;
+}
+
+/* ── 軽量カードヘッダ (compact) ───────────────────────────────── */
+.card-hdr-compact {
+  padding: 10px 14px;
+}
+.card-body-compact {
+  padding: 6px 14px 12px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
    UTILITY
    ════════════════════════════════════════════════════════════════════════════ */
 

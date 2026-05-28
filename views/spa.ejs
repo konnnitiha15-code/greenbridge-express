@@ -11,7 +11,7 @@
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="apple-touch-icon" href="/icons/icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/style.css?v=20260528-home">
+<link rel="stylesheet" href="/css/style.css?v=20260528-home-v3">
 </head>
 <body>
 
@@ -270,29 +270,54 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
       <span id="kpi-msg-val"></span>
     </div>
 
-    <!-- ── 3. メイングリッド（2カラム）──────────────────────────── -->
+    <!-- ── 3. 在留期限 PILL — 通常時は控えめ、異常時のみ赤強調 ── -->
+    <div class="expire-pill" id="home-expire-pill" onclick="showExpireAlerts()" style="cursor:pointer">
+      <div class="expire-pill-ico">🪪</div>
+      <div class="expire-pill-body">
+        <div class="expire-pill-title">在留期限</div>
+        <div class="expire-pill-sub" id="expire-pill-sub">確認中...</div>
+      </div>
+      <button class="btn btn-sm" onclick="event.stopPropagation(); showExpireAlerts()">詳細</button>
+    </div>
+
+    <!-- ── 4. メイングリッド（2カラム）──────────────────────────── -->
     <div class="home-grid">
       <div class="home-main">
-        <!-- ⏰ 在留期限アラート — Tier2 中 -->
+        <!-- 📋 今日の申請 — Tier1 行動UI -->
         <div class="card">
           <div class="card-hdr">
-            <span class="card-title">⏰ 在留期限アラート</span>
-            <button class="btn btn-sm" onclick="SP('workers')">一覧 →</button>
+            <span class="card-title">📋 今日の申請・承認待ち</span>
+            <button class="btn btn-sm" onclick="SP('shift')">対応 →</button>
           </div>
-          <div id="home-expire-list" class="card-body">
-            <div class="empty-state" style="padding:18px 0">
-              <p>期限切れ・期限間近の実習生がいません ✅</p>
+          <div class="card-body card-body-compact">
+            <div class="action-rows" id="home-today-applications">
+              <div class="skeleton" style="height:38px;margin-bottom:6px"></div>
+              <div class="skeleton" style="height:38px;width:90%"></div>
             </div>
           </div>
         </div>
 
-        <!-- 🔄 最近の活動 — Tier2 動的Feed -->
+        <!-- 🚨 最近の異常 — Tier1 行動UI -->
         <div class="card">
           <div class="card-hdr">
-            <span class="card-title">🔄 最近の活動</span>
+            <span class="card-title">🚨 最近の異常</span>
+            <span style="font-size:11px;color:var(--t3)">本日の検知</span>
+          </div>
+          <div class="card-body card-body-compact">
+            <div class="action-rows" id="home-anomalies">
+              <div class="skeleton" style="height:38px;margin-bottom:6px"></div>
+              <div class="skeleton" style="height:38px;width:85%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 🕐 タイムライン — 改良版 (Slack風 + 時刻 + アイコン) -->
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">🕐 タイムライン</span>
             <span style="font-size:11px;color:var(--t3)">自動更新</span>
           </div>
-          <div id="home-activity-feed" class="card-body">
+          <div class="card-body card-body-compact" id="home-activity-feed">
             <div class="skeleton" style="height:24px;margin-bottom:8px"></div>
             <div class="skeleton" style="height:24px;width:85%;margin-bottom:8px"></div>
             <div class="skeleton" style="height:24px;width:75%"></div>
@@ -303,30 +328,32 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
       <div class="home-side">
         <% if (profile?.role === 'admin') { %>
         <div class="card">
-          <div class="card-hdr">
+          <div class="card-hdr card-hdr-compact">
             <span class="card-title">🕐 最近の勤怠記録</span>
             <button class="btn btn-sm" onclick="SP('attend')">一覧 →</button>
           </div>
-          <div id="home-att-recent" class="card-body">
+          <div id="home-att-recent" class="card-body card-body-compact">
             <div class="skeleton" style="height:36px;margin-bottom:6px"></div>
             <div class="skeleton" style="height:36px;width:90%"></div>
           </div>
         </div>
         <% } %>
         <div class="card">
-          <div class="card-hdr"><span class="card-title">📊 ステータス</span></div>
-          <div id="home-status-list" class="card-body card-list">
+          <div class="card-hdr card-hdr-compact"><span class="card-title">📊 ステータス</span></div>
+          <div id="home-status-list" class="card-body card-body-compact card-list">
             <div class="skeleton" style="height:18px;margin-bottom:8px"></div>
             <div class="skeleton" style="height:18px;width:70%"></div>
           </div>
         </div>
         <div class="card">
-          <div class="card-hdr"><span class="card-title">🌏 国籍分布</span></div>
-          <div id="home-lang-list" class="card-body card-list">
+          <div class="card-hdr card-hdr-compact"><span class="card-title">🌏 国籍分布</span></div>
+          <div id="home-lang-list" class="card-body card-body-compact card-list">
             <div class="skeleton" style="height:18px;margin-bottom:8px"></div>
             <div class="skeleton" style="height:18px;width:80%"></div>
           </div>
         </div>
+        <!-- 旧 expire-list ID 互換 (非表示) -->
+        <div id="home-expire-list" style="display:none"></div>
       </div>
     </div>
   </div></div>
@@ -928,7 +955,7 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260528-home"></script>
+<script src="/js/app.js?v=20260528-home-v3"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {
