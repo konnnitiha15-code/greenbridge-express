@@ -84,18 +84,19 @@ greenbridge-express/
 - ✅ Vercel 本番 `secure: true` Cookie
 
 ### 管理者側（/app）
-- ✅ ホーム（12 KPI カード - 多すぎるので削減候補）
+- ✅ ホーム（監視UI v3: Action Bar / Today Strip / 在留期限pill / 今日の申請・異常 / Slack風Timeline）
 - ✅ 実習生管理（CRUD・ビザ・在留期限）
 - ✅ ワーカーアカウント紐付け UI
-- ✅ チャット（個別、検索バー、既読 ✓✓ 表示）
+- ✅ チャット（個別、検索バー、既読 ✓✓、画像添付、クイック返信、CSV出力）
 - ✅ グループチャット（メンバー管理、メッセージ）
 - ✅ シフト管理（月次、申請承認）
 - ✅ 勤怠管理（CRUD、統計、CSV出力）
 - ✅ 日報・報告（承認フロー、CSV出力）
 - ✅ 書類管理（Supabase Storage、24h署名URL）
-- ✅ 通知センター（🔔モーダル + 未読バッジ）
+- ✅ 通知センター（🔔モーダル + 未読バッジ）+ Web Push
+- ✅ **給与管理（賃金設定・月次自動計算・確定・明細PDF印刷）** ← 010
 - ✅ ダッシュボード統計 API
-- ✅ CSV出力（勤怠・シフト・日報、BOM付UTF-8）
+- ✅ CSV出力（勤怠・シフト・日報・チャット、BOM付UTF-8）
 - ✅ 動画マニュアル（UI のみ、削除候補）
 - ✅ タスク管理（Kanban、削除候補）
 
@@ -109,6 +110,8 @@ greenbridge-express/
 - ✅ 日報・ヒヤリハット
 - ✅ 書類確認（PDF・画像を新規タブで開く、署名URL再発行）
 - ✅ SOS緊急連絡
+- ✅ 画像添付（チャット）
+- ✅ **給与明細閲覧（公開済みのみ・カード表示）** ← 010
 - ✅ ログアウトボタン
 - ✅ 6言語対応（vi/id/tl/zh/my/ja）— **部分的**（次セクション参照）
 
@@ -155,6 +158,9 @@ greenbridge-express/
 | groups | グループ |
 | group_members | グループメンバー |
 | group_messages | グループメッセージ |
+| push_subscriptions | Web Push 購読情報 |
+| wage_settings | 賃金設定（時給/月給・割増率・手当/控除） |
+| payslips | 給与明細（月次・snapshot・immutable） |
 
 ### マイグレーション履歴
 
@@ -167,6 +173,8 @@ greenbridge-express/
 006 - storage bucket (documents)
 007 - Realtime publication 設定（REPLICA IDENTITY FULL）
 008 - push_subscriptions（Web Push サブスクリプション保存）
+009 - message attachments（messages/group_messages に添付カラム）
+010 - payroll（wage_settings + payslips + attendance lock + immutable トリガ）
 ```
 
 すべて **実行済み** ✅
@@ -421,6 +429,18 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
 30. **セッション完全廃止 → Cookieベースflash（ステートレス化）**
 31. **無効UUIDの 400 正規化（500/ログ汚染防止）**
 
+### 2026-05-29 セッション（給与計算）
+32. **給与計算 MVP（010マイグレーション）**
+    - 計算エンジン `src/lib/payroll.js`（JST固定・丸めルール・残業/深夜/休日の動的割増）
+    - 賃金設定（時給/月給・割増率・休憩・手当/控除JSONB）
+    - 月次プレビュー → 確定 → 公開 のフロー分離
+    - payslips に wage_snapshot + breakdown JSON 保存
+    - confirmed/published は immutable（DBトリガで改ざん・削除をブロック）
+    - 確定時に attendance_records をロック（locked カラム）
+    - 管理者UI（給与タブ・計算表・賃金設定モーダル・明細HTML印刷）
+    - ワーカーUI（給与明細カード閲覧、published のみ）
+    - 本番 E2E 検証済み（snapshot/immutable/lock すべて実証）
+
 ---
 
 ## 🚀 新セッションでの始め方
@@ -452,29 +472,30 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 
 ---
 
-**最終更新: 2026-05-28**
-**最終コミット: f979832 (fix: セッション廃止 + UUID検証)**
+**最終更新: 2026-05-29**
+**最終コミット: 4c84349 (feat: 給与計算機能 MVP)**
 
 ---
 
 ## 📌 次にやるべきタスク（優先度順）
 
-### ✅ 最優先（運用安定）— 完了済み
-- ~~#1 セッションストア本番対応~~ → ステートレス化で完了（f979832）
+### ✅ 完了済み
+- ~~#1 セッションストア本番対応~~ → ステートレス化（f979832）
 - ~~#2 無効UUID 400正規化~~ → 完了（f979832）
+- ~~給与計算連携 MVP~~ → 完了（4c84349 / 010マイグレーション実行済み）
 
 ### 🟡 業務価値が高い（Phase 2: 業務適合）
-1. **給与計算連携** ⭐収益核心
-   - 時給/月給設定（workersにカラム追加）、残業8h超自動計算、休日割増
-   - 給与明細PDF配布。勤怠データ(attendance_records)が揃っているので計算は組みやすい
-   - 規模: 大（3〜5日）
-2. **AI翻訳の本実装** — コンセプトの根幹
+1. **AI翻訳の本実装** — コンセプトの根幹（次の最有力候補）
    - 現状 `aiTx()` は原文返却のみ（worker.ejs / app.js 両方）
    - MyMemory無料API or Claude API でチャット・申請・日報を母国語⇔日本語
    - 規模: 中（1〜2日）
-3. **ビザ・在留管理の強化**
+2. **ビザ・在留管理の強化**
    - 在留期限カレンダーUI、書類期限の自動通知バッチ、健康診断スケジュール
    - 規模: 中（2〜3日）
+3. **給与計算の拡張**（MVP完了済み → 余力あれば）
+   - 給与明細の正式PDF生成（現状はHTML印刷）
+   - 社保・所得税の自動計算、月60h超残業の50%割増
+   - 休日カレンダー（現状は日曜のみ休日判定）
 
 ### 🟢 整理・改善（Phase 1の残り）
 4. 不要機能の削除/再設計（タスク管理Kanban・動画マニュアル）— 小
