@@ -1,8 +1,6 @@
 require('dotenv').config()
 const express      = require('express')
 const cookieParser = require('cookie-parser')
-const session      = require('express-session')
-const flash        = require('connect-flash')
 const path         = require('path')
 
 const authRoutes      = require('./routes/auth')
@@ -26,22 +24,34 @@ app.use(express.urlencoded({ extended: true }))
 app.use(express.json())
 app.use(cookieParser())
 const IS_PROD = !!(process.env.VERCEL || process.env.NODE_ENV === 'production')
-if (!process.env.SESSION_SECRET) {
-  console.warn('[WARN] SESSION_SECRET 未設定 — 本番環境では必ず設定してください')
-}
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'greenbridge-dev-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: IS_PROD, sameSite: 'lax' },
-}))
-app.use(flash())
 app.use(express.static(path.join(__dirname, '..', 'public')))
 
-// flash を全ビューで使えるように
+// ── Cookie ベース flash（ステートレス・サーバーレス対応）─────────────
+// express-session + connect-flash を廃止。
+// MemoryStore がない＝Vercel の複数インスタンスでも安定動作する。
+// req.flash(type, msg) の API は connect-flash と互換。
+const FLASH_COOKIE = 'gb-flash'
 app.use((req, res, next) => {
-  res.locals.success = req.flash('success')
-  res.locals.error   = req.flash('error')
+  // 1) 受信: 前回リクエストで積まれた flash を Cookie から取り出してクリア
+  let incoming = {}
+  if (req.cookies[FLASH_COOKIE]) {
+    try { incoming = JSON.parse(req.cookies[FLASH_COOKIE]) } catch {}
+    res.clearCookie(FLASH_COOKIE, { sameSite: 'lax', secure: IS_PROD })
+  }
+  res.locals.success = incoming.success || []
+  res.locals.error   = incoming.error   || []
+
+  // 2) 送信: req.flash(type, msg) で次レスポンスの Cookie に積む
+  const pending = {}
+  req.flash = (type, msg) => {
+    if (msg === undefined) return incoming[type] || []
+    pending[type] = pending[type] || []
+    pending[type].push(msg)
+    res.cookie(FLASH_COOKIE, JSON.stringify(pending), {
+      httpOnly: true, sameSite: 'lax', secure: IS_PROD, maxAge: 15000,
+    })
+    return pending[type]
+  }
   next()
 })
 

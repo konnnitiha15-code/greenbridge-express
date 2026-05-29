@@ -6,6 +6,7 @@ const { createClient: _createClient } = require('@supabase/supabase-js')
 const { requireAuth }  = require('../middleware/auth')
 const { requireAdmin } = require('../middleware/requireRole')
 const push             = require('../lib/push')
+const { isUuid }       = require('../lib/validate')
 const router  = express.Router()
 
 // ── /app 配下の全ルートに admin 認証を適用 ──────────────────────────────────
@@ -1348,6 +1349,8 @@ router.post('/api/messages', requireAuth, requireAdmin, async (req, res) => {
 
   if (!worker_user_id)
     return res.status(400).json({ error: 'worker_user_id は必須です' })
+  if (!isUuid(worker_user_id))
+    return res.status(400).json({ error: 'worker_user_id の形式が不正です' })
 
   const hasBody       = body && body.trim().length > 0
   const hasAttachment = !!attachment_path
@@ -1418,6 +1421,8 @@ router.get('/api/messages', requireAuth, requireAdmin, async (req, res) => {
 
     if (!worker_user_id)
       return res.status(400).json({ error: 'worker_user_id は必須です' })
+    if (!isUuid(worker_user_id))
+      return res.status(400).json({ error: 'worker_user_id の形式が不正です' })
 
     // ★ 添付カラム対応 (migration 009) 済みかどうか分からないので、まず全カラムで試し、
     //   失敗（カラムなし等）したら基本カラムで再試行する
