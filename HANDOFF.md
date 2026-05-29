@@ -237,7 +237,10 @@ git push
 - `src/app.js` の最後で `module.exports = app`
 - `if (require.main === module)` でローカル起動分岐
 - `fs.mkdirSync` を try/catch、Vercel時は `/tmp` を使用
-- `connect-flash` は使わず URLクエリパラメータ方式
+- **完全ステートレス**（express-session/connect-flash 廃止済み）
+  - 認証は Cookie のみ（sb-access-token / gb-worker-token）
+  - flash は Cookie ベースの自作ミドルウェア（app.js 内、`gb-flash` Cookie）
+  - MemoryStore 警告なし → Vercel 複数インスタンスで安定
 
 ### Realtime
 - Supabase JS SDK を CDN から読み込み
@@ -405,6 +408,19 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
 19. CSV出力（勤怠/シフト/日報、BOM付UTF-8）
 20. 言語切替の対応範囲拡大（出退勤・ナビ・チャット）
 
+### 2026-05-28 セッション（PWA〜ホーム刷新〜安定化）
+21. PWA化 + Web Push 通知（008マイグレーション、VAPID、SW）
+22. 認証失敗時 302→401 JSON 化（Unexpected token 解消）
+23. チャット TDZ バグ修正・複数admin対応・自動連絡先・申請のチャット連携
+24. チャット画像送信（009マイグレーション、Supabase Storage）
+25. クイック返信テンプレ（管理者）+ チャット履歴CSV出力
+26. Realtime失敗時の並行ポーリング（双方向メッセージ確実化）
+27. Supabase クエリビルダ `.catch is not a function` 全箇所修正
+28. 管理者ホーム監視UI化（Action Bar / Today Strip / Activity Feed）
+29. ホームv3（在留期限pill / 今日の申請・異常 / Slack風Timeline）
+30. **セッション完全廃止 → Cookieベースflash（ステートレス化）**
+31. **無効UUIDの 400 正規化（500/ログ汚染防止）**
+
 ---
 
 ## 🚀 新セッションでの始め方
@@ -436,10 +452,47 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 
 ---
 
-**最終更新: 2026-05-27**
-**最終コミット: bb86d70 (feat: CSVエクスポート + 言語切替の対象範囲拡大)**
-**次回作業時の TODO:**
-1. ~~マイグレーション008 実行~~ ✅ 2026-05-27 完了
-2. ~~Vercel に `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` を追加~~ ✅ 2026-05-27 完了（Production/Preview/Development）
-3. ~~Vercel 本番再デプロイ~~ ✅ 2026-05-27 完了（コミット 1e37e1c）
-4. 実機ブラウザで `設定 → プッシュ通知 → 有効化` を押し、許可ダイアログ → テスト送信で受信確認
+**最終更新: 2026-05-28**
+**最終コミット: f979832 (fix: セッション廃止 + UUID検証)**
+
+---
+
+## 📌 次にやるべきタスク（優先度順）
+
+### ✅ 最優先（運用安定）— 完了済み
+- ~~#1 セッションストア本番対応~~ → ステートレス化で完了（f979832）
+- ~~#2 無効UUID 400正規化~~ → 完了（f979832）
+
+### 🟡 業務価値が高い（Phase 2: 業務適合）
+1. **給与計算連携** ⭐収益核心
+   - 時給/月給設定（workersにカラム追加）、残業8h超自動計算、休日割増
+   - 給与明細PDF配布。勤怠データ(attendance_records)が揃っているので計算は組みやすい
+   - 規模: 大（3〜5日）
+2. **AI翻訳の本実装** — コンセプトの根幹
+   - 現状 `aiTx()` は原文返却のみ（worker.ejs / app.js 両方）
+   - MyMemory無料API or Claude API でチャット・申請・日報を母国語⇔日本語
+   - 規模: 中（1〜2日）
+3. **ビザ・在留管理の強化**
+   - 在留期限カレンダーUI、書類期限の自動通知バッチ、健康診断スケジュール
+   - 規模: 中（2〜3日）
+
+### 🟢 整理・改善（Phase 1の残り）
+4. 不要機能の削除/再設計（タスク管理Kanban・動画マニュアル）— 小
+5. 言語切替の対応漏れ修正（applyL未対応の動的テキスト/モーダル）— 小〜中
+
+### 🔵 効率化・拡張（Phase 3）
+6. ワーカーCSV一括登録（インポート）
+7. シフト自動生成（過去パターン提案）
+8. 勤怠分析ダッシュボード（グラフ・遅刻傾向）
+9. アクセスログ（セキュリティ）
+
+### 💡 GreenBridge特有の付加価値（Phase 4・任意）
+- 既読時刻表示「14:23 既読」/ メッセージ検索 / 法定有給5日管理
+- 誕生日リマインダー / 体調記録（毎朝の体温）/ 病院・通訳マッチング
+
+### 🔧 技術的な改善メモ（任意）
+- pollAdminMessages / pollMessages は 5秒間隔。Realtime安定後は間引き検討
+- 旧MPAルート（/companies /documents /workers）は SPA移行で実質未使用 → 整理候補
+
+### 📱 動作確認の宿題（実機）
+- 設定→プッシュ通知→有効化 でブラウザ許可 → テスト送信で受信確認
