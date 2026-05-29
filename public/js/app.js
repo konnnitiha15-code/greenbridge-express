@@ -234,6 +234,7 @@ function SP(id){
   if(id==='shift') rerenderShiftTable();
   if(id==='attend') initAttendPage();
   if(id==='roles') loadRoleUsers();
+  if(id==='payroll') initPayrollPage();
 }
 
 // ── 通知センター ────────────────────────────────────────────────
@@ -3183,6 +3184,280 @@ function addBub(cid,m,worker,scroll=true){
   const readDots=me?`<div class="read-dots">${m.read!==false?'既読 ✓✓':'送信済 ✓'}</div>`:'';
   wrap.innerHTML=`${!me?avHtml:''}<div class="mcol" style="${me?'align-items:flex-end':''}">${!me&&m.sender?`<div style="font-size:11px;color:var(--t3);padding:0 3px;margin-bottom:1px">${m.sender}</div>`:''}<div class="bub ${me?'br2':'bl'}">${main}</div>${tlBub}${readDots}<div class="mtime">${m.time||(m.t!=='me'&&m.t!=='sys'?m.t:'')||''}</div></div>${me?avHtml:''}`;
   a.appendChild(wrap);if(scroll)a.scrollTop=a.scrollHeight;
+}
+
+// ════════════════════════════════════════════════════════════════
+// 💴 給与管理（Payroll）
+// ════════════════════════════════════════════════════════════════
+let _payrollData = [];   // 現在のプレビュー結果
+
+function _yen(n){ return '¥' + (Math.round(n || 0)).toLocaleString('ja-JP'); }
+function _curPeriod(){
+  const el = document.getElementById('payroll-period');
+  return el && el.value ? el.value : '';
+}
+
+function initPayrollPage(){
+  const el = document.getElementById('payroll-period');
+  if (el && !el.value) {
+    // デフォルト: 今月
+    const now = new Date();
+    el.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  }
+  loadPayrollPreview();
+}
+
+async function loadPayrollPreview(){
+  const period = _curPeriod();
+  const tbody = document.getElementById('payroll-tbody');
+  if (!period || !tbody) return;
+  tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--t3)">計算中...</td></tr>';
+  try {
+    const r = await fetch('/app/api/payroll/preview?period=' + encodeURIComponent(period));
+    const j = await r.json();
+    if (!j.ok) { tbody.innerHTML = `<tr><td colspan="11" style="padding:18px;color:var(--red)">${j.error||'取得失敗'}</td></tr>`; return; }
+    _payrollData = j.results || [];
+    renderPayrollTable();
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="11" style="padding:18px;color:var(--red)">${e.message}</td></tr>`;
+  }
+}
+
+function renderPayrollTable(){
+  const tbody = document.getElementById('payroll-tbody');
+  const summary = document.getElementById('payroll-summary');
+  if (!tbody) return;
+  if (!_payrollData.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--t3)">対象ワーカーがいません</td></tr>';
+    if (summary) summary.textContent = '—';
+    return;
+  }
+  let totalGross = 0, totalNet = 0, confirmedCount = 0;
+  tbody.innerHTML = _payrollData.map(p => {
+    totalGross += p.gross_pay; totalNet += p.net_pay;
+    const st = p.existing?.status || 'draft';
+    if (st !== 'draft') confirmedCount++;
+    const statusLabel = { draft:'未確定', confirmed:'確定', published:'公開済' }[st] || st;
+    const wageLabel = p.wageConfigured
+      ? `<span style="color:var(--t2)">設定済</span>`
+      : `<span class="pr-warn">未設定</span>`;
+    const actions = [];
+    actions.push(`<button class="btn-xs" onclick="openWageModal('${p.worker.id}','${(p.worker.name||'').replace(/'/g,'')}')">賃金</button>`);
+    if (p.existing) {
+      actions.push(`<button class="btn-xs" onclick="openPayslipDetail('${p.existing.id}')">明細</button>`);
+      if (st === 'confirmed') actions.push(`<button class="btn-xs" onclick="publishPayslip('${p.existing.id}')">公開</button>`);
+    }
+    return `<tr>
+      <td class="pr-name">${p.worker.name||'—'}</td>
+      <td>${wageLabel}</td>
+      <td>${p.work_days}</td>
+      <td>${p.regular_hours}</td>
+      <td>${p.overtime_hours}</td>
+      <td>${p.night_hours}</td>
+      <td>${p.holiday_hours}</td>
+      <td class="pr-gross">${_yen(p.gross_pay)}</td>
+      <td class="pr-net">${_yen(p.net_pay)}</td>
+      <td><span class="pr-status ${st}">${statusLabel}</span></td>
+      <td style="display:flex;gap:4px;justify-content:flex-end">${actions.join('')}</td>
+    </tr>`;
+  }).join('');
+  if (summary) summary.textContent = `${_payrollData.length}名 / 確定 ${confirmedCount}名 ・ 総支給計 ${_yen(totalGross)} ・ 差引計 ${_yen(totalNet)}`;
+}
+
+// ── 賃金設定モーダル ──────────────────────────────────────
+async function openWageModal(workerId, workerName){
+  try {
+    const r = await fetch('/app/api/wage/' + workerId);
+    const j = await r.json();
+    if (!j.ok) { toast('取得失敗', j.error||'', 'r'); return; }
+    const w = j.wage;
+    const allowancesRows = (w.allowances||[]).map((a,i)=>wageItemRow('allow',i,a)).join('');
+    const deductionsRows = (w.deductions||[]).map((d,i)=>wageItemRow('deduct',i,d)).join('');
+    const html = `
+      <div class="wage-form" id="wage-form" data-worker="${workerId}">
+        <div class="wage-row"><label>賃金体系</label>
+          <select class="ss-sel" id="wf-type">
+            <option value="hourly" ${w.wage_type==='hourly'?'selected':''}>時給制</option>
+            <option value="monthly" ${w.wage_type==='monthly'?'selected':''}>月給制</option>
+          </select>
+        </div>
+        <div class="wage-row"><label id="wf-base-lbl">基本額（円）</label>
+          <input type="number" class="finp" id="wf-base" value="${w.base_amount||0}" min="0"></div>
+        <div class="wage-row"><label>月給の所定時間</label>
+          <input type="number" class="finp" id="wf-stdh" value="${w.monthly_standard_hours||160}" min="1"></div>
+        <div class="wage-row"><label>残業割増率</label>
+          <input type="number" step="0.01" class="finp" id="wf-ot" value="${w.overtime_rate||1.25}"></div>
+        <div class="wage-row"><label>深夜割増率</label>
+          <input type="number" step="0.01" class="finp" id="wf-night" value="${w.night_rate||1.25}"></div>
+        <div class="wage-row"><label>休日割増率</label>
+          <input type="number" step="0.01" class="finp" id="wf-hol" value="${w.holiday_rate||1.35}"></div>
+        <div class="wage-row"><label>休憩控除（分/日）</label>
+          <input type="number" class="finp" id="wf-break" value="${w.break_minutes!=null?w.break_minutes:60}" min="0"></div>
+        <div class="wage-row"><label>丸め単位（分）</label>
+          <input type="number" class="finp" id="wf-round" value="${w.rounding_unit!=null?w.rounding_unit:15}" min="0"></div>
+        <div class="wage-row"><label>丸め方法</label>
+          <select class="ss-sel" id="wf-roundmode">
+            <option value="floor" ${w.rounding_mode==='floor'?'selected':''}>切り捨て</option>
+            <option value="round" ${w.rounding_mode==='round'?'selected':''}>四捨五入</option>
+            <option value="ceil"  ${w.rounding_mode==='ceil'?'selected':''}>切り上げ</option>
+          </select>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0">
+            <span style="font-size:12.5px;font-weight:600">手当</span>
+            <button class="btn-xs" onclick="addWageItem('allow')">＋追加</button>
+          </div>
+          <div class="wage-list" id="wf-allowances">${allowancesRows}</div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0">
+            <span style="font-size:12.5px;font-weight:600">控除</span>
+            <button class="btn-xs" onclick="addWageItem('deduct')">＋追加</button>
+          </div>
+          <div class="wage-list" id="wf-deductions">${deductionsRows}</div>
+        </div>
+        <button class="btn btn-g" onclick="saveWage()" style="margin-top:6px">賃金設定を保存</button>
+      </div>`;
+    openModal('💴 賃金設定：' + workerName, html);
+  } catch (e) { toast('エラー', e.message, 'r'); }
+}
+
+function wageItemRow(kind, i, item){
+  return `<div class="wage-list-item" data-kind="${kind}">
+    <input class="finp wi-name" placeholder="名称" value="${(item.name||'').replace(/"/g,'&quot;')}">
+    <input class="finp wi-amount" type="number" placeholder="金額" value="${item.amount||0}" style="max-width:120px">
+    <button class="btn-xs" onclick="this.parentElement.remove()">✕</button>
+  </div>`;
+}
+function addWageItem(kind){
+  const wrap = document.getElementById(kind==='allow'?'wf-allowances':'wf-deductions');
+  if (!wrap) return;
+  const div = document.createElement('div');
+  div.innerHTML = wageItemRow(kind, 0, {});
+  wrap.appendChild(div.firstElementChild);
+}
+
+async function saveWage(){
+  const form = document.getElementById('wage-form');
+  if (!form) return;
+  const workerId = form.dataset.worker;
+  const collect = (id) => Array.from(document.querySelectorAll(`#${id} .wage-list-item`)).map(row => ({
+    name: row.querySelector('.wi-name').value.trim(),
+    amount: Number(row.querySelector('.wi-amount').value) || 0,
+  })).filter(x => x.name);
+  const payload = {
+    wage_type: document.getElementById('wf-type').value,
+    base_amount: Number(document.getElementById('wf-base').value) || 0,
+    monthly_standard_hours: Number(document.getElementById('wf-stdh').value) || 160,
+    overtime_rate: Number(document.getElementById('wf-ot').value) || 1.25,
+    night_rate: Number(document.getElementById('wf-night').value) || 1.25,
+    holiday_rate: Number(document.getElementById('wf-hol').value) || 1.35,
+    break_minutes: Number(document.getElementById('wf-break').value) || 0,
+    rounding_unit: Number(document.getElementById('wf-round').value) || 0,
+    rounding_mode: document.getElementById('wf-roundmode').value,
+    allowances: collect('wf-allowances'),
+    deductions: collect('wf-deductions'),
+  };
+  try {
+    const r = await fetch('/app/api/wage/' + workerId, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    if (!j.ok) { toast('保存失敗', j.error||'', 'r'); return; }
+    toast('✓ 保存完了', '賃金設定を更新しました', 'g');
+    closeModal();
+    loadPayrollPreview();
+  } catch (e) { toast('エラー', e.message, 'r'); }
+}
+
+// ── 確定 ──────────────────────────────────────────────────
+async function confirmPayrollAll(){
+  const period = _curPeriod();
+  if (!period) return;
+  const unconfigured = _payrollData.filter(p => !p.wageConfigured).length;
+  let msg = `${period} の給与を確定します。\n確定後は明細が保存され、対象の勤怠記録がロックされます。`;
+  if (unconfigured > 0) msg += `\n\n⚠️ 賃金未設定が ${unconfigured}名います（スキップされます）。`;
+  if (!confirm(msg)) return;
+  try {
+    const r = await fetch('/app/api/payroll/confirm', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ period }),
+    });
+    const j = await r.json();
+    if (!j.ok) { toast('確定失敗', j.error||'', 'r'); return; }
+    toast('✓ 確定完了', `${j.confirmed.length}名を確定（スキップ ${j.skipped.length}名）`, 'g');
+    loadPayrollPreview();
+  } catch (e) { toast('エラー', e.message, 'r'); }
+}
+
+async function publishPayslip(id){
+  if (!confirm('この明細をワーカーに公開しますか？')) return;
+  try {
+    const r = await fetch(`/app/api/payslips/${id}/publish`, { method: 'POST' });
+    const j = await r.json();
+    if (!j.ok) { toast('公開失敗', j.error||'', 'r'); return; }
+    toast('✓ 公開完了', 'ワーカーが閲覧できるようになりました', 'g');
+    loadPayrollPreview();
+  } catch (e) { toast('エラー', e.message, 'r'); }
+}
+
+// ── 明細詳細・印刷 ────────────────────────────────────────
+async function openPayslipDetail(id){
+  try {
+    const r = await fetch('/app/api/payslips/' + id);
+    const j = await r.json();
+    if (!j.ok) { toast('取得失敗', j.error||'', 'r'); return; }
+    const p = j.payslip;
+    const html = renderPayslipDoc(p) +
+      `<div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+         <button class="btn btn-sm" onclick="printPayslip('${id}')">🖨 印刷 / PDF保存</button>
+       </div>`;
+    openModal('給与明細', html);
+  } catch (e) { toast('エラー', e.message, 'r'); }
+}
+
+function renderPayslipDoc(p){
+  const w = p.workers || {};
+  const snap = p.wage_snapshot || {};
+  const allowRows = (snap.allowances||[]).map(a => `<tr><th>${a.name}</th><td>${_yen(a.amount)}</td></tr>`).join('');
+  const deductRows = (snap.deductions||[]).map(d => `<tr><th>${d.name}</th><td>-${_yen(d.amount)}</td></tr>`).join('');
+  return `<div class="payslip-doc">
+    <h2>給与明細書</h2>
+    <div class="ps-meta">${p.period} ｜ ${w.name||''} ${w.department?('（'+w.department+'）'):''}</div>
+    <table>
+      <tr><th>勤務日数</th><td>${p.work_days} 日</td></tr>
+      <tr><th>通常労働時間</th><td>${p.regular_hours} h</td></tr>
+      <tr><th>残業時間</th><td>${p.overtime_hours} h</td></tr>
+      <tr><th>深夜時間</th><td>${p.night_hours} h</td></tr>
+      <tr><th>休日労働時間</th><td>${p.holiday_hours} h</td></tr>
+    </table>
+    <table>
+      <tr><th>基本給</th><td>${_yen(p.base_pay)}</td></tr>
+      <tr><th>残業手当（×${snap.overtime_rate||1.25}）</th><td>${_yen(p.overtime_pay)}</td></tr>
+      <tr><th>深夜手当</th><td>${_yen(p.night_pay)}</td></tr>
+      <tr><th>休日手当（×${snap.holiday_rate||1.35}）</th><td>${_yen(p.holiday_pay)}</td></tr>
+      ${allowRows}
+      <tr class="ps-total"><th>総支給額</th><td>${_yen(p.gross_pay)}</td></tr>
+      ${deductRows}
+      <tr><th>控除合計</th><td>-${_yen(p.deduction_total)}</td></tr>
+      <tr class="ps-total ps-net"><th>差引支給額</th><td>${_yen(p.net_pay)}</td></tr>
+    </table>
+    <div style="font-size:11px;color:var(--t3)">時間単価: ${_yen(snap.hourly_rate_used||0)} ／ 計算基準: ${snap.rounding_unit||0}分${({floor:'切り捨て',round:'四捨五入',ceil:'切り上げ'})[snap.rounding_mode]||''} ／ JST</div>
+  </div>`;
+}
+
+async function printPayslip(id){
+  try {
+    const r = await fetch('/app/api/payslips/' + id);
+    const j = await r.json();
+    if (!j.ok) return;
+    const area = document.getElementById('payslip-print-area');
+    area.innerHTML = renderPayslipDoc(j.payslip);
+    area.style.display = 'block';
+    window.print();
+    setTimeout(() => { area.style.display = 'none'; }, 500);
+  } catch (e) { toast('エラー', e.message, 'r'); }
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────

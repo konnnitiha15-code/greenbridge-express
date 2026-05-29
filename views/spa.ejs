@@ -11,7 +11,7 @@
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="apple-touch-icon" href="/icons/icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/style.css?v=20260528-home-v3">
+<link rel="stylesheet" href="/css/style.css?v=20260529-payroll">
 </head>
 <body>
 
@@ -129,6 +129,10 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
     <div class="sb-item" id="nav-attend" onclick="SP('attend')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="5.5" r="2.5" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M2 13.5c0-2.8 2.2-4.5 5-4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/><circle cx="12.5" cy="11.5" r="3" fill="var(--gn)"/><path d="M11 11.5l1 1 2-2" stroke="#fff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       勤怠管理
+    </div>
+    <div class="sb-item" id="nav-payroll" onclick="SP('payroll')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3.5" width="13" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4" fill="none"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M4 6v4M12 6v4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      給与管理
     </div>
     <div class="sb-item" id="nav-roles" onclick="SP('roles')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><path d="M5.5 8l2 2 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -788,6 +792,52 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
     </div>
   </div>
 
+  <!-- ─── PAYROLL（給与管理）───────────────────────────── -->
+  <div class="page" id="page-payroll">
+    <div style="flex:1;overflow-y:auto;padding:20px;background:var(--bg)">
+      <div style="max-width:1100px;margin:0 auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:18px;font-weight:700">💴 給与管理</div>
+            <div style="font-size:13px;color:var(--t3);margin-top:3px">勤怠データから給与を自動計算・確定・明細発行します（JST基準）</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="month" id="payroll-period" class="finp" style="width:auto;padding:7px 10px" onchange="loadPayrollPreview()">
+            <button class="btn btn-sm" onclick="loadPayrollPreview()">🔄 再計算</button>
+            <button class="btn btn-g btn-sm" id="payroll-confirm-all" onclick="confirmPayrollAll()">この月を確定</button>
+          </div>
+        </div>
+
+        <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px" id="payroll-hint">
+          月を選択すると、その月の勤怠から各ワーカーの給与を計算します。確定すると明細が保存され、対象勤怠はロックされます。
+        </div>
+
+        <div class="card">
+          <div class="card-hdr card-hdr-compact">
+            <span class="card-title">月次計算プレビュー</span>
+            <span style="font-size:11px;color:var(--t3)" id="payroll-summary">—</span>
+          </div>
+          <div class="card-body card-body-compact" style="padding:0">
+            <div style="overflow-x:auto">
+              <table class="payroll-table" id="payroll-table">
+                <thead>
+                  <tr>
+                    <th>氏名</th><th>賃金</th><th>勤務日</th>
+                    <th>通常h</th><th>残業h</th><th>深夜h</th><th>休日h</th>
+                    <th>総支給</th><th>差引</th><th>状態</th><th></th>
+                  </tr>
+                </thead>
+                <tbody id="payroll-tbody">
+                  <tr><td colspan="11" style="text-align:center;padding:24px;color:var(--t3)">月を選択してください</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── ROLES ─────────────────────────────────────────── -->
   <div class="page" id="page-roles">
     <div style="flex:1;overflow-y:auto;padding:20px;background:var(--bg)">
@@ -955,7 +1005,7 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260528-home-v3"></script>
+<script src="/js/app.js?v=20260529-payroll"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {
@@ -1008,5 +1058,8 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
     } catch (e) { alert(e.message); }
   };
 </script>
+
+<!-- 給与明細 印刷専用エリア（通常は非表示・印刷時のみ可視）-->
+<div id="payslip-print-area" style="display:none"></div>
 </body>
 </html>

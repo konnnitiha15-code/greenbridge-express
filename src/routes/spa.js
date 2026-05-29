@@ -7,6 +7,7 @@ const { requireAuth }  = require('../middleware/auth')
 const { requireAdmin } = require('../middleware/requireRole')
 const push             = require('../lib/push')
 const { isUuid }       = require('../lib/validate')
+const { calcPayroll, defaultWage } = require('../lib/payroll')
 const router  = express.Router()
 
 // ── /app 配下の全ルートに admin 認証を適用 ──────────────────────────────────
@@ -1769,6 +1770,273 @@ router.get('/api/messages/export.csv', requireAuth, requireAdmin, async (req, re
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
   res.setHeader('Content-Disposition', `attachment; filename="${fname}"`)
   res.send(csv)
+})
+
+// ════════════════════════════════════════════════════════════════
+// 💴 給与計算 API（Payroll）
+// ════════════════════════════════════════════════════════════════
+
+// period 'YYYY-MM' の月初・翌月初を JST で算出（attendance 抽出用）
+function periodRange(period) {
+  const [y, m] = period.split('-').map(Number)
+  if (!y || !m) return null
+  const from = `${y}-${String(m).padStart(2,'0')}-01`
+  const ny = m === 12 ? y + 1 : y
+  const nm = m === 12 ? 1 : m + 1
+  const to = `${ny}-${String(nm).padStart(2,'0')}-01`
+  return { from, to }
+}
+
+// 賃金設定を取得（なければ default を返す）
+async function getWageForWorker(sb, companyId, workerId) {
+  const { data } = await sb.from('wage_settings')
+    .select('*')
+    .eq('company_id', companyId)
+    .eq('worker_id', workerId)
+    .eq('is_active', true)
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data || defaultWage(companyId, workerId)
+}
+
+// ── GET /app/api/wage/:workerId — 賃金設定取得 ───────────────────
+router.get('/api/wage/:workerId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const workerId  = req.params.workerId
+    if (!isUuid(workerId)) return res.status(400).json({ ok: false, error: 'worker_id の形式が不正です' })
+
+    const sb = createAdminClient()
+    const wage = await getWageForWorker(sb, companyId, workerId)
+    res.json({ ok: true, wage })
+  } catch (e) {
+    console.error('[wage get]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── PUT /app/api/wage/:workerId — 賃金設定保存（upsert）──────────
+router.put('/api/wage/:workerId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const workerId  = req.params.workerId
+    if (!isUuid(workerId)) return res.status(400).json({ ok: false, error: 'worker_id の形式が不正です' })
+
+    const b = req.body || {}
+    const row = {
+      company_id: companyId,
+      worker_id:  workerId,
+      wage_type:  b.wage_type === 'monthly' ? 'monthly' : 'hourly',
+      base_amount:   Number(b.base_amount)   || 0,
+      overtime_rate: Number(b.overtime_rate) || 1.25,
+      night_rate:    Number(b.night_rate)    || 1.25,
+      holiday_rate:  Number(b.holiday_rate)  || 1.35,
+      monthly_standard_hours: Number(b.monthly_standard_hours) || 160,
+      break_minutes: Number.isFinite(+b.break_minutes) ? +b.break_minutes : 60,
+      rounding_unit: Number.isFinite(+b.rounding_unit) ? +b.rounding_unit : 15,
+      rounding_mode: ['floor','round','ceil'].includes(b.rounding_mode) ? b.rounding_mode : 'floor',
+      allowances: Array.isArray(b.allowances) ? b.allowances : [],
+      deductions: Array.isArray(b.deductions) ? b.deductions : [],
+      is_active: true,
+    }
+
+    const sb = createAdminClient()
+    // 既存 active を取得して upsert（1ワーカー1 active 運用）
+    const { data: existing } = await sb.from('wage_settings')
+      .select('id').eq('company_id', companyId).eq('worker_id', workerId).eq('is_active', true)
+      .limit(1).maybeSingle()
+
+    let result
+    if (existing) {
+      result = await sb.from('wage_settings').update(row).eq('id', existing.id).select('*').single()
+    } else {
+      result = await sb.from('wage_settings').insert(row).select('*').single()
+    }
+    if (result.error) return res.status(500).json({ ok: false, error: result.error.message })
+    res.json({ ok: true, wage: result.data })
+  } catch (e) {
+    console.error('[wage put]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── GET /app/api/payroll/preview?period=YYYY-MM[&worker_id=] ──────
+// 計算プレビュー（DB保存なし）。worker_id 省略時は全員。
+router.get('/api/payroll/preview', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const period = req.query.period
+    if (!/^\d{4}-\d{2}$/.test(period || '')) return res.status(400).json({ ok: false, error: 'period は YYYY-MM 形式です' })
+    const range = periodRange(period)
+    if (!range) return res.status(400).json({ ok: false, error: 'period が不正です' })
+
+    const sb = createAdminClient()
+    // 対象ワーカー
+    let wq = sb.from('workers').select('id, name, company_id').eq('company_id', companyId).eq('status', 'active')
+    if (req.query.worker_id) {
+      if (!isUuid(req.query.worker_id)) return res.status(400).json({ ok: false, error: 'worker_id の形式が不正です' })
+      wq = wq.eq('id', req.query.worker_id)
+    }
+    const { data: workers = [] } = await wq
+
+    // 既存 payslip（status）も合わせて返す
+    const { data: existingSlips = [] } = await sb.from('payslips')
+      .select('worker_id, status, id').eq('company_id', companyId).eq('period', period)
+    const slipMap = Object.fromEntries((existingSlips || []).map(s => [s.worker_id, s]))
+
+    const results = []
+    for (const w of workers) {
+      const wage = await getWageForWorker(sb, companyId, w.id)
+      const { data: recs = [] } = await sb.from('attendance_records')
+        .select('work_date, clock_in, clock_out, status')
+        .eq('company_id', companyId).eq('worker_id', w.id)
+        .gte('work_date', range.from).lt('work_date', range.to)
+      const calc = calcPayroll({ worker: w, wage, records: recs, period })
+      results.push({
+        worker: { id: w.id, name: w.name },
+        wageConfigured: (wage.base_amount || 0) > 0,
+        existing: slipMap[w.id] ? { id: slipMap[w.id].id, status: slipMap[w.id].status } : null,
+        ...calc,
+      })
+    }
+    res.json({ ok: true, period, results })
+  } catch (e) {
+    console.error('[payroll preview]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── POST /app/api/payroll/confirm — 月次確定 → payslips保存 + 勤怠lock ──
+// body: { period, worker_ids: [] }  worker_ids 省略時は全員
+router.post('/api/payroll/confirm', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const adminId   = req.user?.id
+    const { period } = req.body || {}
+    if (!/^\d{4}-\d{2}$/.test(period || '')) return res.status(400).json({ ok: false, error: 'period は YYYY-MM 形式です' })
+    const range = periodRange(period)
+
+    const sb = createAdminClient()
+    let wq = sb.from('workers').select('id, name, company_id').eq('company_id', companyId).eq('status', 'active')
+    const ids = Array.isArray(req.body?.worker_ids) ? req.body.worker_ids.filter(isUuid) : null
+    if (ids && ids.length) wq = wq.in('id', ids)
+    const { data: workers = [] } = await wq
+
+    const confirmed = []
+    const skipped = []
+    for (const w of workers) {
+      // 既に confirmed/published なら immutable のためスキップ
+      const { data: ex } = await sb.from('payslips')
+        .select('id, status').eq('company_id', companyId).eq('worker_id', w.id).eq('period', period).maybeSingle()
+      if (ex && (ex.status === 'confirmed' || ex.status === 'published')) {
+        skipped.push({ worker_id: w.id, reason: 'already_' + ex.status })
+        continue
+      }
+
+      const wage = await getWageForWorker(sb, companyId, w.id)
+      if (!(wage.base_amount > 0)) { skipped.push({ worker_id: w.id, reason: 'no_wage' }); continue }
+
+      const { data: recs = [] } = await sb.from('attendance_records')
+        .select('id, work_date, clock_in, clock_out, status')
+        .eq('company_id', companyId).eq('worker_id', w.id)
+        .gte('work_date', range.from).lt('work_date', range.to)
+      const calc = calcPayroll({ worker: w, wage, records: recs, period })
+
+      const row = {
+        ...calc,
+        status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+        confirmed_by: adminId,
+      }
+
+      let saved
+      if (ex) {
+        // draft を上書き確定
+        saved = await sb.from('payslips').update(row).eq('id', ex.id).select('id').single()
+      } else {
+        saved = await sb.from('payslips').insert(row).select('id').single()
+      }
+      if (saved.error) { skipped.push({ worker_id: w.id, reason: saved.error.message }); continue }
+
+      // 勤怠ロック（締め）
+      const recIds = recs.map(r => r.id)
+      if (recIds.length) {
+        await sb.from('attendance_records')
+          .update({ locked: true, locked_at: new Date().toISOString() })
+          .in('id', recIds)
+      }
+      confirmed.push({ worker_id: w.id, payslip_id: saved.data.id })
+    }
+
+    res.json({ ok: true, period, confirmed, skipped })
+  } catch (e) {
+    console.error('[payroll confirm]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── POST /app/api/payslips/:id/publish — ワーカーへ公開 ───────────
+router.post('/api/payslips/:id/publish', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const id = req.params.id
+    if (!isUuid(id)) return res.status(400).json({ ok: false, error: 'id の形式が不正です' })
+
+    const sb = createAdminClient()
+    const { data: slip } = await sb.from('payslips').select('id, status, company_id').eq('id', id).maybeSingle()
+    if (!slip || slip.company_id !== companyId) return res.status(404).json({ ok: false, error: 'not_found' })
+    if (slip.status === 'draft') return res.status(400).json({ ok: false, error: '確定前の明細は公開できません' })
+
+    const { error } = await sb.from('payslips')
+      .update({ status: 'published', published_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('[payslip publish]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── GET /app/api/payslips?period=YYYY-MM — 月次明細一覧 ──────────
+router.get('/api/payslips', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const sb = createAdminClient()
+    let q = sb.from('payslips')
+      .select('*, workers(name)')
+      .eq('company_id', companyId)
+      .order('period', { ascending: false })
+      .limit(500)
+    if (req.query.period) q = q.eq('period', req.query.period)
+    if (req.query.worker_id && isUuid(req.query.worker_id)) q = q.eq('worker_id', req.query.worker_id)
+    const { data, error } = await q
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    res.json({ ok: true, payslips: data || [] })
+  } catch (e) {
+    console.error('[payslips list]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── GET /app/api/payslips/:id — 単一明細（詳細・印刷用）──────────
+router.get('/api/payslips/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const id = req.params.id
+    if (!isUuid(id)) return res.status(400).json({ ok: false, error: 'id の形式が不正です' })
+    const sb = createAdminClient()
+    const { data, error } = await sb.from('payslips')
+      .select('*, workers(name, name_kana, department, job_title)')
+      .eq('id', id).eq('company_id', companyId).maybeSingle()
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    if (!data) return res.status(404).json({ ok: false, error: 'not_found' })
+    res.json({ ok: true, payslip: data })
+  } catch (e) {
+    console.error('[payslip get]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
 })
 
 module.exports = router

@@ -1509,6 +1509,56 @@ select.modal-inp   { cursor: pointer; }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
+   PAYROLL（給与管理）
+   ════════════════════════════════════════════════════════════════════════════ */
+.payroll-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.payroll-table th, .payroll-table td {
+  padding: 9px 10px; text-align: right; white-space: nowrap;
+  border-bottom: 1px solid var(--bd);
+}
+.payroll-table th {
+  background: #fafbfc; color: var(--t2); font-weight: 600;
+  font-size: 11px; position: sticky; top: 0;
+}
+.payroll-table th:first-child, .payroll-table td:first-child { text-align: left; }
+.payroll-table tbody tr:hover { background: #fafbfc; }
+.payroll-table .pr-name { font-weight: 600; color: var(--tx); }
+.payroll-table .pr-gross { font-weight: 700; color: var(--tx); }
+.payroll-table .pr-net   { font-weight: 700; color: var(--gn); }
+.payroll-table .pr-warn  { color: var(--amb); font-size: 11px; }
+.pr-status {
+  display: inline-block; font-size: 10.5px; font-weight: 700;
+  padding: 2px 8px; border-radius: 999px;
+}
+.pr-status.draft     { background: #f1f5f9; color: var(--t3); }
+.pr-status.confirmed { background: #dbeafe; color: #1d4ed8; }
+.pr-status.published { background: var(--gbg); color: var(--gd); }
+
+/* 賃金設定・明細モーダル内 */
+.wage-form { display: flex; flex-direction: column; gap: 12px; }
+.wage-row { display: flex; gap: 10px; align-items: center; }
+.wage-row label { flex: 0 0 130px; font-size: 12.5px; color: var(--t2); font-weight: 500; }
+.wage-row .finp, .wage-row .ss-sel { flex: 1; }
+.wage-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.wage-list-item { display: flex; gap: 6px; align-items: center; }
+.wage-list-item .finp { flex: 1; }
+
+/* 給与明細（印刷レイアウト）*/
+.payslip-doc { font-size: 13px; color: var(--tx); }
+.payslip-doc h2 { font-size: 17px; margin-bottom: 4px; }
+.payslip-doc .ps-meta { font-size: 12px; color: var(--t3); margin-bottom: 14px; }
+.payslip-doc table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+.payslip-doc th, .payslip-doc td { padding: 7px 10px; border: 1px solid var(--bd); text-align: right; }
+.payslip-doc th { background: #fafbfc; text-align: left; font-weight: 600; width: 60%; }
+.payslip-doc .ps-total { font-size: 16px; font-weight: 700; }
+.payslip-doc .ps-net { color: var(--gn); }
+@media print {
+  body * { visibility: hidden; }
+  #payslip-print-area, #payslip-print-area * { visibility: visible; }
+  #payslip-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
    UTILITY
    ════════════════════════════════════════════════════════════════════════════ */
 

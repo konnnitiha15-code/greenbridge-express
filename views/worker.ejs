@@ -844,6 +844,10 @@ input,textarea,select,button{font-family:inherit}
         <div class="qa-ico" style="background:#fff0f0"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="5" width="13" height="12" rx="3" stroke="#e53e3e" stroke-width="1.7" fill="none"/><path d="M15 9l6-3v10l-6-3V9z" stroke="#e53e3e" stroke-width="1.6" stroke-linejoin="round" fill="none"/><path d="M5.5 9.5l4 2.5-4 2.5V9.5z" fill="#e53e3e" opacity=".6"/></svg></div>
         <span class="qa-lbl" id="h-video-l">動画</span>
       </div>
+      <div class="qa-item" onclick="go('s-payslip')">
+        <div class="qa-ico" style="background:#ecfdf5"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="4" width="18" height="14" rx="2" stroke="#059669" stroke-width="1.7" fill="none"/><circle cx="11" cy="11" r="3" stroke="#059669" stroke-width="1.6" fill="none"/><path d="M5 7v8M17 7v8" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <span class="qa-lbl" id="h-payslip-l">給与明細</span>
+      </div>
       <div class="qa-item" onclick="go('s-settings')">
         <div class="qa-ico" style="background:#f6f7fa"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3" stroke="#64748b" stroke-width="1.7" fill="none"/><path d="M11 2.5v3M11 16.5v3M2.5 11h3M16.5 11h3M5.6 5.6l2 2M14.4 14.4l2 2M5.6 16.4l2-2M14.4 7.6l2-2" stroke="#64748b" stroke-width="1.6" stroke-linecap="round"/></svg></div>
         <span class="qa-lbl" id="nl-settings-qa">設定</span>
@@ -1186,6 +1190,18 @@ input,textarea,select,button{font-family:inherit}
     <div id="sos-cnt" style="display:none" class="sos-cnt">3</div>
     <div id="sos-done" style="display:none" class="sos-ok"><div class="sos-ok-title" id="sos-sent-l">SOS 送信完了</div><div style="font-size:13px;color:var(--gn);margin-top:4px">担当者に通知しました</div></div>
     <div class="contact-card"><div class="cc-ico">📞</div><div><div style="font-size:14px;font-weight:700" id="sos-contact-name">担当者</div><div style="font-size:12px;color:var(--t3);margin-top:2px" id="sos-contact-role">担当責任者</div></div></div>
+  </div>
+</div>
+
+<!-- PAYSLIP（給与明細）-->
+<div class="scr" id="s-payslip">
+  <div class="pg-top">
+    <div><div class="pg-title" id="ps-title">給与明細</div><div class="pg-sub" id="ps-sub">公開された明細を確認できます</div></div>
+  </div>
+  <div class="scroll pb" style="padding:13px">
+    <div id="payslip-list">
+      <div style="text-align:center;color:var(--t3);padding:30px 0;font-size:13px">読み込み中...</div>
+    </div>
   </div>
 </div>
 
@@ -2255,8 +2271,8 @@ function autoSz(el){
   el.style.height=Math.min(el.scrollHeight,120)+'px';
 }
 
-const SCRS=['s-home','s-chat','s-tpl','s-docs','s-videos','s-nippo','s-shift','s-sos','s-settings'];
-const NMAP={'s-home':'n-home','s-chat':'n-chat','s-tpl':'n-tpl','s-docs':'n-docs','s-videos':null,'s-nippo':null,'s-shift':'n-shift','s-sos':null,'s-settings':'n-settings'};
+const SCRS=['s-home','s-chat','s-tpl','s-docs','s-videos','s-nippo','s-shift','s-sos','s-settings','s-payslip'];
+const NMAP={'s-home':'n-home','s-chat':'n-chat','s-tpl':'n-tpl','s-docs':'n-docs','s-videos':null,'s-nippo':null,'s-shift':'n-shift','s-sos':null,'s-settings':'n-settings','s-payslip':null};
 
 function go(id){
   SCRS.forEach(s=>document.getElementById(s)?.classList.toggle('on',s===id));
@@ -2307,6 +2323,52 @@ function go(id){
   if(id==='s-settings'){
     if(typeof renderNotifSwitch==='function') renderNotifSwitch();
   }
+  if(id==='s-payslip'){
+    if(typeof loadPayslips==='function') loadPayslips();
+  }
+}
+
+// ── 給与明細（ワーカー）────────────────────────────────────────
+function _psYen(n){ return '¥' + (Math.round(n||0)).toLocaleString('ja-JP'); }
+async function loadPayslips(){
+  const wrap = document.getElementById('payslip-list');
+  if(!wrap) return;
+  wrap.innerHTML = '<div style="text-align:center;color:var(--t3);padding:30px 0;font-size:13px">読み込み中...</div>';
+  try{
+    const r = await fetch('/worker/api/payslips');
+    const j = await r.json();
+    if(!j.ok){ wrap.innerHTML = `<div style="padding:20px;color:var(--red)">${j.error||'取得失敗'}</div>`; return; }
+    const list = j.payslips || [];
+    if(!list.length){
+      wrap.innerHTML = '<div style="text-align:center;color:var(--t3);padding:30px 12px;font-size:13px">公開された給与明細はまだありません</div>';
+      return;
+    }
+    wrap.innerHTML = list.map(p => `
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-hdr" style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;font-size:15px">${p.period}</span>
+          <span style="font-weight:700;color:var(--gn);font-size:16px">${_psYen(p.net_pay)}</span>
+        </div>
+        <div style="padding:12px 15px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:12.5px">
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">勤務日数</span><span>${p.work_days}日</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">通常</span><span>${p.regular_hours}h</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">残業</span><span>${p.overtime_hours}h</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">深夜</span><span>${p.night_hours}h</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">基本給</span><span>${_psYen(p.base_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">残業手当</span><span>${_psYen(p.overtime_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">深夜手当</span><span>${_psYen(p.night_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">休日手当</span><span>${_psYen(p.holiday_pay)}</span></div>
+          </div>
+          <div style="border-top:1px solid var(--bd);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;gap:6px;font-size:13px">
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t2);font-weight:600">総支給</span><span style="font-weight:700">${_psYen(p.gross_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">控除合計</span><span>-${_psYen(p.deduction_total)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--gn);font-weight:700">差引支給額</span><span style="color:var(--gn);font-weight:700;font-size:15px">${_psYen(p.net_pay)}</span></div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){ wrap.innerHTML = `<div style="padding:20px;color:var(--red)">${e.message}</div>`; }
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────

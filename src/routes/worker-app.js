@@ -817,4 +817,28 @@ router.post('/api/change-password', requireWorkerAuth, requireWorker, async (req
   res.json({ ok: true })
 })
 
+// ── 給与明細 API（ワーカー側）─────────────────────────────────
+// GET /worker/api/payslips — 自分の published 明細のみ
+router.get('/api/payslips', requireWorkerAuth, requireWorker, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const workerId  = req.profile?.worker_id
+    if (!workerId) return res.json({ ok: true, payslips: [] })
+
+    const { data, error } = await adminClient()
+      .from('payslips')
+      .select('id, period, work_days, regular_hours, overtime_hours, night_hours, holiday_hours, base_pay, overtime_pay, night_pay, holiday_pay, allowance_total, deduction_total, gross_pay, net_pay, breakdown, published_at, status')
+      .eq('company_id', companyId)
+      .eq('worker_id', workerId)
+      .eq('status', 'published')   // 公開済みのみ
+      .order('period', { ascending: false })
+      .limit(36)
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    res.json({ ok: true, payslips: data || [] })
+  } catch (e) {
+    console.error('[worker payslips]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 module.exports = router
