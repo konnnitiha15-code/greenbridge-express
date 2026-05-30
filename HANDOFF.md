@@ -106,7 +106,7 @@ greenbridge-express/
 - ✅ シフト確認（週単位、自動更新、誰のシフトか表示）
 - ✅ 個別チャット（既読、入力欄）
 - ✅ グループチャット
-- ✅ 申請テンプレート（休み・遅刻・体調不良等、母国語OK）
+- ✅ 申請テンプレート（休み・遅刻・体調不良等、母国語OK・AI翻訳で日本語送信）
 - ✅ 日報・ヒヤリハット
 - ✅ 書類確認（PDF・画像を新規タブで開く、署名URL再発行）
 - ✅ SOS緊急連絡
@@ -161,6 +161,9 @@ greenbridge-express/
 | push_subscriptions | Web Push 購読情報 |
 | wage_settings | 賃金設定（時給/月給・割増率・手当/控除） |
 | payslips | 給与明細（月次・snapshot・immutable） |
+| translation_cache | 翻訳キャッシュ（API結果再利用） |
+| company_dictionaries | 会社辞書（翻訳・最優先） |
+| industry_dictionaries | 業界辞書（翻訳・会社横断） |
 
 ### マイグレーション履歴
 
@@ -175,9 +178,10 @@ greenbridge-express/
 008 - push_subscriptions（Web Push サブスクリプション保存）
 009 - message attachments（messages/group_messages に添付カラム）
 010 - payroll（wage_settings + payslips + attendance lock + immutable トリガ）
+011 - translation（translation_cache + company/industry_dictionaries）
 ```
 
-すべて **実行済み** ✅
+001〜010 は **実行済み** ✅／**011 は要実行**（次セッションで Supabase SQL Editor 実行）
 
 ### Supabase Storage
 - バケット名: `documents`
@@ -277,9 +281,17 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
 - 一部のボタン
 
 ### 🟡 機能の中途半端さ
-- `aiTx()` 翻訳機能は原文返却のみ（実装案: MyMemory 無料API）
+- ~~`aiTx()` 翻訳機能は原文返却のみ~~ → ✅ translationService(MyMemory)で本実装済み（011）
 - 動画マニュアル: UI のみで実体なし
 - タスク管理: 実習生管理と相性悪い
+
+### 🔤 翻訳サービス（011で追加）
+- `src/lib/translation/index.js` = translationService（共通IF）
+- 優先順位: 会社辞書 → 業界辞書 → translation_cache → MyMemory API
+- プロバイダ差し替え: `TRANSLATION_PROVIDER` env（mymemory既定、google/deepl/anthropic/openai拡張可）
+- `src/lib/translation/providers/<name>.js` を追加し index.js の PROVIDERS に登録するだけ
+- 定型UI文言はローカル辞書(LS/applyL)のまま。APIは動的テキスト(チャット/申請/日報)のみ
+- フロント `aiTx(text, target, source?)` が `/api/translate` を呼ぶ。失敗時は原文返却
 
 ### 🟢 軽微
 - ファイルアップロードの multer メモリストア（小規模なら問題なし）
@@ -440,6 +452,13 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - 管理者UI（給与タブ・計算表・賃金設定モーダル・明細HTML印刷）
     - ワーカーUI（給与明細カード閲覧、published のみ）
     - 本番 E2E 検証済み（snapshot/immutable/lock すべて実証）
+33. 賃金設定UIの時給/月給切替（ラベル・所定時間欄・説明を動的化）
+34. **AI翻訳の本実装（011マイグレーション）**
+    - translationService（共通IF translate(text,source,target)）
+    - 優先順位: 会社辞書→業界辞書→translation_cache→MyMemory API
+    - プロバイダ差し替え構造（google/deepl/anthropic/openai 拡張可）
+    - /api/translate（admin/worker両対応）、aiTx をサーバー翻訳に接続
+    - MyMemory実呼び出し検証済み（ja⇔vi/en）。失敗時は原文フォールバック
 
 ---
 
@@ -473,7 +492,10 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-05-29**
-**最終コミット: 4c84349 (feat: 給与計算機能 MVP)**
+**最終コミット: 17b9445 (feat: AI翻訳 translationService/MyMemory)**
+
+> ⚠️ **次セッション冒頭の宿題: マイグレーション011 を Supabase SQL Editor で実行**
+> （未実行でも翻訳は MyMemory フォールバックで動くが、辞書・キャッシュは効かない）
 
 ---
 
@@ -482,13 +504,13 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ### ✅ 完了済み
 - ~~#1 セッションストア本番対応~~ → ステートレス化（f979832）
 - ~~#2 無効UUID 400正規化~~ → 完了（f979832）
-- ~~給与計算連携 MVP~~ → 完了（4c84349 / 010マイグレーション実行済み）
+- ~~給与計算連携 MVP~~ → 完了（4c84349 / 010実行済み）
+- ~~AI翻訳の本実装~~ → translationService/MyMemory 完了（17b9445 / **011は要実行**）
 
 ### 🟡 業務価値が高い（Phase 2: 業務適合）
-1. **AI翻訳の本実装** — コンセプトの根幹（次の最有力候補）
-   - 現状 `aiTx()` は原文返却のみ（worker.ejs / app.js 両方）
-   - MyMemory無料API or Claude API でチャット・申請・日報を母国語⇔日本語
-   - 規模: 中（1〜2日）
+1. **会社辞書の管理UI**（翻訳の精度向上）
+   - company_dictionaries を管理者が編集できる画面（現状はDB直接のみ）
+   - 規模: 小〜中
 2. **ビザ・在留管理の強化**
    - 在留期限カレンダーUI、書類期限の自動通知バッチ、健康診断スケジュール
    - 規模: 中（2〜3日）
@@ -496,6 +518,9 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
    - 給与明細の正式PDF生成（現状はHTML印刷）
    - 社保・所得税の自動計算、月60h超残業の50%割増
    - 休日カレンダー（現状は日曜のみ休日判定）
+4. **翻訳の拡張**（余力あれば）
+   - DeepL/Google/Anthropic プロバイダ追加（providers/ に足すだけ）
+   - 管理者チャットでもワーカー言語へ翻訳送信
 
 ### 🟢 整理・改善（Phase 1の残り）
 4. 不要機能の削除/再設計（タスク管理Kanban・動画マニュアル）— 小
