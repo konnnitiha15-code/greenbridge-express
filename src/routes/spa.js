@@ -513,7 +513,7 @@ router.get('/api/daily-reports/export.csv', requireAuth, async (req, res) => {
       r.type === 'hayari' ? 'ヒヤリ・ハット' : '日報',
       r.content || '',
       r.translated || '',
-      { pending:'未承認', reviewed:'確認済み', approved:'承認済' }[r.status] || r.status,
+      { pending:'確認待ち', reviewed:'確認済み', returned:'差戻し', approved:'確認済み' }[r.status] || r.status,
       r.created_at,
     ].map(csvEscape).join(','))
   }
@@ -1474,75 +1474,237 @@ router.get('/api/messages', requireAuth, requireAdmin, async (req, res) => {
 // ── 日報 API（Admin用） ──────────────────────────────────────────
 // GET /app/api/daily-reports?worker_id=&type=&status=
 router.get('/api/daily-reports', requireAuth, async (req, res) => {
-  const companyId = req.profile?.company_id
-  if (!companyId) return res.json({ ok: true, reports: [] })
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.json({ ok: true, reports: [] })
 
-  let query = req.supabase
-    .from('daily_reports')
-    .select(`
+    const sb = createAdminClient()
+    // 拡張カラム込みで取得。migration 012 未適用の環境では基本カラムにフォールバック
+    const fullCols = `
+      id, report_date, type, content, translated, status, created_at,
+      site_name, work_content, attachments, reviewed_at,
+      worker_id, workers(name, language)
+    `
+    const baseCols = `
       id, report_date, type, content, translated, status, created_at,
       worker_id, workers(name, language)
-    `)
-    .eq('company_id', companyId)
-    .order('created_at', { ascending: false })
-    .limit(100)
+    `
+    const build = (cols) => {
+      let q = sb.from('daily_reports').select(cols)
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(100)
+      if (req.query.worker_id) q = q.eq('worker_id', req.query.worker_id)
+      if (req.query.type)      q = q.eq('type', req.query.type)
+      if (req.query.status)    q = q.eq('status', req.query.status)
+      return q
+    }
 
-  if (req.query.worker_id) query = query.eq('worker_id', req.query.worker_id)
-  if (req.query.type)      query = query.eq('type', req.query.type)
-  if (req.query.status)    query = query.eq('status', req.query.status)
+    let { data, error } = await build(fullCols)
+    if (error && /column .* does not exist|attachments|site_name|work_content/i.test(error.message || '')) {
+      ;({ data, error } = await build(baseCols))
+    }
+    if (error) return res.status(500).json({ ok: false, error: error.message })
 
-  const { data, error } = await query
-  if (error) return res.status(500).json({ ok: false, error: error.message })
+    const rows = data || []
+    const ids = rows.map(r => r.id)
 
-  const reports = (data || []).map(r => ({
-    id:          r.id,
-    wid:         r.worker_id,
-    author:      r.workers?.name || '不明',
-    date:        (r.report_date || '').replace(/-/g, '/'),
-    type:        r.type,
-    // 'pending' / 'reviewed' を UI の 'review' / 'approved' にマッピング
-    status:      r.status === 'pending' ? 'review' : (r.status === 'reviewed' ? 'approved' : r.status),
-    original:    r.content,
-    translated:  r.translated || r.content,
-    title:       r.translated?.slice(0, 30) || r.content?.slice(0, 30) || '',
-    created_at:  r.created_at,
-  }))
+    // コメント数を集計（migration 012 未適用なら空）
+    const commentCount = {}
+    if (ids.length) {
+      try {
+        const { data: cs } = await sb.from('report_comments')
+          .select('report_id').in('report_id', ids)
+        ;(cs || []).forEach(c => { commentCount[c.report_id] = (commentCount[c.report_id] || 0) + 1 })
+      } catch {}
+    }
 
-  res.json({ ok: true, reports })
+    // DB値(pending/reviewed/returned)をそのまま返す。旧 'reviewed' も互換
+    const reports = rows.map(r => {
+      const atts = Array.isArray(r.attachments) ? r.attachments : []
+      const imageCount = atts.filter(a => a && a.type === 'image').length
+      return {
+        id:          r.id,
+        wid:         r.worker_id,
+        author:      r.workers?.name || '不明',
+        lang:        r.workers?.language || 'vi',
+        date:        (r.report_date || '').replace(/-/g, '/'),
+        type:        r.type,
+        status:      r.status || 'pending',
+        original:    r.content,
+        translated:  r.translated || r.content,
+        title:       (r.translated || r.content || '').slice(0, 30),
+        site_name:   r.site_name || '',
+        work_content:r.work_content || '',
+        attachments: atts,
+        imageCount,
+        commentCount: commentCount[r.id] || 0,
+        created_at:  r.created_at,
+      }
+    })
+
+    res.json({ ok: true, reports })
+  } catch (e) {
+    console.error('[daily-reports list]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
 })
 
-// PUT /app/api/daily-reports/:id  — ステータス更新（承認など）
+// GET /app/api/daily-reports/:id — 詳細（コメント + 承認履歴つき）
+router.get('/api/daily-reports/:id', requireAuth, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const id = req.params.id
+    if (!isUuid(id)) return res.status(400).json({ ok: false, error: 'id の形式が不正です' })
+
+    const sb = createAdminClient()
+    const fullCols = `id, report_date, type, content, translated, status, created_at,
+               site_name, work_content, attachments, reviewed_at, reviewed_by,
+               worker_id, workers(name, language, department, job_title)`
+    const baseCols = `id, report_date, type, content, translated, status, created_at,
+               worker_id, workers(name, language, department, job_title)`
+    let { data: r, error } = await sb.from('daily_reports')
+      .select(fullCols).eq('id', id).eq('company_id', companyId).maybeSingle()
+    // 012未適用（拡張カラム無し）→ 基本カラムで再試行
+    if (error && /column .* does not exist|site_name|work_content|attachments|reviewed_/i.test(error.message || '')) {
+      ;({ data: r, error } = await sb.from('daily_reports')
+        .select(baseCols).eq('id', id).eq('company_id', companyId).maybeSingle())
+    }
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    if (!r) return res.status(404).json({ ok: false, error: 'not_found' })
+
+    // コメント・履歴（テーブル未作成なら空配列にフォールバック）
+    const safe = (b) => Promise.resolve(b).then(x => x).catch(() => ({ data: [] }))
+    const [cRes, hRes] = await Promise.all([
+      safe(sb.from('report_comments').select('*').eq('report_id', id).order('created_at', { ascending: true })),
+      safe(sb.from('report_status_history').select('*').eq('report_id', id).order('created_at', { ascending: true })),
+    ])
+    const comments = cRes.data || []
+    const history  = hRes.data || []
+
+    res.json({
+      ok: true,
+      report: {
+        id: r.id, wid: r.worker_id,
+        author: r.workers?.name || '不明',
+        lang: r.workers?.language || 'vi',
+        department: r.workers?.department || '',
+        job_title: r.workers?.job_title || '',
+        date: (r.report_date || '').replace(/-/g, '/'),
+        type: r.type, status: r.status || 'pending',
+        original: r.content, translated: r.translated || r.content,
+        site_name: r.site_name || '', work_content: r.work_content || '',
+        attachments: Array.isArray(r.attachments) ? r.attachments : [],
+        reviewed_at: r.reviewed_at, created_at: r.created_at,
+      },
+      comments: comments || [],
+      history: history || [],
+    })
+  } catch (e) {
+    console.error('[daily-report detail]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// POST /app/api/daily-reports/:id/comments — 管理者コメント追加
+router.post('/api/daily-reports/:id/comments', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const id = req.params.id
+    if (!isUuid(id)) return res.status(400).json({ ok: false, error: 'id の形式が不正です' })
+    const body = (req.body?.body || '').trim()
+    if (!body) return res.status(400).json({ ok: false, error: 'コメントを入力してください' })
+
+    const sb = createAdminClient()
+    const { data, error } = await sb.from('report_comments').insert({
+      company_id: companyId, report_id: id,
+      author_id: req.user?.id,
+      author_name: req.profile?.full_name || '管理者',
+      body,
+    }).select('*').single()
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+
+    // ワーカーへ通知
+    try {
+      const { data: rep } = await sb.from('daily_reports').select('worker_id').eq('id', id).maybeSingle()
+      if (rep?.worker_id) {
+        const notif = {
+          company_id: companyId, worker_id: rep.worker_id,
+          title: '💬 日報にコメントが届きました',
+          body: body.slice(0, 60), type: 'info',
+        }
+        await sb.from('notifications').insert(notif)
+        push.sendFromNotification({ ...notif, url: '/worker?tab=daily' }).catch(()=>{})
+      }
+    } catch {}
+
+    res.json({ ok: true, comment: data })
+  } catch (e) {
+    console.error('[daily-report comment]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// PUT /app/api/daily-reports/:id  — ステータス更新（確認済み/差戻し）+ 履歴記録
+//   status: pending|reviewed|returned （旧 'approved' は 'reviewed' に正規化）
 router.put('/api/daily-reports/:id', requireAuth, async (req, res) => {
-  const companyId = req.profile?.company_id
-  const { status } = req.body
-  if (!status) return res.status(400).json({ error: 'status は必須です' })
+  try {
+    const companyId = req.profile?.company_id
+    const id = req.params.id
+    let { status, note } = req.body
+    if (!status) return res.status(400).json({ ok: false, error: 'status は必須です' })
+    // 旧UI互換: approved→reviewed / review→pending
+    if (status === 'approved') status = 'reviewed'
+    if (status === 'review')   status = 'pending'
+    if (!['pending', 'reviewed', 'returned'].includes(status)) {
+      return res.status(400).json({ ok: false, error: 'status が不正です' })
+    }
 
-  const sbAdmin = createAdminClient()
-  // 日報情報取得（通知用）
-  const { data: rep } = await sbAdmin
-    .from('daily_reports').select('worker_id, report_date').eq('id', req.params.id).maybeSingle()
+    const sbAdmin = createAdminClient()
+    const { data: rep } = await sbAdmin
+      .from('daily_reports').select('worker_id, report_date, status').eq('id', id).eq('company_id', companyId).maybeSingle()
+    if (!rep) return res.status(404).json({ ok: false, error: 'not_found' })
 
-  const { error } = await req.supabase
-    .from('daily_reports')
-    .update({ status })
-    .eq('id', req.params.id)
-    .eq('company_id', companyId)
+    const fromStatus = rep.status || 'pending'
+    const update = { status }
+    if (status === 'reviewed') {
+      update.reviewed_at = new Date().toISOString()
+      update.reviewed_by = req.user?.id
+    }
 
-  if (error) return res.status(500).json({ ok: false, error: error.message })
+    let { error } = await sbAdmin
+      .from('daily_reports').update(update).eq('id', id).eq('company_id', companyId)
+    // reviewed_at/by カラムが無い(012未適用)場合は status だけで再試行
+    if (error && /column .* does not exist|reviewed_/i.test(error.message || '')) {
+      ;({ error } = await sbAdmin.from('daily_reports').update({ status }).eq('id', id).eq('company_id', companyId))
+    }
+    if (error) return res.status(500).json({ ok: false, error: error.message })
 
-  // 承認時のみワーカーに通知
-  if (rep && (status === 'approved' || status === 'reviewed')) {
+    // 承認履歴を記録（テーブル未作成なら無視）
+    try {
+      await sbAdmin.from('report_status_history').insert({
+        company_id: companyId, report_id: id,
+        actor_id: req.user?.id, actor_name: req.profile?.full_name || '管理者',
+        from_status: fromStatus, to_status: status, note: note || null,
+      })
+    } catch {}
+
+    // ワーカーへ通知
+    const label = status === 'reviewed' ? '✅ 日報が確認されました'
+                : status === 'returned' ? '↩️ 日報が差戻しされました' : '日報のステータスが更新されました'
     const notif = {
-      company_id: companyId,
-      worker_id:  rep.worker_id,
-      title:      '✅ 日報が承認されました',
-      body:       `${rep.report_date} の日報が承認済みになりました`,
-      type:       'approval',
+      company_id: companyId, worker_id: rep.worker_id,
+      title: label, body: `${rep.report_date} の日報`,
+      type: status === 'returned' ? 'alert' : 'approval',
     }
     try { await sbAdmin.from('notifications').insert(notif) } catch {}
     push.sendFromNotification({ ...notif, url: '/worker?tab=daily' }).catch(()=>{})
+
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('[daily-report status]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
   }
-  res.json({ ok: true })
 })
 
 // ── ホームタイムライン: 今日の出来事を統合 ─────────────────────────

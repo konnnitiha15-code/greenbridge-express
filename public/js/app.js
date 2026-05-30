@@ -223,7 +223,7 @@ function SP(id){
   }
   if(id==='gchat') renderGCL();
   if(id==='videos') renderVL();
-  if(id==='nippo') loadAndRenderNPL();
+  if(id==='nippo'){ AN=null; loadAndRenderNPL(); }  // タブを開くたびに未確認優先で自動選択
   if(id==='tasks') renderKanban();
   if(id==='home'){
     refreshHomeKPIs();
@@ -2446,7 +2446,16 @@ function uploadVideo(){const title=document.getElementById('vt')?.value?.trim();
 
 // ── NIPPO ─────────────────────────────────────────────────────────────────────
 // DB から日報を取得して描画
-async function loadAndRenderNPL(filter) {
+let _npFilter = 'all';
+
+const _NP_ST = {
+  pending:  { txt:'確認待ち', cls:'pending'  },
+  reviewed: { txt:'確認済',   cls:'reviewed' },
+  returned: { txt:'差戻し',   cls:'returned' },
+};
+function _npEsc(s){ return (s==null?'':String(s)).replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadAndRenderNPL(opts){
   try {
     const res  = await fetch('/app/api/daily-reports');
     const json = await res.json();
@@ -2454,64 +2463,229 @@ async function loadAndRenderNPL(filter) {
   } catch(e) {
     console.error('[nippo] load error:', e);
   }
-  renderNPL(filter);
+  updateNpStats();
+  renderNPL();
+  // 初期表示: 未確認優先 → 最新 を自動選択（既に選択中ならそのまま）
+  if (opts?.autoselect !== false && !AN) {
+    const target = _npAutoTarget();
+    if (target) openNippo(target);
+  } else if (AN) {
+    // 既存選択を最新データで更新
+    const fresh = NIPPOS.find(x => x.id === AN.id);
+    if (fresh) { /* 詳細は openNippo 内で再fetch */ }
+  }
 }
 
-function renderNPL(filter){
+function _npAutoTarget(){
+  const sorted = [...NIPPOS].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+  return sorted.find(n => n.status === 'pending') || sorted[0] || null;
+}
+
+function updateNpStats(){
+  const today = new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Tokyo'}); // YYYY-MM-DD
+  const ym = today.slice(0,7);
+  const norm = d => (d||'').replace(/\//g,'-').slice(0,10);
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('nps-today',   NIPPOS.filter(n=>norm(n.date)===today).length);
+  set('nps-pending', NIPPOS.filter(n=>n.status==='pending').length);
+  set('nps-hayari',  NIPPOS.filter(n=>n.type==='hayari').length);
+  set('nps-month',   NIPPOS.filter(n=>norm(n.date).startsWith(ym)).length);
+}
+
+function setNpFilter(el){
+  document.querySelectorAll('#np-filters .fc').forEach(d=>d.classList.remove('on'));
+  el.classList.add('on');
+  _npFilter = el.dataset.f || 'all';
+  renderNPL();
+}
+
+function _npMatchFilter(n){
+  const f=_npFilter;
+  if(f==='all') return true;
+  if(f==='pending'||f==='reviewed'||f==='returned') return n.status===f;
+  if(f==='daily') return n.type==='daily';
+  if(f==='hayari') return n.type==='hayari';
+  if(f==='image') return (n.imageCount||0)>0;
+  const today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Tokyo'});
+  const norm=d=>(d||'').replace(/\//g,'-').slice(0,10);
+  if(f==='today') return norm(n.date)===today;
+  if(f==='week'){ const d=new Date(); d.setDate(d.getDate()-7); return norm(n.date) >= d.toISOString().slice(0,10); }
+  return true;
+}
+
+function renderNPL(){
   const el=document.getElementById('np-list');if(!el)return;el.innerHTML='';
-  let list=NIPPOS;
-  if(filter==='daily')list=list.filter(n=>n.type==='daily');
-  else if(filter==='hayari')list=list.filter(n=>n.type==='hayari');
-  else if(filter==='review')list=list.filter(n=>n.status==='review');
-  list=[...list].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const q=(document.getElementById('np-search')?.value||'').trim().toLowerCase();
+  let list=NIPPOS.filter(_npMatchFilter);
+  if(q){
+    list=list.filter(n =>
+      (n.author||'').toLowerCase().includes(q) ||
+      (n.title||'').toLowerCase().includes(q) ||
+      (n.original||'').toLowerCase().includes(q) ||
+      (n.translated||'').toLowerCase().includes(q)
+    );
+  }
+  list=[...list].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
   if(!list.length){el.innerHTML='<div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">該当する日報がありません</div>';return;}
   list.forEach(n=>{
     const w=WORKERS.find(x=>x.id===n.wid);
-    const d=document.createElement('div');d.className='pitem';d.onclick=()=>openNippo(n);
-    const statusColor=n.status==='approved'?'var(--gn)':n.status==='review'?'var(--amb)':'var(--t3)';
-    const statusBg=n.status==='approved'?'var(--gbg)':n.status==='review'?'var(--abg)':'var(--s2)';
-    const statusTxt=n.status==='approved'?'承認済':n.status==='review'?'確認待ち':'下書き';
-    d.innerHTML=`<div style="width:38px;height:38px;border-radius:50%;background:${w?.bg||'#f3f4f6'};color:${w?.tc||'#374151'};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">${w?.init||'?'}</div>
-    <div style="flex:1;min-width:0">
-      <div style="font-size:13px;font-weight:600">${n.flag||''} ${n.author}</div>
-      <div style="font-size:12px;color:var(--t2);margin-top:2px"><span class="badge ${n.type==='hayari'?'br':'bgray'}" style="font-size:9.5px">${n.type==='hayari'?'⚠️ ヒヤリ':'📝 日報'}</span> ${n.title}</div>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0"><span style="font-size:11px;font-weight:600;color:${statusColor};background:${statusBg};padding:2px 8px;border-radius:99px">${statusTxt}</span><div style="font-size:10.5px;color:var(--t3)">${n.date}</div></div>`;
+    const st=_NP_ST[n.status]||_NP_ST.pending;
+    const dt=n.created_at ? new Date(n.created_at) : null;
+    const dtStr=dt ? `${dt.toLocaleDateString('ja-JP',{month:'2-digit',day:'2-digit'})} ${dt.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}` : (n.date||'');
+    const d=document.createElement('div');
+    d.className='np-item'+(AN?.id===n.id?' on':'');
+    d.onclick=()=>openNippo(n);
+    const metaBits=[];
+    if((n.imageCount||0)>0) metaBits.push(`📷${n.imageCount}枚`);
+    if((n.commentCount||0)>0) metaBits.push(`💬${n.commentCount}件`);
+    d.innerHTML=`
+      <div class="np-item-av" style="background:${w?.bg||'#f3f4f6'};color:${w?.tc||'#374151'}">${w?.init||'?'}</div>
+      <div class="np-item-body">
+        <div class="np-item-top">
+          <span class="np-item-name">${_npEsc(n.author)}</span>
+          <span class="np-item-type ${n.type==='hayari'?'hayari':'daily'}">${n.type==='hayari'?'⚠ ヒヤリ':'📄 日報'}</span>
+        </div>
+        <div class="np-item-title">${_npEsc(n.title)||'（本文なし）'}</div>
+        <div class="np-item-meta">${metaBits.map(b=>`<span>${b}</span>`).join('')}<span>${dtStr}</span></div>
+      </div>
+      <div class="np-item-right">
+        <span class="np-st ${st.cls}">${st.txt}</span>
+      </div>`;
     el.appendChild(d);
   });
 }
 
-function openNippo(n){
+async function openNippo(n){
   AN=n;
+  renderNPL(); // 選択ハイライト更新
   const panel=document.getElementById('np-detail');if(!panel)return;
-  panel.innerHTML=`<div style="background:var(--s2);border-bottom:1px solid var(--bd);padding:12px 16px;display:flex;align-items:center;gap:12px">
-    <div style="font-size:15px;font-weight:700;flex:1">${n.flag||''} ${n.author} — ${n.type==='hayari'?'ヒヤリハット':'日報'}</div>
-    <span class="badge bb">${n.date}</span>
-    ${IS_ADMIN&&n.status!=='approved'?`<button class="btn btn-g btn-sm" onclick="approveNippo('${n.id}')">✓ 承認</button>`:''}
-    ${n.status==='approved'?'<span class="badge bg">✓ 承認済</span>':''}
-  </div>
-  <div style="flex:1;overflow-y:auto;padding:16px;background:var(--bg);display:flex;flex-direction:column;gap:12px">
-    ${n.original?`<div class="card"><div class="card-hdr"><span class="card-title">原文</span></div><div style="padding:14px;font-size:13.5px;line-height:1.8;white-space:pre-wrap">${n.original}</div></div>`:''}
-    ${n.translated?`<div class="card"><div class="card-hdr"><span class="card-title">AI翻訳（日本語）</span><span class="badge bg">翻訳済</span></div><div style="padding:14px;font-size:13.5px;line-height:1.8">${n.translated}</div></div>`:''}
-  </div>`;
+  panel.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--t3)">読み込み中...</div>';
+
+  let detail=null, comments=[], history=[];
+  try{
+    const res=await fetch(`/app/api/daily-reports/${n.id}`);
+    const j=await res.json();
+    if(j.ok){ detail=j.report; comments=j.comments||[]; history=j.history||[]; }
+  }catch(e){ console.warn('[nippo detail]',e); }
+  const r = detail || n;  // 詳細取得失敗時は一覧データで代替
+  const w=WORKERS.find(x=>x.id===r.wid);
+  const st=_NP_ST[r.status]||_NP_ST.pending;
+
+  // 承認アクションボタン（状態に応じて）
+  const btns=[];
+  if(IS_ADMIN){
+    if(r.status!=='reviewed') btns.push(`<button class="btn btn-g btn-sm" onclick="setReportStatus('${r.id}','reviewed')">✓ 確認済みにする</button>`);
+    if(r.status!=='returned') btns.push(`<button class="btn btn-sm" style="border-color:#fca5a5;color:#dc2626" onclick="setReportStatus('${r.id}','returned')">↩ 差戻し</button>`);
+    if(r.status!=='pending')  btns.push(`<button class="btn btn-sm" onclick="setReportStatus('${r.id}','pending')">確認待ちに戻す</button>`);
+  }
+
+  // 添付画像サムネイル
+  const imgs=(r.attachments||[]).filter(a=>a&&a.type==='image');
+  const files=(r.attachments||[]).filter(a=>a&&a.type!=='image');
+  const thumbs=imgs.map(a=>`<img class="np-thumb" src="${a.url}" onclick="openImgModal('${a.url}')" alt="${_npEsc(a.name||'')}">`).join('');
+  const fileLinks=files.map(a=>`<a href="${a.url}" target="_blank" rel="noopener" style="display:inline-block;padding:6px 10px;background:#fff;border:1px solid var(--bd);border-radius:8px;font-size:12px;margin:2px">📎 ${_npEsc(a.name||'ファイル')}</a>`).join('');
+
+  // メタ情報
+  const dtStr=r.created_at ? new Date(r.created_at).toLocaleString('ja-JP') : (r.date||'');
+  const metaRows=[
+    ['種別', r.type==='hayari'?'⚠ ヒヤリ・ハット':'📄 日報'],
+    ['作成者', _npEsc(r.author)+(r.department?`（${_npEsc(r.department)}）`:'')],
+    ['作成日時', dtStr],
+  ];
+  if(r.site_name) metaRows.push(['現場名', _npEsc(r.site_name)]);
+  if(r.work_content) metaRows.push(['作業内容', _npEsc(r.work_content)]);
+
+  // コメント
+  const commentHtml=comments.length
+    ? comments.map(c=>`<div class="np-comment">
+        <div class="np-comment-av">${_npEsc((c.author_name||'管').charAt(0))}</div>
+        <div class="np-comment-body">
+          <div><span class="np-comment-name">${_npEsc(c.author_name||'管理者')}</span> <span class="np-comment-time">${new Date(c.created_at).toLocaleString('ja-JP')}</span></div>
+          <div class="np-comment-text">${_npEsc(c.body)}</div>
+        </div></div>`).join('')
+    : '<div style="font-size:12.5px;color:var(--t3);padding:6px 0">まだコメントはありません</div>';
+
+  // 履歴
+  const histHtml=history.length
+    ? history.map(h=>`<div class="np-hist"><span class="np-hist-dot"></span><span>${new Date(h.created_at).toLocaleString('ja-JP')} — ${_npEsc(h.actor_name||'管理者')} が「${(_NP_ST[h.to_status]||{txt:h.to_status}).txt}」に変更${h.note?'（'+_npEsc(h.note)+'）':''}</span></div>`).join('')
+    : '<div style="font-size:11.5px;color:var(--t3);padding:4px 0">履歴なし</div>';
+
+  panel.innerHTML=`
+    <div class="np-detail-hdr">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="np-item-av" style="background:${w?.bg||'#f3f4f6'};color:${w?.tc||'#374151'}">${w?.init||'?'}</div>
+        <div style="flex:1">
+          <div style="font-size:15px;font-weight:700">${_npEsc(r.author)} — ${r.type==='hayari'?'ヒヤリ・ハット':'日報'}</div>
+          <div style="font-size:11.5px;color:var(--t3)">${dtStr}</div>
+        </div>
+        <span class="np-st ${st.cls}" style="font-size:12px">${st.txt}</span>
+      </div>
+      ${btns.length?`<div class="np-detail-actions">${btns.join('')}</div>`:''}
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px;background:var(--bg);display:flex;flex-direction:column;gap:12px">
+      <div class="card"><div class="card-hdr"><span class="card-title">基本情報</span></div>
+        <div style="padding:14px"><dl class="np-meta-grid">${metaRows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>
+      </div>
+      ${r.original?`<div class="card"><div class="card-hdr"><span class="card-title">本文（原文）</span></div><div style="padding:14px;font-size:13.5px;line-height:1.8;white-space:pre-wrap">${_npEsc(r.original)}</div></div>`:''}
+      ${(r.translated&&r.translated!==r.original)?`<div class="card"><div class="card-hdr"><span class="card-title">日本語</span><span class="badge bg">翻訳</span></div><div style="padding:14px;font-size:13.5px;line-height:1.8">${_npEsc(r.translated)}</div></div>`:''}
+      ${imgs.length?`<div class="card"><div class="card-hdr"><span class="card-title">添付画像（${imgs.length}）</span></div><div style="padding:14px"><div class="np-thumbs">${thumbs}</div></div></div>`:''}
+      ${files.length?`<div class="card"><div class="card-hdr"><span class="card-title">添付ファイル</span></div><div style="padding:14px">${fileLinks}</div></div>`:''}
+      <div class="card"><div class="card-hdr"><span class="card-title">コメント</span></div>
+        <div style="padding:12px 14px">
+          <div id="np-comments">${commentHtml}</div>
+          ${IS_ADMIN?`<div style="display:flex;gap:6px;margin-top:10px">
+            <input id="np-comment-input" class="finp" placeholder="コメントを追加..." style="flex:1" onkeydown="if(event.key==='Enter'){addReportComment('${r.id}')}">
+            <button class="btn btn-g btn-sm" onclick="addReportComment('${r.id}')">送信</button>
+          </div>`:''}
+        </div>
+      </div>
+      <div class="card"><div class="card-hdr"><span class="card-title">承認履歴</span></div>
+        <div style="padding:10px 14px">${histHtml}</div>
+      </div>
+    </div>`;
 }
 
-async function approveNippo(id){
-  const n=NIPPOS.find(x=>x.id===id);if(!n)return;
-  try {
-    const res = await fetch(`/app/api/daily-reports/${id}`,{
+async function setReportStatus(id, status){
+  try{
+    const res=await fetch(`/app/api/daily-reports/${id}`,{
       method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({status:'approved'}),
+      body:JSON.stringify({status}),
     });
-    const json = await res.json();
-    if(!json.ok) throw new Error(json.error);
-    n.status='approved';
+    const j=await res.json();
+    if(!j.ok) throw new Error(j.error);
+    const n=NIPPOS.find(x=>x.id===id); if(n) n.status=status;
+    updateNpStats();
+    if(AN?.id===id) await openNippo(NIPPOS.find(x=>x.id===id)||AN);
+    else renderNPL();
+    const lbl=_NP_ST[status]?.txt||status;
+    toast('更新完了',`ステータスを「${lbl}」に変更しました`);
+  }catch(e){ toast('エラー',e.message||'更新に失敗しました','r'); }
+}
+
+async function addReportComment(id){
+  const inp=document.getElementById('np-comment-input');
+  const body=(inp?.value||'').trim();
+  if(!body){ toast('エラー','コメントを入力してください','r'); return; }
+  try{
+    const res=await fetch(`/app/api/daily-reports/${id}/comments`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({body}),
+    });
+    const j=await res.json();
+    if(!j.ok) throw new Error(j.error);
+    const n=NIPPOS.find(x=>x.id===id); if(n) n.commentCount=(n.commentCount||0)+1;
+    if(AN?.id===id) await openNippo(NIPPOS.find(x=>x.id===id)||AN);
     renderNPL();
-    if(AN?.id===id)openNippo(n);
-    toast('承認完了',n.author+' の日報を承認しました');
-  } catch(e) {
-    toast('エラー',e.message||'承認に失敗しました','r');
-  }
+    toast('コメント追加','コメントを保存しました');
+  }catch(e){ toast('エラー',e.message||'コメント追加に失敗しました','r'); }
+}
+
+function openImgModal(url){
+  const m=document.getElementById('img-modal'), img=document.getElementById('img-modal-src');
+  if(m&&img){ img.src=url; m.style.display='flex'; }
+}
+function closeImgModal(){
+  const m=document.getElementById('img-modal'); if(m) m.style.display='none';
 }
 function openNewNippo(){openModal('日報・報告を作成',`<div class="form-row"><label class="form-lbl">種別</label><select class="form-inp" id="nt"><option value="daily">日報</option><option value="hayari">ヒヤリハット</option></select></div><div class="form-row"><label class="form-lbl">内容</label><textarea class="form-inp" id="nc" rows="5" placeholder="本日の作業内容、気になる点..."></textarea></div>`,`<button class="btn" onclick="closeModal()">キャンセル</button><button class="btn btn-g" onclick="submitNippo()">送信</button>`);}
 function submitNippo(){const content=document.getElementById('nc')?.value?.trim();if(!content){toast('エラー','内容を入力してください','r');return;}closeModal();const id='n'+Date.now();const now=new Date();NIPPOS.unshift({id,author:typeof GB_USER!=='undefined'?GB_USER.full_name:'担当者',flag:'🇯🇵',wid:'',date:now.toLocaleDateString('ja-JP'),type:document.getElementById('nt')?.value||'daily',status:'review',original:content,translated:'',photos:[]});renderNPL();toast('送信完了','日報を送信しました');}

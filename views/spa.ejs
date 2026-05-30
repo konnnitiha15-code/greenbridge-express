@@ -11,7 +11,7 @@
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="apple-touch-icon" href="/icons/icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/style.css?v=20260529-tr2way">
+<link rel="stylesheet" href="/css/style.css?v=20260529-nippo">
 </head>
 <body>
 
@@ -615,7 +615,7 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
   <!-- ─── NIPPO ─────────────────────────────────────────── -->
   <div class="page" id="page-nippo">
     <div class="two-panel">
-      <div class="left-panel" style="width:280px">
+      <div class="left-panel" style="width:340px">
         <div class="panel-hdr">
           <span class="panel-title">日報・報告</span>
           <div style="display:flex;gap:4px">
@@ -623,11 +623,29 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
             <button class="btn btn-g btn-sm" onclick="openNewNippo()">+ 作成</button>
           </div>
         </div>
-        <div class="panel-filters">
-          <div class="fc on" onclick="this.parentElement.querySelectorAll('.fc').forEach(d=>d.classList.remove('on'));this.classList.add('on');renderNPL()">すべて</div>
-          <div class="fc" onclick="this.parentElement.querySelectorAll('.fc').forEach(d=>d.classList.remove('on'));this.classList.add('on');renderNPL('review')">確認待ち</div>
-          <div class="fc" onclick="this.parentElement.querySelectorAll('.fc').forEach(d=>d.classList.remove('on'));this.classList.add('on');renderNPL('daily')">日報</div>
-          <div class="fc" onclick="this.parentElement.querySelectorAll('.fc').forEach(d=>d.classList.remove('on'));this.classList.add('on');renderNPL('hayari')">ヒヤリ</div>
+        <!-- 統計バー -->
+        <div class="np-stats" id="np-stats">
+          <div class="np-stat"><div class="np-stat-val" id="nps-today">0</div><div class="np-stat-lbl">本日</div></div>
+          <div class="np-stat warn"><div class="np-stat-val" id="nps-pending">0</div><div class="np-stat-lbl">未確認</div></div>
+          <div class="np-stat alert"><div class="np-stat-val" id="nps-hayari">0</div><div class="np-stat-lbl">ヒヤリ</div></div>
+          <div class="np-stat"><div class="np-stat-val" id="nps-month">0</div><div class="np-stat-lbl">今月</div></div>
+        </div>
+        <!-- 検索 -->
+        <div class="panel-search">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.4"/><path d="M9 9l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <input id="np-search" placeholder="名前・タイトル・本文で検索..." oninput="renderNPL()">
+        </div>
+        <!-- フィルター -->
+        <div class="panel-filters" id="np-filters">
+          <div class="fc on" data-f="all"      onclick="setNpFilter(this)">すべて</div>
+          <div class="fc"      data-f="pending" onclick="setNpFilter(this)">未確認</div>
+          <div class="fc"      data-f="reviewed" onclick="setNpFilter(this)">確認済</div>
+          <div class="fc"      data-f="returned" onclick="setNpFilter(this)">差戻し</div>
+          <div class="fc"      data-f="daily"   onclick="setNpFilter(this)">日報</div>
+          <div class="fc"      data-f="hayari"  onclick="setNpFilter(this)">ヒヤリ</div>
+          <div class="fc"      data-f="image"   onclick="setNpFilter(this)">📷画像</div>
+          <div class="fc"      data-f="today"   onclick="setNpFilter(this)">今日</div>
+          <div class="fc"      data-f="week"    onclick="setNpFilter(this)">今週</div>
         </div>
         <div class="panel-list" id="np-list"></div>
       </div>
@@ -1005,7 +1023,7 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260529-tr2way"></script>
+<script src="/js/app.js?v=20260529-nippo"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {
@@ -1061,5 +1079,11 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 
 <!-- 給与明細 印刷専用エリア（通常は非表示・印刷時のみ可視）-->
 <div id="payslip-print-area" style="display:none"></div>
+
+<!-- 画像拡大モーダル（日報の添付画像用）-->
+<div id="img-modal" onclick="closeImgModal()" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:24px">
+  <img id="img-modal-src" style="max-width:92vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.5)">
+  <button onclick="closeImgModal()" style="position:absolute;top:18px;right:24px;background:rgba(255,255,255,.15);color:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:20px;cursor:pointer">✕</button>
+</div>
 </body>
 </html>
