@@ -291,7 +291,8 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
 - プロバイダ差し替え: `TRANSLATION_PROVIDER` env（mymemory既定、google/deepl/anthropic/openai拡張可）
 - `src/lib/translation/providers/<name>.js` を追加し index.js の PROVIDERS に登録するだけ
 - 定型UI文言はローカル辞書(LS/applyL)のまま。APIは動的テキスト(チャット/申請/日報)のみ
-- フロント `aiTx(text, target, source?)` が `/api/translate` を呼ぶ。失敗時は原文返却
+- フロント `aiTx(text, target, source?)`（ワーカー）/ `adminTx(text, target, source)`（管理者）が `/api/translate` を呼ぶ。失敗時は原文返却
+- **双方向対応**: 管理者送信は日本語→ワーカー言語に翻訳して translated 保存。ワーカー発の原文は管理者画面の「🌐 日本語に翻訳」ボタンで翻訳（translateIncoming）
 
 ### 🟢 軽微
 - ファイルアップロードの multer メモリストア（小規模なら問題なし）
@@ -459,6 +460,10 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - プロバイダ差し替え構造（google/deepl/anthropic/openai 拡張可）
     - /api/translate（admin/worker両対応）、aiTx をサーバー翻訳に接続
     - MyMemory実呼び出し検証済み（ja⇔vi/en）。失敗時は原文フォールバック
+35. **管理者側フル双方向翻訳**
+    - 管理者→ワーカー: sendMsg で日本語をワーカー言語に翻訳し translated 保存（adminTx）
+    - ワーカー→管理者: 受信メッセージに「🌐 日本語に翻訳」ボタン（translateIncoming）
+    - 翻訳UIが ワーカー側aiTx + 管理者側adminTx の両系統で揃った
 
 ---
 
@@ -492,7 +497,7 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-05-29**
-**最終コミット: 17b9445 (feat: AI翻訳 translationService/MyMemory)**
+**最終コミット: 38717ab (feat: 管理者側フル双方向翻訳)**
 
 > ⚠️ **次セッション冒頭の宿題: マイグレーション011 を Supabase SQL Editor で実行**
 > （未実行でも翻訳は MyMemory フォールバックで動くが、辞書・キャッシュは効かない）
@@ -520,7 +525,8 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
    - 休日カレンダー（現状は日曜のみ休日判定）
 4. **翻訳の拡張**（余力あれば）
    - DeepL/Google/Anthropic プロバイダ追加（providers/ に足すだけ）
-   - 管理者チャットでもワーカー言語へ翻訳送信
+   - ~~管理者チャットでもワーカー言語へ翻訳送信~~ → ✅ 完了（38717ab・双方向化）
+   - 日報・申請レビュー画面でも管理者翻訳ボタン（チャットは対応済み）
 
 ### 🟢 整理・改善（Phase 1の残り）
 4. 不要機能の削除/再設計（タスク管理Kanban・動画マニュアル）— 小
