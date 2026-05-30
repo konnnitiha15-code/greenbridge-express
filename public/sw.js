@@ -1,6 +1,6 @@
 // GreenBridge Service Worker — PWA + Web Push
 // バージョン番号を更新するとキャッシュが再生成される
-const CACHE_VERSION = 'gb-v4-payroll'
+const CACHE_VERSION = 'gb-v5-translate'
 const STATIC_CACHE  = `${CACHE_VERSION}-static`
 
 // ── キャッシュ対象（最小限） ──────────────────────────────────────

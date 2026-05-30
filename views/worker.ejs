@@ -2114,10 +2114,28 @@ lLabel:'日本語'},
     cInp:'វាយសារ...',tInp:'សរសេរ...',lLabel:'ខ្មែរ'},
 };
 
-// ── AI TRANSLATE（スタブ：翻訳機能は準備中）──
-async function aiTx(text, lang) {
-  if(!text||!text.trim()) throw new Error('テキストが空です');
-  return text.trim();
+// ── AI TRANSLATE（translationService 経由・MyMemoryベース）──
+// aiTx(text, targetLang, sourceLang?)
+//   source 省略時: targetが'ja'なら現在の表示言語(LANG)、それ以外は'ja'と推定
+//   失敗時は原文を返す（UIを壊さない）。サーバー側で 会社辞書→業界辞書→cache→API。
+async function aiTx(text, targetLang, sourceLang) {
+  const t = (text == null) ? '' : String(text);
+  if(!t.trim()) return t;
+  const src = sourceLang || (targetLang === 'ja' ? (typeof LANG !== 'undefined' ? LANG : 'vi') : 'ja');
+  if(src === targetLang) return t;
+  try {
+    const r = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ text: t, source: src, target: targetLang }),
+    });
+    const j = await r.json();
+    return (j && j.translated) ? j.translated : t;
+  } catch (e) {
+    console.warn('[aiTx] translate failed:', e);
+    return t;  // フォールバック: 原文
+  }
 }
 
 // ── LANGUAGE ──────────────────────────────────────────────────────────────────
