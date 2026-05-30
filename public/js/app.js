@@ -3276,15 +3276,16 @@ async function openWageModal(workerId, workerName){
     const html = `
       <div class="wage-form" id="wage-form" data-worker="${workerId}">
         <div class="wage-row"><label>賃金体系</label>
-          <select class="ss-sel" id="wf-type">
+          <select class="ss-sel" id="wf-type" onchange="onWageTypeChange()">
             <option value="hourly" ${w.wage_type==='hourly'?'selected':''}>時給制</option>
             <option value="monthly" ${w.wage_type==='monthly'?'selected':''}>月給制</option>
           </select>
         </div>
-        <div class="wage-row"><label id="wf-base-lbl">基本額（円）</label>
+        <div class="wage-row"><label id="wf-base-lbl">時給（円）</label>
           <input type="number" class="finp" id="wf-base" value="${w.base_amount||0}" min="0"></div>
-        <div class="wage-row"><label>月給の所定時間</label>
+        <div class="wage-row" id="wf-stdh-row"><label>所定労働時間（月・h）</label>
           <input type="number" class="finp" id="wf-stdh" value="${w.monthly_standard_hours||160}" min="1"></div>
+        <div id="wf-type-hint" style="font-size:11px;color:var(--t3);margin:-4px 0 2px;padding:0 2px"></div>
         <div class="wage-row"><label>残業割増率</label>
           <input type="number" step="0.01" class="finp" id="wf-ot" value="${w.overtime_rate||1.25}"></div>
         <div class="wage-row"><label>深夜割増率</label>
@@ -3319,7 +3320,25 @@ async function openWageModal(workerId, workerName){
         <button class="btn btn-g" onclick="saveWage()" style="margin-top:6px">賃金設定を保存</button>
       </div>`;
     openModal('💴 賃金設定：' + workerName, html);
+    onWageTypeChange();  // 賃金体系に応じてラベル・表示を初期反映
   } catch (e) { toast('エラー', e.message, 'r'); }
+}
+
+// 賃金体系の切替に応じて UI を変える
+function onWageTypeChange(){
+  const type = document.getElementById('wf-type')?.value || 'hourly';
+  const baseLbl = document.getElementById('wf-base-lbl');
+  const stdhRow = document.getElementById('wf-stdh-row');
+  const hint    = document.getElementById('wf-type-hint');
+  if (type === 'monthly') {
+    if (baseLbl) baseLbl.textContent = '月給（円）';
+    if (stdhRow) stdhRow.style.display = '';
+    if (hint) hint.textContent = '月給制：基本給は固定。残業・休日・深夜は「月給÷所定労働時間」で算出した時間単価に割増を掛けて加算します。';
+  } else {
+    if (baseLbl) baseLbl.textContent = '時給（円）';
+    if (stdhRow) stdhRow.style.display = 'none';   // 時給制では所定時間は不要
+    if (hint) hint.textContent = '時給制：基本給＝時給×通常労働時間。残業・休日・深夜は時給に割増を掛けて加算します。';
+  }
 }
 
 function wageItemRow(kind, i, item){
