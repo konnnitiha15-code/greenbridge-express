@@ -596,6 +596,17 @@ select.form-inp { cursor: pointer; }
 }
 .read-dots { font-size: 10.5px; color: var(--gn); margin-top: 1px; text-align: right; }
 
+/* 受信メッセージの翻訳ボタン */
+.msg-tr-btn {
+  margin-top: 4px; padding: 3px 10px;
+  font-size: 11px; font-weight: 600;
+  color: #1d4ed8; background: #eff6ff;
+  border: 1px solid #bfdbfe; border-radius: 999px;
+  cursor: pointer; transition: background .15s;
+}
+.msg-tr-btn:hover { background: #dbeafe; }
+.msg-tr-btn:disabled { opacity: .6; cursor: default; }
+
 /* タイピング */
 .typing-r { display: flex; gap: 8px; align-items: flex-end; }
 .typing-b {

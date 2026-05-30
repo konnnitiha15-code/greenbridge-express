@@ -687,7 +687,7 @@ async function _loadChatHistory(w){
 function _dbMsgToLocal(m, w){
   const time = new Date(m.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
   const isMe = (m.sender_id !== w.authUserId); // 管理者が送ったもの
-  return {
+  const local = {
     t: isMe?'me':'other',
     txt: m.body || '',
     time,
@@ -697,6 +697,14 @@ function _dbMsgToLocal(m, w){
     attachment_type: m.attachment_type || null,
     attachment_name: m.attachment_name || null,
   };
+  // 翻訳テキスト:
+  //  - ワーカー発(other): translated はワーカーが付けた日本語訳 → jp に
+  //  - 管理者発(me):       translated はワーカー言語訳 → tl に
+  if(m.translated && m.translated !== m.body){
+    if(isMe) local.tl = m.translated;
+    else     local.jp = m.translated;
+  }
+  return local;
 }
 
 function _startChatPoll(w){
@@ -792,6 +800,21 @@ async function exportChatCsv(){
   toast('✓ CSV出力', AW.name + ' とのチャット履歴をダウンロードします');
 }
 
+// ── 管理者用 翻訳ヘルパ（translationService 経由・失敗時は原文）──
+// adminTx(text, targetLang, sourceLang='ja')
+async function adminTx(text, targetLang, sourceLang='ja'){
+  const t = (text==null) ? '' : String(text);
+  if(!t.trim() || !targetLang || sourceLang===targetLang) return t;
+  try{
+    const r = await fetch('/api/translate',{
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ text: t, source: sourceLang, target: targetLang }),
+    });
+    const j = await r.json();
+    return (j && j.translated) ? j.translated : t;
+  }catch(e){ console.warn('[adminTx]', e); return t; }
+}
+
 async function sendMsg(){
   const inp=document.getElementById('msg-inp'); if(!inp||!AW)return;
   const txt=inp.value.trim();
@@ -810,9 +833,17 @@ async function sendMsg(){
     }
   }
 
-  // 楽観的UI更新
+  // ★ 管理者の日本語 → ワーカー言語へ翻訳（translated として保存）
+  //   ワーカーは原文(日本語)+翻訳の両方を受け取れる。ワーカー言語が ja の場合はスキップ。
+  let translated = null;
+  const wLang = AW.lang || 'ja';
+  if(txt && wLang !== 'ja'){
+    translated = await adminTx(txt, wLang, 'ja');
+  }
+
+  // 楽観的UI更新（管理者画面には日本語+翻訳プレビューを表示）
   HISTORY[AW.id].push({
-    t:'me', txt, time, read:false,
+    t:'me', txt, tl: (translated && translated!==txt) ? translated : null, time, read:false,
     attachment_url:  att?.url  || null,
     attachment_type: att?.type || null,
     attachment_name: att?.name || null,
@@ -827,6 +858,7 @@ async function sendMsg(){
 
   try{
     const payload = { worker_user_id: AW.authUserId, body: txt };
+    if(translated && translated !== txt) payload.translated = translated;
     if(att){
       payload.attachment_url   = att.url;
       payload.attachment_path  = att.path;
@@ -3182,8 +3214,27 @@ function addBub(cid,m,worker,scroll=true){
   if(!me&&m.jp)main=`<span class="tl-lbl">【AI翻訳 → 日本語】</span>${m.jp}<span class="orig">原文: ${m.txt}</span>`;
   const tlBub=me&&m.tl?`<div class="bub bai" style="margin-top:2px"><span class="tl-lbl">【翻訳済み】</span>${m.tl}</div>`:'';
   const readDots=me?`<div class="read-dots">${m.read!==false?'既読 ✓✓':'送信済 ✓'}</div>`:'';
-  wrap.innerHTML=`${!me?avHtml:''}<div class="mcol" style="${me?'align-items:flex-end':''}">${!me&&m.sender?`<div style="font-size:11px;color:var(--t3);padding:0 3px;margin-bottom:1px">${m.sender}</div>`:''}<div class="bub ${me?'br2':'bl'}">${main}</div>${tlBub}${readDots}<div class="mtime">${m.time||(m.t!=='me'&&m.t!=='sys'?m.t:'')||''}</div></div>${me?avHtml:''}`;
+  // ワーカー発で日本語訳が無いテキストメッセージ → 「日本語に翻訳」ボタン
+  const needTrBtn = !me && !m.jp && (m.txt||'').trim() && m._id;
+  const trBtn = needTrBtn
+    ? `<button class="msg-tr-btn" data-mid="${m._id}" onclick="translateIncoming('${m._id}', this)">🌐 日本語に翻訳</button>`
+    : '';
+  wrap.innerHTML=`${!me?avHtml:''}<div class="mcol" style="${me?'align-items:flex-end':''}">${!me&&m.sender?`<div style="font-size:11px;color:var(--t3);padding:0 3px;margin-bottom:1px">${m.sender}</div>`:''}<div class="bub ${me?'br2':'bl'}">${main}</div>${tlBub}${trBtn}${readDots}<div class="mtime">${m.time||(m.t!=='me'&&m.t!=='sys'?m.t:'')||''}</div></div>${me?avHtml:''}`;
   a.appendChild(wrap);if(scroll)a.scrollTop=a.scrollHeight;
+}
+
+// 受信メッセージ（ワーカー発）を日本語に翻訳して表示を差し替え
+async function translateIncoming(msgId, btn){
+  if(!AW) return;
+  const hist = HISTORY[AW.id] || [];
+  const m = hist.find(x => x._id === msgId);
+  if(!m){ return; }
+  if(btn){ btn.disabled = true; btn.textContent = '翻訳中...'; }
+  // source はワーカー言語、target は日本語
+  const src = AW.lang || 'vi';
+  const jp = await adminTx(m.txt, 'ja', src);
+  m.jp = (jp && jp !== m.txt) ? jp : m.txt;
+  renderMessages();
 }
 
 // ════════════════════════════════════════════════════════════════
