@@ -464,6 +464,15 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - 管理者→ワーカー: sendMsg で日本語をワーカー言語に翻訳し translated 保存（adminTx）
     - ワーカー→管理者: 受信メッセージに「🌐 日本語に翻訳」ボタン（translateIncoming）
     - 翻訳UIが ワーカー側aiTx + 管理者側adminTx の両系統で揃った
+36. **日報・報告画面 監視UI化（012）**
+    - daily_reports拡張 + report_comments + report_status_history（要012実行）
+    - status: pending/reviewed/returned の3値、確定時に履歴自動記録
+    - 管理者UI: 統計バー / 9種フィルター / リアルタイム検索 / 詳細パネル / 画像モーダル / コメント / 承認履歴 / 未確認優先の自動選択
+    - 全API 012未適用でもフォールバック動作（カラム/テーブル欠如を吸収）
+37. **過去日報の閲覧**
+    - サーバー: from/to/limit パラメータ（worker:200/最大500、admin:300/最大1000）+ report_date DESC優先ソート
+    - ワーカー: 期間チップ（今日/今週/今月/すべて）+ 月選択input
+    - 管理者: 「今月」フィルタ + 任意月ピッカー（input type=month）+ クリア
 
 ---
 
@@ -497,7 +506,10 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-05-29**
-**最終コミット: 38717ab (feat: 管理者側フル双方向翻訳)**
+**最終コミット: 9f92f6e (feat: 過去日報の閲覧 — 期間フィルタ + 月選択)**
+
+> ⚠️ **未実行マイグレーション: 012**（日報拡張）— Supabase SQL Editor で要実行。
+> 未適用でも画面は壊れず動作するが、コメント・承認履歴・現場名・添付画像は012実行後に有効。
 
 > ⚠️ **次セッション冒頭の宿題: マイグレーション011 を Supabase SQL Editor で実行**
 > （未実行でも翻訳は MyMemory フォールバックで動くが、辞書・キャッシュは効かない）
