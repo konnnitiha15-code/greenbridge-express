@@ -1117,6 +1117,14 @@ input,textarea,select,button{font-family:inherit}
       <div class="chip" onclick="filterNP('daily',this)">日報</div>
       <div class="chip" onclick="filterNP('hayari',this)">ヒヤリハット</div>
     </div>
+    <!-- 期間フィルタ：過去日報を見られるように -->
+    <div class="chips" style="margin-top:2px">
+      <div class="chip" data-p="today" onclick="setNippoPeriod('today',this)">今日</div>
+      <div class="chip" data-p="week"  onclick="setNippoPeriod('week',this)">今週</div>
+      <div class="chip on" data-p="month" onclick="setNippoPeriod('month',this)">今月</div>
+      <div class="chip" data-p="all"   onclick="setNippoPeriod('all',this)">すべて</div>
+      <input type="month" id="np-month-input" class="finp" style="height:28px;font-size:12px;padding:2px 6px;width:auto" onchange="setNippoMonth(this.value)">
+    </div>
     <div style="padding:0 13px 13px" id="np-list-items"></div>
   </div>
   <div class="overlay" id="npov">
@@ -1568,9 +1576,35 @@ function getOrCreateDM(contactId){
 // ── NIPPOS: DB から取得 ───────────────────────────────────────
 let NIPPOS = [];
 
+// 期間フィルタ（過去日報閲覧用）
+let _nippoPeriod = 'month';   // today | week | month | all | specific
+let _nippoMonth  = '';        // YYYY-MM（specific 時に使用）
+
+function _nippoRange(){
+  const tz = 'Asia/Tokyo';
+  const today = new Date().toLocaleDateString('en-CA',{timeZone:tz}); // YYYY-MM-DD
+  if (_nippoPeriod === 'today') return { from: today, to: today };
+  if (_nippoPeriod === 'week')  {
+    const d = new Date(); d.setDate(d.getDate() - 6);
+    return { from: d.toLocaleDateString('en-CA',{timeZone:tz}), to: today };
+  }
+  if (_nippoPeriod === 'month') return { from: today.slice(0,7) + '-01', to: today };
+  if (_nippoPeriod === 'specific' && _nippoMonth) {
+    const [y,m] = _nippoMonth.split('-').map(Number);
+    const last = new Date(y, m, 0).getDate();
+    return { from: `${_nippoMonth}-01`, to: `${_nippoMonth}-${String(last).padStart(2,'0')}` };
+  }
+  return { from: null, to: null };  // all
+}
+
 async function loadAndRenderNippos(){
   try{
-    const res  = await fetch('/worker/api/daily-reports');
+    const { from, to } = _nippoRange();
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to)   params.set('to', to);
+    const url = '/worker/api/daily-reports' + (params.toString() ? '?'+params.toString() : '');
+    const res  = await fetch(url);
     const json = await res.json();
     if(!json.ok) return;
     NIPPOS = (json.reports || []).map(r => ({
@@ -1587,6 +1621,24 @@ async function loadAndRenderNippos(){
   }catch(e){
     console.warn('[nippo] load error:', e);
   }
+}
+
+function setNippoPeriod(p, el){
+  document.querySelectorAll('#s-nippo .chip[data-p]').forEach(c=>c.classList.remove('on'));
+  if (el) el.classList.add('on');
+  _nippoPeriod = p;
+  // 月選択input をクリア
+  const mi = document.getElementById('np-month-input');
+  if (mi && p !== 'specific') mi.value = '';
+  loadAndRenderNippos();
+}
+
+function setNippoMonth(ym){
+  if (!ym) return;
+  document.querySelectorAll('#s-nippo .chip[data-p]').forEach(c=>c.classList.remove('on'));
+  _nippoPeriod = 'specific';
+  _nippoMonth = ym;
+  loadAndRenderNippos();
 }
 
 // SHIFT_DATA を現在日付から動的生成

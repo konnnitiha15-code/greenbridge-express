@@ -11,7 +11,7 @@
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="apple-touch-icon" href="/icons/icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/style.css?v=20260529-nippo">
+<link rel="stylesheet" href="/css/style.css?v=20260529-nippo2">
 </head>
 <body>
 
@@ -646,6 +646,13 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
           <div class="fc"      data-f="image"   onclick="setNpFilter(this)">📷画像</div>
           <div class="fc"      data-f="today"   onclick="setNpFilter(this)">今日</div>
           <div class="fc"      data-f="week"    onclick="setNpFilter(this)">今週</div>
+          <div class="fc"      data-f="month"   onclick="setNpFilter(this)">今月</div>
+        </div>
+        <!-- 月選択ピッカー（任意の月で絞り込み）-->
+        <div style="padding:6px 12px;display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--t3);border-bottom:1px solid var(--bd)">
+          <span>月で絞込:</span>
+          <input type="month" id="np-month-picker" class="finp" style="height:26px;font-size:12px;padding:1px 6px;width:auto" onchange="setNpMonth(this.value)">
+          <button class="btn-xs" onclick="setNpMonth('')">クリア</button>
         </div>
         <div class="panel-list" id="np-list"></div>
       </div>
@@ -1023,7 +1030,7 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260529-nippo"></script>
+<script src="/js/app.js?v=20260529-nippo2"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {

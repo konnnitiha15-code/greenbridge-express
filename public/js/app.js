@@ -2447,6 +2447,7 @@ function uploadVideo(){const title=document.getElementById('vt')?.value?.trim();
 // ── NIPPO ─────────────────────────────────────────────────────────────────────
 // DB から日報を取得して描画
 let _npFilter = 'all';
+let _npMonth  = '';   // YYYY-MM（月絞込・空=全期間）
 
 const _NP_ST = {
   pending:  { txt:'確認待ち', cls:'pending'  },
@@ -2457,7 +2458,15 @@ function _npEsc(s){ return (s==null?'':String(s)).replace(/</g,'&lt;').replace(/
 
 async function loadAndRenderNPL(opts){
   try {
-    const res  = await fetch('/app/api/daily-reports');
+    const params = new URLSearchParams();
+    if (_npMonth && /^\d{4}-\d{2}$/.test(_npMonth)) {
+      const [y, m] = _npMonth.split('-').map(Number);
+      const last = new Date(y, m, 0).getDate();
+      params.set('from', `${_npMonth}-01`);
+      params.set('to',   `${_npMonth}-${String(last).padStart(2,'0')}`);
+    }
+    const url = '/app/api/daily-reports' + (params.toString() ? '?'+params.toString() : '');
+    const res  = await fetch(url);
     const json = await res.json();
     if (json.ok) NIPPOS = json.reports || [];
   } catch(e) {
@@ -2510,7 +2519,15 @@ function _npMatchFilter(n){
   const norm=d=>(d||'').replace(/\//g,'-').slice(0,10);
   if(f==='today') return norm(n.date)===today;
   if(f==='week'){ const d=new Date(); d.setDate(d.getDate()-7); return norm(n.date) >= d.toISOString().slice(0,10); }
+  if(f==='month'){ return norm(n.date).startsWith(today.slice(0,7)); }
   return true;
+}
+
+// 月選択（任意の月で絞込）→ APIに from/to を渡して再ロード
+function setNpMonth(ym){
+  _npMonth = ym || '';
+  AN = null;
+  loadAndRenderNPL();
 }
 
 function renderNPL(){

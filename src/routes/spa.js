@@ -1489,14 +1489,18 @@ router.get('/api/daily-reports', requireAuth, async (req, res) => {
       id, report_date, type, content, translated, status, created_at,
       worker_id, workers(name, language)
     `
+    const limit = Math.min(parseInt(req.query.limit, 10) || 300, 1000)
     const build = (cols) => {
       let q = sb.from('daily_reports').select(cols)
         .eq('company_id', companyId)
+        .order('report_date', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(100)
+        .limit(limit)
       if (req.query.worker_id) q = q.eq('worker_id', req.query.worker_id)
       if (req.query.type)      q = q.eq('type', req.query.type)
       if (req.query.status)    q = q.eq('status', req.query.status)
+      if (req.query.from)      q = q.gte('report_date', req.query.from)
+      if (req.query.to)        q = q.lte('report_date', req.query.to)
       return q
     }
 

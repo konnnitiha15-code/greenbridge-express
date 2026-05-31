@@ -370,20 +370,27 @@ router.get('/api/shifts', requireWorkerAuth, requireWorker, async (req, res) => 
 })
 
 // ── 日報 API ────────────────────────────────────────────────────
-// GET /worker/api/daily-reports
+// GET /worker/api/daily-reports?from=YYYY-MM-DD&to=YYYY-MM-DD&type=&limit=
+//   期間で絞り込み可能。省略時は最新200件。
 router.get('/api/daily-reports', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
   if (!workerId) return res.json({ ok: true, reports: [] })
 
-  const { data, error } = await adminClient()
+  const limit = Math.min(parseInt(req.query.limit, 10) || 200, 500)
+  let q = adminClient()
     .from('daily_reports')
     .select('id, report_date, type, content, translated, status, created_at')
     .eq('worker_id', workerId)
     .eq('company_id', companyId)
+    .order('report_date', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(30)
+    .limit(limit)
+  if (req.query.from) q = q.gte('report_date', req.query.from)
+  if (req.query.to)   q = q.lte('report_date', req.query.to)
+  if (req.query.type) q = q.eq('type', req.query.type)
 
+  const { data, error } = await q
   if (error) return res.status(500).json({ ok: false, error: error.message })
   res.json({ ok: true, reports: data || [] })
 })
