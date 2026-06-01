@@ -490,6 +490,13 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - フロント(worker.ejs): ホームの「お知らせ」をハードコードのダミーから実通知の動的描画へ刷新。loadNotifications/markNotifRead 追加。ホーム表示時・言語切替時(applyL)・起動時にロード。未読バッジ・既読化対応
     - ローカル検証済: vi/en で通知が翻訳され、`?lang=` 切替で再翻訳されることを確認。絵文字保持
     - マイグレーション不要
+44. **書類自動生成の拡張（Phase3）**：既存の DOC_TEMPLATES/generatePDF 土台に正式書類を追加
+    - 新規4書類: 労働条件通知書(労基法15条準拠)・雇用契約書(労使双方署名)・誓約書・個人情報同意書。既存3(雇用条件通知書/在留カード届出書/出勤簿)と合わせ計7テンプレート
+    - 「📦 入社書類一式」一括生成: laborConditions/employmentContract/pledge/privacyConsent を改ページ区切りで1PDFに（ワーカー詳細→書類タブのヘッダーボタン）
+    - 会社情報を書類に反映: spa.js ルートで companies を `select('*')`、`companyInfo` を render→ spa.ejs `GB_COMPANY_INFO`。app.js のヘルパ `_ci/_coName/_companyBlock/_signBlock` が住所・電話・代表者・署名欄を出力（未設定カラムは空欄で安全）
+    - generatePDF の CSS に `.doc-page{page-break-after}` 追加（一括生成の改ページ）
+    - ローカル検証済: 全7テンプレートがエラーなく生成、GB_COMPANY_INFO がサーバーから供給されることを確認
+    - マイグレーション不要。※生年月日等は現 mapWorker が返さないため書類に未使用（既存データ範囲で完結）
 
 ---
 

@@ -55,6 +55,7 @@ const WORKERS     = <%- JSON.stringify(workers) %>;
 const DOCS        = <%- JSON.stringify(docs) %>;
 const GB_USER     = <%- JSON.stringify(gbUser) %>;
 const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
+const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -1095,7 +1096,7 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260601-dict"></script>
+<script src="/js/app.js?v=20260601-docs"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {

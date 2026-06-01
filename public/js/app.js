@@ -79,6 +79,29 @@ const SHIFT_COLOR_MAP={
   rest:{bg:'#f3f4f6',color:'#6b7280',label:'休み'}
 };
 
+// 会社情報（書類フッター用）。GB_COMPANY_INFO が無い場合は会社名のみ
+function _ci(){ return (typeof GB_COMPANY_INFO!=='undefined' && GB_COMPANY_INFO) ? GB_COMPANY_INFO : {}; }
+function _coName(){ const c=_ci(); return c.name || (typeof GB_COMPANY!=='undefined'?GB_COMPANY:'（会社名）'); }
+function _today(){ return new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}); }
+function _esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// 事業主（会社）情報の署名ブロック
+function _companyBlock(){
+  const c=_ci();
+  return `<div style="margin-top:24px">
+    <table><tr><th colspan="2" style="text-align:center;background:#e6f9f0">使用者（事業主）</th></tr>
+    <tr><th style="width:120px">事業所名称</th><td>${_esc(_coName())}</td></tr>
+    ${c.address?`<tr><th>所在地</th><td>${_esc(c.address)}</td></tr>`:''}
+    ${c.phone?`<tr><th>電話番号</th><td>${_esc(c.phone)}</td></tr>`:''}
+    <tr><th>代表者</th><td>${_esc(c.representative||'')}　　　　　　　㊞</td></tr>
+    </table></div>`;
+}
+// 署名欄（本人）
+function _signBlock(label){
+  return `<div style="margin-top:24px">
+    <p style="margin-bottom:6px">${label||'本書の内容を確認し、同意いたします。'}</p>
+    <table><tr><th style="width:120px">${_today()}</th><td>署名：＿＿＿＿＿＿＿＿＿＿＿＿　　㊞</td></tr></table></div>`;
+}
+
 const DOC_TEMPLATES={
   employment:{name:'雇用条件通知書',icon:'📋',description:'雇用条件を通知する書類',
     gen:(w)=>`<div class="title">雇用条件通知書</div>
@@ -124,8 +147,85 @@ const DOC_TEMPLATES={
 <table><tr><th>氏名</th><td>${w.name}</td><th>所属</th><td>${w.dept||'-'}</td></tr></table>
 <table><tr><th>日</th><th>曜日</th><th>出勤</th><th>退勤</th><th>実働</th><th>残業</th><th>備考</th></tr>${rows}</table>
 <p style="margin-top:12px;text-align:right">確認者：＿＿＿＿＿＿　印</p>`;
-    }}
+    }},
+
+  // ── 労働条件通知書（労基法15条準拠の正式版）──────────────────────
+  laborConditions:{name:'労働条件通知書',icon:'📜',description:'労基法に基づく労働条件の明示',
+    gen:(w)=>`<div class="title">労働条件通知書</div>
+<p style="text-align:right;margin-bottom:8px">${_today()}</p>
+<p>${_esc(w.name)} 殿</p>
+<table><tr><th colspan="2" style="text-align:center;background:#e6f9f0">労働条件</th></tr>
+<tr><th style="width:140px">契約期間</th><td>${w.entryDate||'＿＿＿'} 〜 ${w.contractEnd||'期間の定めなし'}</td></tr>
+<tr><th>就業の場所</th><td>${_esc(_ci().address||w.dept||'本社')}</td></tr>
+<tr><th>従事すべき業務</th><td>${_esc(w.job||'－')}</td></tr>
+<tr><th>始業・終業時刻</th><td>始業 8:00　終業 17:00（休憩 60分）</td></tr>
+<tr><th>所定時間外労働</th><td>有（法定割増 時間外25% 深夜25% 休日35%）</td></tr>
+<tr><th>休日</th><td>土曜・日曜・国民の祝日・年末年始</td></tr>
+<tr><th>賃金</th><td>${w.salary||'＿＿＿'}（締め日・支払日は就業規則による）</td></tr>
+<tr><th>社会保険</th><td>${_esc(w.insurance||'健康保険・厚生年金・雇用保険・労災保険')}</td></tr>
+<tr><th>退職に関する事項</th><td>就業規則の定めによる（自己都合退職は30日前までに届出）</td></tr>
+</table>
+<p style="margin-top:10px;font-size:11px;color:#666">※ 本通知書に記載のない事項は労働基準法その他の法令及び就業規則の定めによる。</p>
+${_companyBlock()}`},
+
+  // ── 雇用契約書（双方署名）─────────────────────────────────────
+  employmentContract:{name:'雇用契約書',icon:'✍️',description:'労使双方が署名する雇用契約',
+    gen:(w)=>`<div class="title">雇用契約書</div>
+<p>${_esc(_coName())}（以下「甲」という）と ${_esc(w.name)}（以下「乙」という）は、次のとおり雇用契約を締結する。</p>
+<div class="section">第1条（雇用期間）</div>
+<p>${w.entryDate||'＿＿＿'} から ${w.contractEnd||'期間の定めなし'} までとする。</p>
+<div class="section">第2条（業務内容・就業場所）</div>
+<p>業務：${_esc(w.job||'－')}　／　就業場所：${_esc(_ci().address||'甲の指定する事業所')}</p>
+<div class="section">第3条（労働時間・休日）</div>
+<p>始業8:00・終業17:00（休憩60分）。休日は土日祝・年末年始とする。時間外労働は法令に基づき割増賃金を支払う。</p>
+<div class="section">第4条（賃金）</div>
+<p>${w.salary||'＿＿＿'}。賃金の締切・支払時期は就業規則による。</p>
+<div class="section">第5条（在留資格）</div>
+<p>乙の在留資格：${_esc(w.visaType||'－')}　／　在留期限：${w.residenceExpire||'－'}。乙は在留資格の範囲内で就労するものとする。</p>
+<div class="section">第6条（その他）</div>
+<p>本契約に定めのない事項は、労働基準法その他関係法令及び甲の就業規則による。</p>
+<table style="margin-top:20px"><tr><th colspan="2" style="text-align:center;background:#e6f9f0">署名</th></tr>
+<tr><th style="width:120px">甲（使用者）</th><td>${_esc(_coName())}　代表者 ${_esc(_ci().representative||'')}　㊞</td></tr>
+<tr><th>乙（労働者）</th><td>${_esc(w.name)}　㊞</td></tr>
+<tr><th>契約日</th><td>${_today()}</td></tr></table>`},
+
+  // ── 誓約書 ───────────────────────────────────────────────────
+  pledge:{name:'誓約書',icon:'🤝',description:'入社時の遵守事項の誓約',
+    gen:(w)=>`<div class="title">誓約書</div>
+<p style="text-align:right">${_esc(_coName())} 御中</p>
+<p style="margin-top:10px">私 ${_esc(w.name)} は、貴社に入社するにあたり、下記事項を遵守することを誓約いたします。</p>
+<div class="section">記</div>
+<ol style="margin-left:20px;line-height:2">
+<li>就業規則及び諸規程を遵守し、上長の指示に従って誠実に業務を遂行します。</li>
+<li>業務上知り得た秘密及び個人情報を、在職中・退職後を問わず第三者に漏洩しません。</li>
+<li>会社の設備・物品を私的に使用せず、適切に取り扱います。</li>
+<li>安全衛生に関する規則を守り、労働災害の防止に努めます。</li>
+<li>在留資格の範囲を超える就労や、法令に反する行為を行いません。</li>
+<li>反社会的勢力との関係を一切持ちません。</li>
+</ol>
+${_signBlock('上記のとおり誓約いたします。')}`},
+
+  // ── 個人情報同意書 ───────────────────────────────────────────
+  privacyConsent:{name:'個人情報同意書',icon:'🔐',description:'個人情報の取扱いに関する同意',
+    gen:(w)=>`<div class="title">個人情報の取扱いに関する同意書</div>
+<p style="text-align:right">${_esc(_coName())} 御中</p>
+<p style="margin-top:10px">私 ${_esc(w.name)} は、貴社が以下の目的で私の個人情報を取得・利用することに同意します。</p>
+<div class="section">利用目的</div>
+<ol style="margin-left:20px;line-height:2">
+<li>雇用管理（給与計算・社会保険・税務手続き）</li>
+<li>在留資格・各種行政手続きの代行及び期限管理</li>
+<li>健康管理・安全衛生（健康診断結果を含む）</li>
+<li>緊急時の連絡及び安否確認</li>
+<li>法令に基づく行政機関等への報告・届出</li>
+</ol>
+<div class="section">取得する情報</div>
+<p>氏名・生年月日・国籍・住所・連絡先・在留カード情報・パスポート情報・口座情報・健康診断結果 等</p>
+<p style="margin-top:10px;font-size:11px;color:#666">※ 取得した個人情報は適切に管理し、法令に基づく場合を除き本人の同意なく第三者に提供しません。</p>
+${_signBlock('上記の利用目的に同意します。')}`}
 };
+
+// 入社書類一式（一括生成する書類のキー順）
+const ONBOARDING_DOC_KEYS = ['laborConditions','employmentContract','pledge','privacyConsent'];
 
 // ── UI制御 ──────────────────────────────────────────────────────────────────
 const _TOAST_CFG = {
@@ -1066,7 +1166,10 @@ function renderWDDocs(w){
 
     <!-- テンプレートから作成 -->
     ${IS_ADMIN?`<div class="wd-card">
-      <div class="wd-card-hdr">📝 テンプレートから書類を作成</div>
+      <div class="wd-card-hdr" style="display:flex;align-items:center;justify-content:space-between">
+        <span>📝 テンプレートから書類を作成</span>
+        <button class="btn btn-xs btn-g" onclick="genOnboardingSet('${w.id}')">📦 入社書類一式をまとめて生成</button>
+      </div>
       <div style="padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">${tplCards}</div>
     </div>`:''}`;
 }
@@ -2041,9 +2144,39 @@ function confirmGenDoc(wid,key){
   setTimeout(()=>openWD(w),200);toast('書類生成完了',tpl.name+' を生成しました');
 }
 
+// ── 入社書類一式（複数書類を1回で生成・印刷）─────────────────────
+function genOnboardingSet(workerId){
+  if(!IS_ADMIN){toast('権限エラー','管理者のみ生成できます','r');return;}
+  const w=WORKERS.find(x=>x.id===workerId);if(!w)return;
+  const items=ONBOARDING_DOC_KEYS.map(k=>DOC_TEMPLATES[k]).filter(Boolean);
+  const listHtml=items.map(t=>`<li>${t.icon} ${t.name}</li>`).join('');
+  openModal('📦 入社書類一式を生成',
+    `<div style="margin-bottom:10px;font-size:13.5px;font-weight:700">対象: ${_esc(w.name)}</div>
+     <div style="font-size:13px;color:var(--t2);margin-bottom:8px">以下の書類をまとめて生成します（各書類は改ページで区切られます）：</div>
+     <ul style="margin-left:20px;line-height:2;font-size:13px">${listHtml}</ul>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button><button class="btn btn-g" onclick="confirmOnboardingSet('${workerId}')">📄 一括PDF出力</button>`);
+}
+
+function confirmOnboardingSet(workerId){
+  const w=WORKERS.find(x=>x.id===workerId);if(!w)return;
+  const now=new Date();const dateStr=now.toLocaleDateString('ja-JP');
+  if(!w.workerDocs)w.workerDocs=[];
+  const pages=ONBOARDING_DOC_KEYS.map(k=>{
+    const tpl=DOC_TEMPLATES[k];if(!tpl)return'';
+    const html=tpl.gen(w);
+    // 個別にも履歴へ残す
+    w.workerDocs.push({name:tpl.name,icon:tpl.icon,fileName:tpl.name+'_'+w.name.replace(/\s+/g,'_')+'.pdf',html,createdAt:dateStr,templateKey:k});
+    return `<div class="doc-page">${html}</div>`;
+  }).join('');
+  generatePDF(pages,'入社書類一式_'+w.name.replace(/\s+/g,'_')+'.pdf');
+  closeModal();
+  setTimeout(()=>openWD(w,'docs'),200);
+  toast('書類生成完了','入社書類一式（'+ONBOARDING_DOC_KEYS.length+'点）を生成しました');
+}
+
 function generatePDF(htmlContent,filename){
   const win=window.open('','','width=800,height=600');if(!win){toast('エラー','ポップアップがブロックされました','r');return;}
-  const css='*{margin:0;padding:0;box-sizing:border-box}body{font-family:serif;padding:20mm;font-size:13px;line-height:1.8;color:#111}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #999;padding:6px 10px;text-align:left}th{background:#f0f0f0;font-weight:700}.title{font-size:18px;font-weight:700;text-align:center;margin-bottom:12px}.section{font-size:14px;font-weight:700;margin:14px 0 6px;border-bottom:2px solid #333;padding-bottom:3px}@media print{body{padding:15mm}}';
+  const css='*{margin:0;padding:0;box-sizing:border-box}body{font-family:serif;padding:20mm;font-size:13px;line-height:1.8;color:#111}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #999;padding:6px 10px;text-align:left}th{background:#f0f0f0;font-weight:700}.title{font-size:18px;font-weight:700;text-align:center;margin-bottom:12px}.section{font-size:14px;font-weight:700;margin:14px 0 6px;border-bottom:2px solid #333;padding-bottom:3px}.doc-page{page-break-after:always}.doc-page:last-child{page-break-after:auto}ol{margin-left:20px}@media print{body{padding:15mm}}';
   win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+(filename||'document')+'</title><style>'+css+'</style></head><body>'+htmlContent+'</body></html>');
   win.document.close();setTimeout(()=>{win.print();},600);
 }

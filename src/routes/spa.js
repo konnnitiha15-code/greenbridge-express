@@ -151,12 +151,13 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
     let workers       = []
     let docs          = []
     let companyName   = 'GreenBridge'
+    let companyInfo   = null
 
     if (companyId) {
       const [wRes, dRes, cRes, pRes] = await Promise.all([
         req.supabase.from('workers').select('*').eq('company_id', companyId).order('name'),
         req.supabase.from('documents').select('*').eq('company_id', companyId).order('created_at', { ascending: false }),
-        req.supabase.from('companies').select('name').eq('id', companyId).single(),
+        req.supabase.from('companies').select('*').eq('id', companyId).single(),
         // ワーカーのauth user IDを取得（チャット用）
         createAdminClient().from('profiles').select('id, worker_id').eq('company_id', companyId).eq('role', 'worker'),
       ])
@@ -167,6 +168,7 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
 
       workers     = (wRes.data || []).map(w => ({ ...mapWorker(w), authUserId: profileMap[w.id] || null }))
       companyName = cRes.data?.name || 'GreenBridge'
+      companyInfo = cRes.data || null   // 書類生成用（住所・電話・代表者等）
 
       // Supabase の docs（テーブルが存在する場合）
       const supabaseDocs = (dRes.data || []).map(mapDoc)
@@ -196,7 +198,7 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
       refreshToken:    req.cookies['sb-refresh-token'] || null,
     }
 
-    res.render('spa', { workers, docs, gbUser, companyName, profile: req.profile, user: req.user, realtimeConfig })
+    res.render('spa', { workers, docs, gbUser, companyName, companyInfo, profile: req.profile, user: req.user, realtimeConfig })
   } catch (e) {
     console.error('SPA route error:', e)
     res.status(500).send('サーバーエラーが発生しました')
