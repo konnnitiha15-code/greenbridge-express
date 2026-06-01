@@ -8,6 +8,7 @@ const { requireWorkerAuth } = require('../middleware/auth')
 const { requireWorker } = require('../middleware/requireRole')
 const push             = require('../lib/push')
 const { translate }    = require('../lib/translation')
+const leaveLib         = require('../lib/leave')
 const router          = express.Router()
 
 // チャット添付ファイル用 multer (メモリ保持で Supabase Storage に直接 upload)
@@ -878,6 +879,122 @@ router.get('/api/payslips', requireWorkerAuth, requireWorker, async (req, res) =
     res.json({ ok: true, payslips: data || [] })
   } catch (e) {
     console.error('[worker payslips]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ── 有給休暇 API（ワーカー側）─────────────────────────────────
+const isLeaveMissing = err =>
+  err && (err.code === '42P01' || /leave_ledger|leave_requests|does not exist|schema cache/i.test(err.message || ''))
+
+// GET /worker/api/leave — 残数 + 申請履歴
+router.get('/api/leave', requireWorkerAuth, requireWorker, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const workerId  = req.profile?.worker_id
+    if (!workerId) return res.json({ ok: true, summary: { balance: 0 }, requests: [] })
+    const sb = adminClient()
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' })
+
+    const { data: entries, error } = await sb.from('leave_ledger')
+      .select('entry_type, days, effective_date, expire_date')
+      .eq('company_id', companyId).eq('worker_id', workerId)
+    if (error) {
+      if (isLeaveMissing(error)) return res.status(503).json({ ok: false, error: 'migration_015_required' })
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+    const summary = leaveLib.summarize(entries || [], today)
+
+    const { data: requests } = await sb.from('leave_requests')
+      .select('id, start_date, end_date, days, reason, status, review_note, created_at, reviewed_at')
+      .eq('company_id', companyId).eq('worker_id', workerId)
+      .order('created_at', { ascending: false }).limit(50)
+
+    res.json({ ok: true, summary, requests: requests || [] })
+  } catch (e) {
+    console.error('[worker leave]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// POST /worker/api/leave/request — 有給申請
+//   body: { start_date, end_date, days, reason }
+router.post('/api/leave/request', requireWorkerAuth, requireWorker, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const workerId  = req.profile?.worker_id
+    if (!workerId) return res.json({ ok: false, error: 'worker_id未設定です' })
+
+    const start_date = req.body?.start_date
+    const end_date   = req.body?.end_date || start_date
+    if (!start_date) return res.json({ ok: false, error: '開始日を入力してください' })
+    // 日数: 指定があればそれを優先（半休0.5対応）、無ければ暦日数
+    let days = Number(req.body?.days)
+    if (!Number.isFinite(days) || days <= 0) days = leaveLib.dateRangeDays(start_date, end_date)
+    if (days <= 0) return res.json({ ok: false, error: '日付の指定が不正です' })
+
+    const sb = adminClient()
+
+    // 残数チェック（参考。マイナス申請は警告のみで通す運用も可だがここでは弾く）
+    try {
+      const { data: entries } = await sb.from('leave_ledger')
+        .select('entry_type, days').eq('company_id', companyId).eq('worker_id', workerId)
+      const sum = leaveLib.summarize(entries || [])
+      // pending中の申請も残数から引いて二重申請を防ぐ
+      const { data: pend } = await sb.from('leave_requests')
+        .select('days').eq('company_id', companyId).eq('worker_id', workerId).eq('status', 'pending')
+      const pendingDays = (pend || []).reduce((s, r) => s + (Number(r.days) || 0), 0)
+      if (days > (sum.balance - pendingDays)) {
+        return res.json({ ok: false, error: `残数不足です（残り ${Math.max(0, sum.balance - pendingDays)} 日）` })
+      }
+    } catch (e) {
+      if (isLeaveMissing(e)) return res.status(503).json({ ok: false, error: 'migration_015_required' })
+    }
+
+    const { data, error } = await sb.from('leave_requests').insert({
+      company_id: companyId, worker_id: workerId,
+      start_date, end_date, days, reason: req.body?.reason || null,
+    }).select('id').single()
+    if (error) {
+      if (isLeaveMissing(error)) return res.status(503).json({ ok: false, error: 'migration_015_required' })
+      return res.json({ ok: false, error: error.message })
+    }
+
+    // 管理者へ通知
+    try {
+      const { data: w } = await sb.from('workers').select('name').eq('id', workerId).maybeSingle()
+      const notif = {
+        company_id: companyId, worker_id: null,
+        title: '🏖 有給申請が届きました',
+        body: `${w?.name || 'ワーカー'}：${start_date}${end_date !== start_date ? '〜' + end_date : ''}（${days}日）`,
+        type: 'info',
+      }
+      await sb.from('notifications').insert(notif)
+      push.sendFromNotification({ ...notif, url: '/app#leave' }).catch(() => {})
+    } catch {}
+
+    res.json({ ok: true, id: data.id })
+  } catch (e) {
+    console.error('[worker leave request]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// POST /worker/api/leave/request/:id/cancel — 申請取消（pendingのみ）
+router.post('/api/leave/request/:id/cancel', requireWorkerAuth, requireWorker, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const workerId  = req.profile?.worker_id
+    const sb = adminClient()
+    const { data: row } = await sb.from('leave_requests')
+      .select('id, status').eq('id', req.params.id).eq('company_id', companyId).eq('worker_id', workerId).maybeSingle()
+    if (!row) return res.status(404).json({ ok: false, error: 'not_found' })
+    if (row.status !== 'pending') return res.json({ ok: false, error: '承認待ちの申請のみ取消できます' })
+    const { error } = await sb.from('leave_requests').update({ status: 'cancelled' }).eq('id', req.params.id)
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('[worker leave cancel]', e.message)
     res.status(500).json({ ok: false, error: e.message })
   }
 })

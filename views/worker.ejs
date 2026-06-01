@@ -848,6 +848,10 @@ input,textarea,select,button{font-family:inherit}
         <div class="qa-ico" style="background:#ecfdf5"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="4" width="18" height="14" rx="2" stroke="#059669" stroke-width="1.7" fill="none"/><circle cx="11" cy="11" r="3" stroke="#059669" stroke-width="1.6" fill="none"/><path d="M5 7v8M17 7v8" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/></svg></div>
         <span class="qa-lbl" id="h-payslip-l">給与明細</span>
       </div>
+      <div class="qa-item" onclick="go('s-leave')">
+        <div class="qa-ico" style="background:#eff6ff"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 2.5c2.8 3.4 4.8 6 4.8 9.5a4.8 4.8 0 11-9.6 0c0-3.5 2-6.1 4.8-9.5z" stroke="#2563eb" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg></div>
+        <span class="qa-lbl" id="h-leave-l">有給</span>
+      </div>
       <div class="qa-item" onclick="go('s-settings')">
         <div class="qa-ico" style="background:#f6f7fa"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3" stroke="#64748b" stroke-width="1.7" fill="none"/><path d="M11 2.5v3M11 16.5v3M2.5 11h3M16.5 11h3M5.6 5.6l2 2M14.4 14.4l2 2M5.6 16.4l2-2M14.4 7.6l2-2" stroke="#64748b" stroke-width="1.6" stroke-linecap="round"/></svg></div>
         <span class="qa-lbl" id="nl-settings-qa">設定</span>
@@ -1198,6 +1202,42 @@ input,textarea,select,button{font-family:inherit}
   <div class="scroll pb" style="padding:13px">
     <div id="payslip-list">
       <div style="text-align:center;color:var(--t3);padding:30px 0;font-size:13px">読み込み中...</div>
+    </div>
+  </div>
+</div>
+
+<!-- LEAVE（有給休暇）-->
+<div class="scr" id="s-leave">
+  <div class="pg-top">
+    <div><div class="pg-title" id="lv-title">有給休暇</div><div class="pg-sub" id="lv-sub">残数の確認と申請</div></div>
+  </div>
+  <div class="scroll pb" style="padding:13px">
+    <!-- 残数カード -->
+    <div class="card" style="margin-bottom:12px">
+      <div style="padding:18px;text-align:center">
+        <div style="font-size:13px;color:var(--t3)" id="lv-balance-l">残り有給日数</div>
+        <div style="font-size:38px;font-weight:800;color:var(--gn);line-height:1.2" id="lv-balance">—</div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px;font-size:11.5px;color:var(--t3)">
+          <span>付与 <b id="lv-granted">—</b></span>・<span>消化 <b id="lv-used">—</b></span>
+        </div>
+      </div>
+    </div>
+    <!-- 申請フォーム -->
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-hdr"><span class="card-title" id="lv-apply-l">有給を申請</span></div>
+      <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:8px">
+          <div style="flex:1"><label class="form-lbl" id="lv-from-l">開始日</label><input type="date" id="lv-start" class="finp"></div>
+          <div style="flex:1"><label class="form-lbl" id="lv-to-l">終了日</label><input type="date" id="lv-end" class="finp"></div>
+        </div>
+        <div><label class="form-lbl" id="lv-reason-l">理由（任意・母国語OK）</label><input id="lv-reason" class="finp" placeholder=""></div>
+        <button class="btn btn-g" onclick="submitLeaveRequest()" id="lv-submit-btn">申請する</button>
+      </div>
+    </div>
+    <!-- 申請履歴 -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title" id="lv-history-l">申請履歴</span></div>
+      <div id="lv-history"><div style="padding:18px;text-align:center;color:var(--t3);font-size:13px">読み込み中...</div></div>
     </div>
   </div>
 </div>
@@ -2385,8 +2425,8 @@ function autoSz(el){
   el.style.height=Math.min(el.scrollHeight,120)+'px';
 }
 
-const SCRS=['s-home','s-chat','s-tpl','s-docs','s-videos','s-nippo','s-shift','s-sos','s-settings','s-payslip'];
-const NMAP={'s-home':'n-home','s-chat':'n-chat','s-tpl':'n-tpl','s-docs':'n-docs','s-videos':null,'s-nippo':null,'s-shift':'n-shift','s-sos':null,'s-settings':'n-settings','s-payslip':null};
+const SCRS=['s-home','s-chat','s-tpl','s-docs','s-videos','s-nippo','s-shift','s-sos','s-settings','s-payslip','s-leave'];
+const NMAP={'s-home':'n-home','s-chat':'n-chat','s-tpl':'n-tpl','s-docs':'n-docs','s-videos':null,'s-nippo':null,'s-shift':'n-shift','s-sos':null,'s-settings':'n-settings','s-payslip':null,'s-leave':null};
 
 function go(id){
   SCRS.forEach(s=>document.getElementById(s)?.classList.toggle('on',s===id));
@@ -2438,6 +2478,9 @@ function go(id){
   if(id==='s-settings'){
     if(typeof renderNotifSwitch==='function') renderNotifSwitch();
   }
+  if(id==='s-leave'){
+    if(typeof loadLeave==='function') loadLeave();
+  }
   if(id==='s-payslip'){
     if(typeof loadPayslips==='function') loadPayslips();
   }
@@ -2484,6 +2527,79 @@ async function loadPayslips(){
       </div>
     `).join('');
   }catch(e){ wrap.innerHTML = `<div style="padding:20px;color:var(--red)">${e.message}</div>`; }
+}
+
+// ── 有給休暇（ワーカー側）────────────────────────────────────
+const LV_STATUS={pending:{label:'承認待ち',c:'#92400e',bg:'#fef3c7'},approved:{label:'承認済み',c:'#065f46',bg:'#e6f9f0'},rejected:{label:'却下',c:'#991b1b',bg:'#fee2e2'},cancelled:{label:'取消',c:'#64748b',bg:'#f1f5f9'}};
+function _lvEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function loadLeave(){
+  const hist=document.getElementById('lv-history');
+  try{
+    const r=await fetch('/worker/api/leave',{credentials:'include'});
+    const ct=r.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const j=await r.json();
+    if(!j.ok){
+      const msg = j.error==='migration_015_required' ? '有給機能は準備中です（管理者にお問い合わせください）' : (j.error||'取得失敗');
+      if(hist) hist.innerHTML=`<div style="padding:18px;text-align:center;color:var(--t3);font-size:13px">${msg}</div>`;
+      const b=document.getElementById('lv-balance'); if(b) b.textContent='—';
+      return;
+    }
+    const s=j.summary||{};
+    const setT=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+    setT('lv-balance', (s.balance!=null?s.balance:'—')+'日');
+    setT('lv-granted', (s.granted!=null?s.granted:'—')+'日');
+    setT('lv-used', (s.used!=null?s.used:'—')+'日');
+
+    const list=j.requests||[];
+    if(!hist) return;
+    if(!list.length){ hist.innerHTML='<div style="padding:18px;text-align:center;color:var(--t3);font-size:13px">申請履歴はありません</div>'; return; }
+    hist.innerHTML=list.map(req=>{
+      const st=LV_STATUS[req.status]||{label:req.status,c:'#64748b',bg:'#f1f5f9'};
+      const period=req.start_date+(req.end_date!==req.start_date?(' 〜 '+req.end_date):'');
+      const cancelBtn=req.status==='pending'?`<button class="btn-xs" style="border-color:var(--rbd);color:var(--red)" onclick="cancelLeave('${req.id}')">取消</button>`:'';
+      const note=req.review_note?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${_lvEsc(req.review_note)}</div>`:'';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--bd)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${period}（${req.days}日）</div>
+          ${req.reason?`<div style="font-size:11.5px;color:var(--t3);margin-top:2px">${_lvEsc(req.reason)}</div>`:''}${note}
+        </div>
+        <span class="badge" style="background:${st.bg};color:${st.c};font-size:10px;white-space:nowrap">${st.label}</span>
+        ${cancelBtn}
+      </div>`;
+    }).join('');
+  }catch(e){ console.error('[leave] ',e); }
+}
+
+async function submitLeaveRequest(){
+  const start=document.getElementById('lv-start')?.value;
+  const end=document.getElementById('lv-end')?.value||start;
+  const reason=document.getElementById('lv-reason')?.value||'';
+  if(!start){ toast('エラー','開始日を選択してください','r'); return; }
+  if(end<start){ toast('エラー','終了日は開始日以降にしてください','r'); return; }
+  const btn=document.getElementById('lv-submit-btn');
+  if(btn) btn.disabled=true;
+  try{
+    const r=await fetch('/worker/api/leave/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start_date:start,end_date:end,reason})});
+    const j=await r.json();
+    if(!j.ok){ toast('エラー',j.error||'申請に失敗しました','r'); if(btn)btn.disabled=false; return; }
+    toast('✓ 申請しました','管理者の承認をお待ちください','g');
+    document.getElementById('lv-start').value='';document.getElementById('lv-end').value='';document.getElementById('lv-reason').value='';
+    loadLeave();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+  finally{ if(btn) btn.disabled=false; }
+}
+
+async function cancelLeave(id){
+  if(!confirm('この申請を取り消しますか？')) return;
+  try{
+    const r=await fetch(`/worker/api/leave/request/${id}/cancel`,{method:'POST',credentials:'include'});
+    const j=await r.json();
+    if(!j.ok){ toast('エラー',j.error||'取消に失敗しました','r'); return; }
+    toast('取り消しました','','g');
+    loadLeave();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────

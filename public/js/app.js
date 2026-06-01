@@ -318,7 +318,7 @@ function SP(id){
     const sid=s.id?s.id.replace('nav-',''):'';
     s.classList.toggle('on',sid===id);
   });
-  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
+  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
@@ -343,6 +343,7 @@ function SP(id){
   if(id==='payroll') initPayrollPage();
   if(id==='dict') initDictPage();
   if(id==='visa') loadVisa();
+  if(id==='leave'){ loadLeaveRequests(); loadLeaveOverview(); }
 }
 
 // ── 通知センター ────────────────────────────────────────────────
@@ -4318,5 +4319,169 @@ async function runVisaNotify(){
     const n=(json.created||[]).length;
     toast('✓ 期限通知',n>0?`${n}件の通知を送信しました`:'通知対象（重複を除く）はありませんでした','g');
     if(typeof loadDashboardStats==='function') loadDashboardStats();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 🏖 有給管理（Phase5・管理者側）
+// ════════════════════════════════════════════════════════════════
+let LEAVE_OVERVIEW=[];
+const LEAVE_STATUS={pending:{label:'承認待ち',cls:'ba'},approved:{label:'承認済み',cls:'bg'},rejected:{label:'却下',cls:'br'},cancelled:{label:'取消',cls:'bgray'}};
+
+function _leaveWarn(show,msg){
+  const w=document.getElementById('leave-warn');
+  if(!w) return;
+  w.style.display=show?'block':'none';
+  if(show) w.textContent=msg||'⚠️ 有給テーブルが未作成です。Supabase で migration 015 を実行してください。';
+}
+
+async function loadLeaveRequests(){
+  const box=document.getElementById('leave-req-list');
+  const status=document.getElementById('leave-req-filter')?.value||'pending';
+  try{
+    const res=await fetch('/app/api/leave/requests/list'+(status?('?status='+status):''),{credentials:'include'});
+    const ct=res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const json=await res.json();
+    if(!json.ok){
+      if(json.error==='migration_015_required') _leaveWarn(true);
+      if(box) box.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3)">取得できません</div>';
+      return;
+    }
+    _leaveWarn(false);
+    const list=json.requests||[];
+    const cnt=document.getElementById('leave-req-count'); if(cnt) cnt.textContent=`(${list.length}件)`;
+    // サイドバーバッジ（承認待ち件数）
+    if(status==='pending'){
+      const bdg=document.getElementById('leave-bdg');
+      if(bdg){ if(list.length>0){bdg.textContent=list.length;bdg.style.display='';}else bdg.style.display='none'; }
+    }
+    if(!list.length){ box.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3)">該当する申請はありません</div>'; return; }
+    box.innerHTML=list.map(r=>{
+      const st=LEAVE_STATUS[r.status]||{label:r.status,cls:'bgray'};
+      const nm=r.workers?.name||'不明';
+      const period=r.start_date+(r.end_date!==r.start_date?(' 〜 '+r.end_date):'');
+      const actions=r.status==='pending'
+        ? `<button class="btn btn-sm btn-g" onclick="reviewLeave('${r.id}','approve')">承認</button>
+           <button class="btn btn-sm btn-r" style="margin-left:4px" onclick="reviewLeave('${r.id}','reject')">却下</button>`
+        : (r.review_note?`<span style="font-size:11px;color:var(--t3)">${_dictEsc(r.review_note)}</span>`:'');
+      return `<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--bd)">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${_dictEsc(nm)} <span class="badge ${st.cls}" style="font-size:10px;margin-left:4px">${st.label}</span></div>
+          <div style="font-size:12px;color:var(--t2);margin-top:2px">${period}（${r.days}日）${r.reason?' · '+_dictEsc(r.reason):''}</div>
+        </div>
+        <div style="white-space:nowrap">${actions}</div>
+      </div>`;
+    }).join('');
+  }catch(e){ console.error('[leave req] ',e); }
+}
+
+async function reviewLeave(id,action){
+  const note = action==='reject' ? (prompt('却下理由（任意）')||'') : '';
+  if(action==='reject' && note===null) return;
+  try{
+    const res=await fetch(`/app/api/leave/requests/${id}/review`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,note})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'処理に失敗しました','r'); return; }
+    toast(action==='approve'?'✓ 承認しました':'却下しました',action==='approve'?'残数から消化されました':'','g');
+    loadLeaveRequests(); loadLeaveOverview();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function loadLeaveOverview(){
+  const box=document.getElementById('leave-overview');
+  try{
+    const res=await fetch('/app/api/leave/overview',{credentials:'include'});
+    const ct=res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const json=await res.json();
+    if(!json.ok){
+      if(json.error==='migration_015_required'){ _leaveWarn(true); if(box) box.innerHTML=''; }
+      return;
+    }
+    _leaveWarn(false);
+    LEAVE_OVERVIEW=json.rows||[];
+    if(!LEAVE_OVERVIEW.length){ box.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3)">実習生がいません</div>'; return; }
+    let html='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="border-bottom:1px solid var(--bd);color:var(--t3);font-size:11.5px;text-align:left">'
+      +'<th style="padding:9px 10px">氏名</th><th style="padding:9px 10px">入社日</th><th style="padding:9px 10px;text-align:right">付与</th><th style="padding:9px 10px;text-align:right">消化</th><th style="padding:9px 10px;text-align:right">調整</th><th style="padding:9px 10px;text-align:right">残数</th><th style="padding:9px 10px"></th></tr></thead><tbody>';
+    LEAVE_OVERVIEW.forEach(r=>{
+      const bal=r.balance;
+      const balColor=bal<=0?'#991b1b':bal<=5?'#92400e':'#065f46';
+      const syncBadge=r.needs_sync?'<span class="badge ba" style="font-size:9px;margin-left:4px">未同期</span>':'';
+      html+=`<tr style="border-bottom:1px solid var(--bd)">
+        <td style="padding:9px 10px"><span style="font-weight:600">${_dictEsc(r.name)}</span>${syncBadge}<br><span style="font-size:10.5px;color:var(--t3)">${_dictEsc(r.nationality||'')}</span></td>
+        <td style="padding:9px 10px;font-size:12px">${r.entry_date||'—'}</td>
+        <td style="padding:9px 10px;text-align:right">${r.granted}</td>
+        <td style="padding:9px 10px;text-align:right">${r.used}</td>
+        <td style="padding:9px 10px;text-align:right">${r.adjusted}</td>
+        <td style="padding:9px 10px;text-align:right;font-weight:800;color:${balColor}">${bal}日</td>
+        <td style="padding:9px 10px;text-align:right;white-space:nowrap">
+          <button class="btn btn-sm" onclick="openLeaveDetail('${r.worker_id}','${_dictEsc(r.name)}')">明細/調整</button>
+        </td></tr>`;
+    });
+    html+='</tbody></table>';
+    box.innerHTML=html;
+  }catch(e){ console.error('[leave overview]',e); }
+}
+
+async function syncAllLeave(){
+  if(!confirm('全実習生の入社日から法定付与日数を台帳へ同期します。よろしいですか？')) return;
+  try{
+    const res=await fetch('/app/api/leave/sync-all',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error==='migration_015_required'?'有給テーブルが未作成です（migration 015）':json.error||'同期に失敗しました','r'); return; }
+    toast('✓ 同期完了',`${json.added}件の付与を追加しました`,'g');
+    loadLeaveOverview();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// 明細 + 手動調整モーダル
+async function openLeaveDetail(workerId,name){
+  try{
+    const res=await fetch('/app/api/leave/'+workerId,{credentials:'include'});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'取得に失敗しました','r'); return; }
+    const s=json.summary||{};
+    const TYPE={grant:'付与',use:'消化',adjust:'調整',expire:'失効'};
+    const entriesHtml=(json.entries||[]).map(e=>{
+      const sign=(e.entry_type==='grant'||e.entry_type==='adjust')?'+':'−';
+      const col=(e.entry_type==='use'||e.entry_type==='expire')?'#991b1b':'#065f46';
+      return `<tr style="border-bottom:1px solid var(--bd)">
+        <td style="padding:6px 8px">${String(e.effective_date).slice(0,10)}</td>
+        <td style="padding:6px 8px">${TYPE[e.entry_type]||e.entry_type}</td>
+        <td style="padding:6px 8px;text-align:right;color:${col};font-weight:600">${sign}${Math.abs(e.days)}</td>
+        <td style="padding:6px 8px;font-size:11px;color:var(--t3)">${_dictEsc(e.note||'')}</td></tr>`;
+    }).join('')||'<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--t3)">履歴がありません</td></tr>';
+    openModal(`🏖 ${name} の有給`,
+      `<div style="display:flex;gap:10px;margin-bottom:12px">
+        <div style="flex:1;background:#e6f9f0;border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:#065f46">${s.balance}日</div><div style="font-size:11px;color:#065f46">残数</div></div>
+        <div style="flex:1;background:#f1f5f9;border-radius:8px;padding:10px;text-align:center"><div style="font-size:16px;font-weight:700">${s.granted}</div><div style="font-size:11px;color:var(--t3)">付与</div></div>
+        <div style="flex:1;background:#f1f5f9;border-radius:8px;padding:10px;text-align:center"><div style="font-size:16px;font-weight:700">${s.used}</div><div style="font-size:11px;color:var(--t3)">消化</div></div>
+      </div>
+      <div style="border:1px solid var(--bd);border-radius:8px;padding:10px;margin-bottom:12px;background:var(--bg2)">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px">手動調整（付与は＋、減算は−）</div>
+        <div style="display:flex;gap:6px;align-items:end;flex-wrap:wrap">
+          <div><label class="form-lbl" style="font-size:11px">日数</label><input type="number" step="0.5" id="ladj-days" class="form-inp" style="width:80px" placeholder="±"></div>
+          <div style="flex:1;min-width:120px"><label class="form-lbl" style="font-size:11px">メモ</label><input id="ladj-note" class="form-inp" placeholder="調整理由"></div>
+          <button class="btn btn-sm btn-g" onclick="submitLeaveAdjust('${workerId}','${_dictEsc(name)}')">調整を追加</button>
+        </div>
+      </div>
+      <div style="max-height:260px;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead><tr style="color:var(--t3);font-size:11px;text-align:left"><th style="padding:6px 8px">日付</th><th style="padding:6px 8px">種別</th><th style="padding:6px 8px;text-align:right">日数</th><th style="padding:6px 8px">メモ</th></tr></thead>
+        <tbody>${entriesHtml}</tbody></table></div>`,
+      `<button class="btn" onclick="closeModal()">閉じる</button>`);
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function submitLeaveAdjust(workerId,name){
+  const days=parseFloat(document.getElementById('ladj-days')?.value);
+  if(!Number.isFinite(days)||days===0){ toast('エラー','調整日数を入力してください（±）','r'); return; }
+  const note=document.getElementById('ladj-note')?.value||'';
+  try{
+    const res=await fetch(`/app/api/leave/${workerId}/adjust`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days,note})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'調整に失敗しました','r'); return; }
+    toast('✓ 調整しました',`残数 ${json.summary?.balance}日`,'g');
+    closeModal(); loadLeaveOverview();
   }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
 }

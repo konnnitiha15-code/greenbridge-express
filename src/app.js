@@ -13,6 +13,7 @@ const settingsRoutes  = require('./routes/settings')
 const workerAppRoutes = require('./routes/worker-app')
 const pushRoutes      = require('./routes/push')
 const translateRoutes = require('./routes/translate')
+const leaveRoutes     = require('./routes/leave')
 
 const app = express()
 
@@ -68,6 +69,7 @@ app.use('/settings',  settingsRoutes)
 app.use('/worker',    workerAppRoutes)
 app.use('/api/push',  pushRoutes)
 app.use('/api',       translateRoutes)
+app.use('/app/api/leave', leaveRoutes)
 
 // ── 起動（ローカル）・エクスポート（Vercel）────────────────────────
 if (require.main === module) {
