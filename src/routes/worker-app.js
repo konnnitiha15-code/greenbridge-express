@@ -7,6 +7,7 @@ const COOKIE_OPT = { httpOnly: true, sameSite: 'lax', secure: SECURE }
 const { requireWorkerAuth } = require('../middleware/auth')
 const { requireWorker } = require('../middleware/requireRole')
 const push             = require('../lib/push')
+const { translate }    = require('../lib/translation')
 const router          = express.Router()
 
 // チャット添付ファイル用 multer (メモリ保持で Supabase Storage に直接 upload)
@@ -438,7 +439,7 @@ router.post('/api/daily-reports', requireWorkerAuth, requireWorker, async (req, 
 })
 
 // ── 通知 API（ワーカー側） ───────────────────────────────────
-// GET /worker/api/notifications — 自分宛て通知
+// GET /worker/api/notifications — 自分宛て通知（ワーカー言語に翻訳して返す）
 router.get('/api/notifications', requireWorkerAuth, requireWorker, async (req, res) => {
   const workerId  = req.profile?.worker_id
   const companyId = req.profile?.company_id
@@ -454,7 +455,40 @@ router.get('/api/notifications', requireWorkerAuth, requireWorker, async (req, r
     .limit(50)
 
   if (error) return res.status(500).json({ ok: false, error: error.message })
-  res.json({ ok: true, notifications: data || [] })
+
+  let notifications = data || []
+
+  // ── ワーカー言語へ翻訳（通知は管理者が日本語で作成する前提）──────────────
+  //   会社辞書→業界辞書→cache→API の優先順位で翻訳。失敗時は原文のまま。
+  //   絵文字や記号だけの語は translationService 側で原文返しになる。
+  // 言語は ?lang= を最優先（アプリ上で切替中の言語）、無ければ workers.language
+  const LANG_WHITELIST = ['ja', 'vi', 'id', 'tl', 'zh', 'my', 'en', 'km']
+  let lang = LANG_WHITELIST.includes(req.query.lang) ? req.query.lang : null
+  if (!lang && workerId) {
+    try {
+      const { data: w } = await sb.from('workers').select('language').eq('id', workerId).maybeSingle()
+      if (w?.language) lang = w.language
+    } catch {}
+  }
+  if (!lang) lang = 'vi'
+  if (lang && lang !== 'ja' && notifications.length) {
+    notifications = await Promise.all(notifications.map(async n => {
+      const out = { ...n }
+      try {
+        if (n.title) {
+          const r = await translate(n.title, 'ja', lang, { companyId })
+          out.title_tl = r?.translated || n.title
+        }
+        if (n.body) {
+          const r = await translate(n.body, 'ja', lang, { companyId })
+          out.body_tl = r?.translated || n.body
+        }
+      } catch { /* 失敗時は原文（title_tl/body_tl 無し）*/ }
+      return out
+    }))
+  }
+
+  res.json({ ok: true, notifications, lang })
 })
 
 // PUT /worker/api/notifications/:id/read

@@ -859,21 +859,10 @@ input,textarea,select,button{font-family:inherit}
     </div>
 
     <div class="card" style="margin:4px 13px 0">
-      <div class="card-hdr"><span class="card-title" id="h-notice-l">お知らせ</span><span class="bdg ba">2件</span></div>
-      <div class="card-row tap" id="approval-notice" style="display:none">
-        <div class="n-ico" style="background:#e6f9f0">✅</div>
-        <div class="n-body"><div class="n-title" id="h-approved-l">申請が承認されました</div><div class="n-sub">担当者から通知が届きました</div></div>
-        <div class="n-arr">›</div>
-      </div>
-      <div class="card-row tap" onclick="go('s-docs')">
-        <div class="n-ico" style="background:#fefce8">📄</div>
-        <div class="n-body"><div class="n-title" id="h-n1-t">就業規則が更新されました</div><div class="n-sub" id="h-n1-s">書類タブで確認してください</div></div>
-        <div class="n-arr">›</div>
-      </div>
-      <div class="card-row tap" onclick="go('s-chat')">
-        <div class="n-ico" style="background:#e8f4ff">💬</div>
-        <div class="n-body"><div class="n-title" id="h-n2-t">担当者からメッセージ</div><div class="n-sub">タップしてチャットを開く</div></div>
-        <div class="n-arr">›</div>
+      <div class="card-hdr"><span class="card-title" id="h-notice-l">お知らせ</span><span class="bdg ba" id="h-notice-count" style="display:none">0</span></div>
+      <div id="h-notice-list">
+        <!-- 通知は loadNotifications() が動的描画。未取得時のプレースホルダ -->
+        <div class="card-row" style="color:var(--t3);font-size:13px;justify-content:center">読み込み中...</div>
       </div>
     </div>
 
@@ -2190,6 +2179,59 @@ async function aiTx(text, targetLang, sourceLang) {
   }
 }
 
+// ── 通知（お知らせ）: サーバーがワーカー言語に翻訳済みで返す ──────────────────
+function _notifEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _notifIcon(type){
+  return ({ alert:['🚨','#fee2e2'], approval:['✅','#e6f9f0'], message:['💬','#e8f4ff'], info:['📢','#fefce8'] }[type]) || ['📢','#fefce8'];
+}
+async function loadNotifications(){
+  const box = document.getElementById('h-notice-list');
+  if(!box) return;
+  try{
+    const res = await fetch('/worker/api/notifications?lang='+encodeURIComponent(LANG||'vi'), { credentials:'include' });
+    const ct = res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')){ console.warn('[notif] non-JSON'); return; }
+    const json = await res.json();
+    if(!json.ok){ box.innerHTML=''; return; }
+    const list = (json.notifications||[]).slice(0, 8);
+
+    const cntEl = document.getElementById('h-notice-count');
+    const unread = (json.notifications||[]).filter(n=>!n.is_read).length;
+    if(cntEl){
+      if(unread>0){ cntEl.textContent=unread; cntEl.style.display=''; }
+      else cntEl.style.display='none';
+    }
+
+    if(!list.length){
+      const L = LS[LANG]||LS.vi;
+      box.innerHTML = `<div class="card-row" style="color:var(--t3);font-size:13px;justify-content:center">${_notifEsc(L.noticeEmpty||'お知らせはありません')}</div>`;
+      return;
+    }
+    box.innerHTML = list.map(n=>{
+      const [ico,bg] = _notifIcon(n.type);
+      // サーバーが付けた翻訳(title_tl/body_tl)を優先。無ければ原文
+      const title = _notifEsc(n.title_tl || n.title || '');
+      const body  = _notifEsc(n.body_tl  || n.body  || '');
+      const orig  = (n.title_tl && n.title_tl !== n.title) ? `<div class="n-orig" style="font-size:10.5px;color:var(--t3);margin-top:2px">${_notifEsc(n.title)}</div>` : '';
+      const dot   = n.is_read ? '' : '<span style="width:7px;height:7px;border-radius:50%;background:var(--gn);display:inline-block;margin-left:6px;flex-shrink:0"></span>';
+      return `<div class="card-row tap" onclick="markNotifRead('${n.id}')">
+        <div class="n-ico" style="background:${bg}">${ico}</div>
+        <div class="n-body"><div class="n-title" style="display:flex;align-items:center">${title}${dot}</div>
+          ${body?`<div class="n-sub">${body}</div>`:''}${orig}</div>
+        <div class="n-arr">›</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    console.error('[notif] load error:', e);
+  }
+}
+async function markNotifRead(id){
+  try{
+    await fetch(`/worker/api/notifications/${id}/read`, { method:'PUT', credentials:'include' });
+  }catch{}
+  loadNotifications();
+}
+
 // ── LANGUAGE ──────────────────────────────────────────────────────────────────
 function applyL(code) {
   const L=LS[code]||LS.vi; LANG=code;
@@ -2295,6 +2337,8 @@ function applyL(code) {
 
   renderTpls();
   Object.keys(docTranslateCache).forEach(k=>delete docTranslateCache[k]);
+  // 言語切替時はお知らせも選択言語で再翻訳取得
+  if(typeof loadNotifications==='function') loadNotifications();
 }
 
 function setLang(el,code,flag,name){
@@ -2353,9 +2397,10 @@ function go(id){
   document.getElementById('npov-new')?.classList.remove('on');
   
   if(id==='s-home'){
-    // ホームを開くたびに日報状況とシフトを最新化
+    // ホームを開くたびに日報状況・シフト・お知らせを最新化
     if(typeof loadAndRenderNippos==='function') loadAndRenderNippos();
     if(typeof loadAndRenderShift==='function') loadAndRenderShift();
+    if(typeof loadNotifications==='function') loadNotifications();
   }
   if(id==='s-tpl'){
     document.getElementById('tpl-form-overlay')?.classList.remove('on');
@@ -3831,6 +3876,8 @@ updateProg();loadAndRenderShift();
 if(typeof loadWorkerGroups==='function') loadWorkerGroups().then(()=>{ if(typeof renderChatList==='function') renderChatList(); });
 // 起動時に日報も取得（ホーム画面のバッジ表示用）
 if(typeof loadAndRenderNippos==='function') loadAndRenderNippos();
+// 起動時にお知らせ（通知）も取得・翻訳表示
+if(typeof loadNotifications==='function') loadNotifications();
 
 // attendance.js 読み込み後に初期化（script タグの後で呼ぶ）
 

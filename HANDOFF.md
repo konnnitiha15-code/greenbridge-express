@@ -485,6 +485,11 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - 対応言語 ja/vi/id/tl/zh/my/en。translationService の優先順位（会社辞書→業界辞書→cache→API）にそのまま乗る
     - ローカル検証済: CRUD・upsert・バリデーション・翻訳APIで via:"company_dict" を確認
     - マイグレーション不要（011のテーブルを使用）
+43. **通知翻訳（Phase2）**：ワーカーのお知らせを母国語で表示
+    - サーバー: `GET /worker/api/notifications` が translationService で title/body を翻訳し `title_tl`/`body_tl` を付与。言語は `?lang=`（アプリ上の切替言語）最優先→workers.language。ja は翻訳せず原文。会社辞書→業界辞書→cache→API の優先順位に乗る
+    - フロント(worker.ejs): ホームの「お知らせ」をハードコードのダミーから実通知の動的描画へ刷新。loadNotifications/markNotifRead 追加。ホーム表示時・言語切替時(applyL)・起動時にロード。未読バッジ・既読化対応
+    - ローカル検証済: vi/en で通知が翻訳され、`?lang=` 切替で再翻訳されることを確認。絵文字保持
+    - マイグレーション不要
 
 ---
 
