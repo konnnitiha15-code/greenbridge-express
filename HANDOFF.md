@@ -183,7 +183,7 @@ greenbridge-express/
 013 - company_info（companies に representative/representative_title/registration_no/fax/postal_code 追加）
 ```
 
-001〜012 は **実行済み** ✅／**013 は要実行**（会社情報の拡張カラム。未実行でも基本情報は保存可・拡張項目だけ無効）
+001〜013 は **全て実行済み** ✅（013 は 2026-06-01 に Supabase SQL Editor で適用完了。会社情報の拡張カラムが有効）
 
 ### Supabase Storage
 - バケット名: `documents`
@@ -500,7 +500,7 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - ローカル検証済: 全7テンプレートがエラーなく生成、GB_COMPANY_INFO がサーバーから供給されることを確認
     - マイグレーション不要。※生年月日等は現 mapWorker が返さないため書類に未使用（既存データ範囲で完結）
 45. **会社情報の設定UI（Phase3補完）**：書類の事業主欄を会社が自分で設定
-    - マイグレーション **013**（companies に representative/representative_title/registration_no/fax/postal_code 追加・全NULL許容）。※要実行だが未実行でも基本情報は保存可
+    - マイグレーション **013**（companies に representative/representative_title/registration_no/fax/postal_code 追加・全NULL許容）。**2026-06-01 適用済み✅**
     - サーバー: `GET/PUT /app/api/company`（admin自社のみ）。PUTは拡張カラム込み→失敗時(013未適用)は基本カラムのみで再試行し `warn:migration_013_required` を返すフォールバック。null/空は null 保存（"null"文字列化バグ修正済）
     - フロント: 設定タブに「会社情報」パネル追加（admin限定）。loadCompanyInfo/saveCompanyInfo。保存後 window.GB_COMPANY_INFO を更新し書類へ即反映。`_ci()` が window優先で参照
     - 書類ヘルパ強化: `_repName()`（役職+氏名）、`_companyBlock` が郵便番号+住所・代表者役職を出力
