@@ -318,7 +318,7 @@ function SP(id){
     const sid=s.id?s.id.replace('nav-',''):'';
     s.classList.toggle('on',sid===id);
   });
-  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
+  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
@@ -342,6 +342,7 @@ function SP(id){
   if(id==='roles') loadRoleUsers();
   if(id==='payroll') initPayrollPage();
   if(id==='dict') initDictPage();
+  if(id==='visa') loadVisa();
 }
 
 // ── 通知センター ────────────────────────────────────────────────
@@ -4207,5 +4208,107 @@ async function saveCompanyInfo(){
     const c=json.company||{};
     COMPANY_FIELDS.forEach(f=>{ const el=document.getElementById('co-'+f); if(el) el.value=c[f]||''; });
     if(typeof window!=='undefined') window.GB_COMPANY_INFO=c;
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 🪪 在留資格管理（Phase4）
+// ════════════════════════════════════════════════════════════════
+let VISA_ROWS=[];
+const VISA_LEVEL={
+  expired:{label:'期限切れ',bg:'#fee2e2',color:'#991b1b',dot:'❌'},
+  urgent: {label:'30日以内',bg:'#fef3c7',color:'#92400e',dot:'🔴'},
+  warn:   {label:'90日以内',bg:'#fef9c3',color:'#854d0e',dot:'🟡'},
+  ok:     {label:'余裕あり',bg:'#e6f9f0',color:'#065f46',dot:'🟢'},
+  none:   {label:'未登録',  bg:'#f1f5f9',color:'#64748b',dot:'⚪'},
+};
+
+async function loadVisa(){
+  const box=document.getElementById('visa-table');
+  try{
+    const res=await fetch('/app/api/visa',{credentials:'include'});
+    const ct=res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const json=await res.json();
+    if(!json.ok){ if(box) box.innerHTML='<div style="padding:24px;text-align:center;color:var(--red)">取得に失敗しました</div>'; return; }
+    VISA_ROWS=json.rows||[];
+    renderVisaStats(json.stats||{});
+    renderVisaTable();
+  }catch(e){ console.error('[visa] load error:',e); }
+}
+
+function renderVisaStats(stats){
+  const box=document.getElementById('visa-stats');
+  if(!box) return;
+  const order=['expired','urgent','warn','ok','none'];
+  box.innerHTML=order.map(k=>{
+    const L=VISA_LEVEL[k];const n=stats[k]||0;
+    return `<div style="flex:1;min-width:110px;background:${L.bg};border-radius:10px;padding:10px 12px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:${L.color}">${n}</div>
+      <div style="font-size:11px;color:${L.color}">${L.dot} ${L.label}</div></div>`;
+  }).join('');
+}
+
+function _visaCell(it){
+  if(!it || it.level==null){ return '<span style="color:var(--t3)">—</span>'; }
+  const L=VISA_LEVEL[it.level]||VISA_LEVEL.none;
+  const daysLbl = it.level==='expired' ? `${Math.abs(it.days)}日超過`
+                : it.level==='ok' ? `残${it.days}日` : `残${it.days}日`;
+  return `<div style="font-size:12px">${it.date||'—'}</div>
+    <span class="badge" style="background:${L.bg};color:${L.color};font-size:10px">${L.dot} ${daysLbl}</span>`;
+}
+
+function renderVisaTable(){
+  const box=document.getElementById('visa-table');
+  if(!box) return;
+  const q=(document.getElementById('visa-search')?.value||'').trim().toLowerCase();
+  const f=document.getElementById('visa-filter')?.value||'';
+  let rows=VISA_ROWS.filter(r=>{
+    if(q && !((r.name||'').toLowerCase().includes(q) || (r.nationality||'').toLowerCase().includes(q))) return false;
+    if(f){ const lv=r.worst?.level||'none'; if(lv!==f) return false; }
+    return true;
+  });
+  if(!rows.length){
+    box.innerHTML=`<div style="padding:24px;text-align:center;color:var(--t3)">${q||f?'該当する実習生がいません':'実習生が登録されていません'}</div>`;
+    return;
+  }
+  const getItem=(r,kind)=>r.items.find(x=>x.kind===kind);
+  let html='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="border-bottom:1px solid var(--bd);color:var(--t3);font-size:11.5px;text-align:left">'
+    +'<th style="padding:9px 10px">氏名</th><th style="padding:9px 10px">在留資格</th><th style="padding:9px 10px">在留カード期限</th><th style="padding:9px 10px">パスポート期限</th><th style="padding:9px 10px">資格外活動許可</th><th style="padding:9px 10px"></th></tr></thead><tbody>';
+  rows.forEach(r=>{
+    const wp=getItem(r,'work_permit');
+    // 資格外活動許可: 期限があればセル表示、無ければ有無バッジ
+    let wpCell;
+    if(wp && wp.level!=null) wpCell=_visaCell(wp);
+    else if(r.work_permit===true) wpCell='<span class="badge bg" style="font-size:10px">許可あり</span>';
+    else if(r.work_permit===false) wpCell='<span class="badge bgray" style="font-size:10px">なし</span>';
+    else wpCell='<span style="color:var(--t3)">—</span>';
+    html+=`<tr style="border-bottom:1px solid var(--bd)">
+      <td style="padding:9px 10px"><span style="font-weight:600">${_dictEsc(r.name)}</span><br><span style="font-size:10.5px;color:var(--t3)">${_dictEsc(r.nationality||'')}</span></td>
+      <td style="padding:9px 10px">${_dictEsc(r.visa_type||'—')}</td>
+      <td style="padding:9px 10px">${_visaCell(getItem(r,'residence'))}</td>
+      <td style="padding:9px 10px">${_visaCell(getItem(r,'passport'))}</td>
+      <td style="padding:9px 10px">${wpCell}</td>
+      <td style="padding:9px 10px;text-align:right"><button class="btn btn-sm" onclick="openVisaWorker('${r.worker_id}')">詳細</button></td>
+    </tr>`;
+  });
+  html+='</tbody></table>';
+  box.innerHTML=html;
+}
+
+function openVisaWorker(wid){
+  const w=WORKERS.find(x=>x.id===wid);
+  if(w){ SP('workers'); setTimeout(()=>openWD(w),100); }
+}
+
+async function runVisaNotify(){
+  if(!confirm('期限が60日以内（および超過）の在留関連を管理者へ通知します。よろしいですか？')) return;
+  try{
+    const res=await fetch('/app/api/visa/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days:60})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'通知に失敗しました','r'); return; }
+    const n=(json.created||[]).length;
+    toast('✓ 期限通知',n>0?`${n}件の通知を送信しました`:'通知対象（重複を除く）はありませんでした','g');
+    if(typeof loadDashboardStats==='function') loadDashboardStats();
   }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
 }

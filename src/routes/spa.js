@@ -108,6 +108,8 @@ function mapWorker(w) {
     visaStatus:       w.visa_status === 'active' ? '在留中' : (w.visa_status || ''),
     residenceCard:    w.residence_card || '',
     residenceExpire:  fmtDate(w.residence_expire),
+    workPermit:       (w.work_permit === true || w.work_permit === false) ? w.work_permit : null,  // 資格外活動許可（014）
+    workPermitExpire: fmtDate(w.work_permit_expire),
     entryDate:        fmtDate(w.entry_date),
     contractEnd:      fmtDate(w.contract_end),
     insurance:        w.insurance      || '',
@@ -206,26 +208,52 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
 })
 
 // ── Workers API (AJAX用) ─────────────────────────────────
+// workers の通常カラム
+const WORKER_FIELDS = ['name','nationality','language','job_title','department','supervisor','salary',
+  'visa_type','visa_status','residence_card','residence_expire','entry_date','contract_end',
+  'passport_number','passport_expire','address','emergency_contact','insurance','status']
+// 014（資格外活動許可）の拡張カラム。未適用環境ではフォールバックで除外する
+const WORKER_EXT_FIELDS = ['work_permit','work_permit_expire']
+// カラム不在エラー判定（014未適用）
+const isWorkerExtMissing = err =>
+  err && /column .* does not exist|work_permit/i.test(err.message || '')
+
+// boolean を含む値の整形（false/0 を null にしない）
+function buildWorkerPayload(body, fields) {
+  const payload = {}
+  for (const f of fields) {
+    if (body[f] === undefined) continue
+    if (f === 'work_permit') {
+      payload[f] = (body[f] === true || body[f] === 'true') ? true
+                 : (body[f] === false || body[f] === 'false') ? false : null
+    } else {
+      payload[f] = body[f] || null
+    }
+  }
+  return payload
+}
+
 router.post('/api/workers', requireAuth, async (req, res) => {
   const companyId = req.profile?.company_id
   if (!companyId) return res.status(403).json({ error: '会社が未設定です' })
-  const fields = ['name','nationality','language','job_title','department','supervisor','salary',
-    'visa_type','visa_status','residence_card','residence_expire','entry_date','contract_end',
-    'passport_number','passport_expire','address','emergency_contact','insurance','status']
-  const payload = { company_id: companyId }
-  for (const f of fields) if (req.body[f] !== undefined) payload[f] = req.body[f] || null
-  const { data, error } = await req.supabase.from('workers').insert(payload).select().single()
+  const full = { company_id: companyId, ...buildWorkerPayload(req.body, [...WORKER_FIELDS, ...WORKER_EXT_FIELDS]) }
+  let { data, error } = await req.supabase.from('workers').insert(full).select().single()
+  if (error && isWorkerExtMissing(error)) {
+    // 014未適用 → 拡張カラムを除いて再試行
+    const base = { company_id: companyId, ...buildWorkerPayload(req.body, WORKER_FIELDS) }
+    ;({ data, error } = await req.supabase.from('workers').insert(base).select().single())
+  }
   if (error) return res.status(500).json({ error: error.message })
   res.json({ ok: true, id: data.id })
 })
 
 router.put('/api/workers/:id', requireAuth, async (req, res) => {
-  const fields = ['name','nationality','language','job_title','department','supervisor','salary',
-    'visa_type','visa_status','residence_card','residence_expire','entry_date','contract_end',
-    'passport_number','passport_expire','address','emergency_contact','insurance','status']
-  const payload = {}
-  for (const f of fields) if (req.body[f] !== undefined) payload[f] = req.body[f] || null
-  const { error } = await req.supabase.from('workers').update(payload).eq('id', req.params.id)
+  const full = buildWorkerPayload(req.body, [...WORKER_FIELDS, ...WORKER_EXT_FIELDS])
+  let { error } = await req.supabase.from('workers').update(full).eq('id', req.params.id)
+  if (error && isWorkerExtMissing(error)) {
+    const base = buildWorkerPayload(req.body, WORKER_FIELDS)
+    ;({ error } = await req.supabase.from('workers').update(base).eq('id', req.params.id))
+  }
   if (error) return res.status(500).json({ error: error.message })
   res.json({ ok: true })
 })
@@ -2279,6 +2307,146 @@ router.put('/api/company', requireAuth, requireAdmin, async (req, res) => {
     res.json({ ok: true, company: data })
   } catch (e) {
     console.error('[company put]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ════════════════════════════════════════════════════════════════
+// 🪪 在留資格管理 API（Phase4）
+//   在留カード・パスポート・資格外活動許可の期限を横断チェック。
+//   期限が閾値内のワーカーへ通知(notifications)+Push を自動生成（重複防止）。
+// ════════════════════════════════════════════════════════════════
+
+// JSTの今日(YYYY-MM-DD)
+function todayJstStr() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' })
+}
+// 期限文字列 → 残日数（負=超過）。無効なら null
+function daysUntil(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00+09:00')
+  if (isNaN(d)) return null
+  const today = new Date(todayJstStr() + 'T00:00:00+09:00')
+  return Math.round((d - today) / 86400000)
+}
+function expireLevel(days) {
+  if (days == null) return null
+  if (days < 0)   return 'expired'
+  if (days <= 30) return 'urgent'
+  if (days <= 90) return 'warn'
+  return 'ok'
+}
+
+// 在留関連の各期限を1ワーカー分まとめる
+function buildVisaRow(w) {
+  const items = [
+    { kind: 'residence',   label: '在留カード',     date: w.residence_expire,   no: w.residence_card   || '' },
+    { kind: 'passport',    label: 'パスポート',     date: w.passport_expire,    no: w.passport_number  || '' },
+    { kind: 'work_permit', label: '資格外活動許可', date: w.work_permit_expire, no: '' },
+  ].map(it => {
+    const days = daysUntil(it.date)
+    return { ...it, date: it.date ? String(it.date).slice(0,10) : null, days, level: expireLevel(days) }
+  })
+  // 最も切迫した区分（expired>urgent>warn>ok）を worst とする
+  const rank = { expired: 3, urgent: 2, warn: 1, ok: 0 }
+  let worst = null
+  for (const it of items) {
+    if (it.level == null) continue
+    if (!worst || rank[it.level] > rank[worst.level]) worst = it
+  }
+  return {
+    worker_id: w.id, name: w.name, nationality: w.nationality || '', visa_type: w.visa_type || '',
+    visa_status: w.visa_status || '', work_permit: w.work_permit ?? null,
+    items, worst,
+  }
+}
+
+// GET /app/api/visa — 在留資格一覧（期限の近い順）
+router.get('/api/visa', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.json({ ok: true, rows: [], stats: {} })
+    const sb = createAdminClient()
+
+    // 014未適用でも動くよう * で取得（work_permit 系が無ければ undefined になるだけ）
+    const { data, error } = await sb.from('workers')
+      .select('*').eq('company_id', companyId).eq('status', 'active').order('name')
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+
+    const rows = (data || []).map(buildVisaRow)
+    // 期限の近い順（worst.days 昇順、期限なしは末尾）
+    rows.sort((a, b) => {
+      const ad = a.worst?.days, bd = b.worst?.days
+      if (ad == null && bd == null) return 0
+      if (ad == null) return 1
+      if (bd == null) return -1
+      return ad - bd
+    })
+
+    // 統計（worst レベル基準）
+    const stats = { expired: 0, urgent: 0, warn: 0, ok: 0, none: 0 }
+    rows.forEach(r => {
+      const lv = r.worst?.level
+      if (!lv) stats.none++
+      else stats[lv]++
+    })
+
+    res.json({ ok: true, rows, stats })
+  } catch (e) {
+    console.error('[visa list]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// POST /app/api/visa/notify — 期限が近い在留関連を管理者へ通知（重複防止）
+//   body: { days: 60 }  閾値（既定60日）。expired/urgent/warn(<=days) を対象。
+router.post('/api/visa/notify', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.status(403).json({ ok: false, error: '会社が未設定です' })
+    const threshold = Math.min(Math.max(parseInt(req.body?.days, 10) || 60, 1), 365)
+    const sb = createAdminClient()
+
+    const { data: workers = [] } = await sb.from('workers')
+      .select('*').eq('company_id', companyId).eq('status', 'active')
+
+    // 同日に作成済みの在留通知（重複防止用）。title に [在留] プレフィックスを付ける
+    const todayIso = todayJstStr()
+    const { data: existing = [] } = await sb.from('notifications')
+      .select('title, created_at')
+      .eq('company_id', companyId)
+      .gte('created_at', todayIso + 'T00:00:00+09:00')
+      .limit(500)
+    const existingTitles = new Set((existing || []).map(n => n.title))
+
+    const created = []
+    for (const w of (workers || [])) {
+      const row = buildVisaRow(w)
+      for (const it of row.items) {
+        if (it.level == null || it.level === 'ok') continue
+        if (it.days > threshold) continue   // 閾値外（warnでも遠い）はスキップ
+        const head = it.level === 'expired'
+          ? `【在留】期限超過：${w.name} の${it.label}`
+          : `【在留】期限間近：${w.name} の${it.label}（あと${it.days}日）`
+        if (existingTitles.has(head)) continue   // 当日重複を防止
+        const notif = {
+          company_id: companyId,
+          worker_id:  null,   // 管理者全員向け
+          title:      head,
+          body:       `${it.label}期限 ${it.date}${it.no ? '（No. ' + it.no + '）' : ''}`,
+          type:       it.level === 'expired' ? 'alert' : 'info',
+        }
+        try {
+          await sb.from('notifications').insert(notif)
+          push.sendFromNotification({ ...notif, url: '/app#visa' }).catch(() => {})
+          existingTitles.add(head)
+          created.push({ worker_id: w.id, kind: it.kind, level: it.level, days: it.days })
+        } catch (e) { /* 1件失敗しても続行 */ }
+      }
+    }
+    res.json({ ok: true, threshold, created })
+  } catch (e) {
+    console.error('[visa notify]', e.message)
     res.status(500).json({ ok: false, error: e.message })
   }
 })

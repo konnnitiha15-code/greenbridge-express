@@ -181,9 +181,10 @@ greenbridge-express/
 011 - translation（translation_cache + company/industry_dictionaries）
 012 - daily_reports拡張（site_name/work_content/attachments + report_comments + report_status_history）
 013 - company_info（companies に representative/representative_title/registration_no/fax/postal_code 追加）
+014 - work_permit（workers に work_permit(資格外活動許可有無) / work_permit_expire 追加）
 ```
 
-001〜013 は **全て実行済み** ✅（013 は 2026-06-01 に Supabase SQL Editor で適用完了。会社情報の拡張カラムが有効）
+001〜013 は **実行済み** ✅／**014 は要実行**（資格外活動許可カラム。未実行でも在留カード・パスポート期限管理は動作）
 
 ### Supabase Storage
 - バケット名: `documents`
@@ -505,6 +506,14 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - フロント: 設定タブに「会社情報」パネル追加（admin限定）。loadCompanyInfo/saveCompanyInfo。保存後 window.GB_COMPANY_INFO を更新し書類へ即反映。`_ci()` が window優先で参照
     - 書類ヘルパ強化: `_repName()`（役職+氏名）、`_companyBlock` が郵便番号+住所・代表者役職を出力
     - ローカル検証済: GET/PUT・013フォールバック警告・バリデーション・認証401・null保存を確認
+46. **在留資格管理ビュー（Phase4）**：在留カード・パスポート・資格外活動許可の期限を横断管理
+    - マイグレーション **014**（workers に work_permit(bool) / work_permit_expire(date) 追加）。**要実行**（未実行でも在留カード・パスポート期限管理は動作。POST/PUT workers は 014カラム欠如時フォールバック）
+    - サーバー: `GET /app/api/visa`（期限近い順ソート・worst レベル・統計）、`POST /app/api/visa/notify`（閾値60日・在留/パスポート/資格外の期限が近いワーカーを管理者へ notifications+Push、同日重複防止）
+    - 期限レベル: expired/urgent(≤30)/warn(≤90)/ok。JST基準。daysUntil/expireLevel/buildVisaRow
+    - フロント: 新規ページ `visa`（サイドバー nav-visa、給与管理の次）。統計バー・検索・状態フィルタ・「🔔 期限通知を送信」ボタン・各行から実習生詳細へ。loadVisa/renderVisaTable/runVisaNotify
+    - mapWorker に workPermit/workPermitExpire 追加。WORKER_EXT_FIELDS で workers CRUD 拡張（boolean は false を保持）
+    - ローカル検証済: 一覧取得・期限レベル判定(urgent15日/ok200日)・近い順ソート・通知生成・同日重複防止を確認
+    - ※資格外活動許可の入力UIは実習生編集フォーム未対応（表示は対応済み）。次の改修候補
 
 ---
 

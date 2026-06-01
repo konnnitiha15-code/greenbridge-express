@@ -1,6 +1,6 @@
 // GreenBridge Service Worker — PWA + Web Push
 // バージョン番号を更新するとキャッシュが再生成される
-const CACHE_VERSION = 'gb-v10-coinfo'
+const CACHE_VERSION = 'gb-v11-visa'
 const STATIC_CACHE  = `${CACHE_VERSION}-static`
 
 // ── キャッシュ対象（最小限） ──────────────────────────────────────
