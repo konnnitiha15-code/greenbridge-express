@@ -55,8 +55,19 @@ router.post('/:id', requireAuth, async (req, res) => {
   if (req.body._method !== 'PUT') return res.status(405).send('Method Not Allowed')
   const companyId = req.profile?.company_id
   const payload = buildPayload(req.body, companyId)
-  const { error } = await req.supabase.from('workers').update(payload).eq('id', req.params.id)
-  if (error) { req.flash('error', '更新に失敗しました'); return res.redirect(`/workers/${req.params.id}/edit`) }
+  let { error } = await req.supabase.from('workers').update(payload).eq('id', req.params.id)
+  // 014（work_permit）未適用環境ではカラム不在エラー → 拡張カラムを除いて再試行
+  if (error && /column .* does not exist|work_permit/i.test(error.message || '')) {
+    const { work_permit, work_permit_expire, ...base } = payload
+    ;({ error } = await req.supabase.from('workers').update(base).eq('id', req.params.id))
+  }
+  // fetch(JSON)からの呼び出しにも対応（SPAのsaveWはJSONで叩く）
+  const wantsJson = (req.headers['content-type'] || '').includes('application/json')
+  if (error) {
+    if (wantsJson) return res.status(500).json({ ok: false, error: error.message })
+    req.flash('error', '更新に失敗しました'); return res.redirect(`/workers/${req.params.id}/edit`)
+  }
+  if (wantsJson) return res.json({ ok: true })
   req.flash('success', '従業員情報を更新しました')
   res.redirect(`/workers/${req.params.id}`)
 })
@@ -73,11 +84,16 @@ function buildPayload(body, companyId) {
     'name','name_kana','nationality','language','date_of_birth','gender',
     'visa_type','visa_status','residence_card','residence_expire','entry_date','contract_end',
     'passport_number','passport_expire','job_title','department','supervisor','salary',
-    'address','emergency_contact','insurance','status'
+    'address','emergency_contact','insurance','status','work_permit_expire'
   ]
   const payload = { company_id: companyId }
   for (const f of fields) {
     if (body[f] !== undefined) payload[f] = body[f] || null
+  }
+  // work_permit は boolean（false を null にしない。未設定は null）
+  if (body.work_permit !== undefined) {
+    payload.work_permit = (body.work_permit === true || body.work_permit === 'true') ? true
+                        : (body.work_permit === false || body.work_permit === 'false') ? false : null
   }
   return payload
 }

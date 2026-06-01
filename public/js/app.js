@@ -1612,6 +1612,7 @@ function openEditW(id){
   const pexp=(w.passportExpire||'').replace(/\//g,'-');
   const edt=(w.entryDate||'').replace(/\//g,'-');
   const cend=(w.contractEnd||'').replace(/\//g,'-');
+  const wpexp=(w.workPermitExpire||'').replace(/\//g,'-');
   openModal(w.name+' を編集',
     `<div style="display:flex;flex-direction:column;gap:8px;max-height:70vh;overflow-y:auto">
       <div style="font-size:12px;font-weight:700;color:var(--gn)">基本情報</div>
@@ -1636,6 +1637,8 @@ function openEditW(id){
         <div class="fgc"><label class="form-lbl">在留期限</label><input type="date" class="form-inp" id="erexp" value="${rexp}"></div></div>
       <div class="fg2"><div class="fgc"><label class="form-lbl">パスポート番号</label><input class="form-inp" id="epass" value="${w.passport||''}"></div>
         <div class="fgc"><label class="form-lbl">パスポート期限</label><input type="date" class="form-inp" id="epexp" value="${pexp}"></div></div>
+      <div class="fg2"><div class="fgc"><label class="form-lbl">資格外活動許可</label><select class="form-inp" id="ewp"><option value="" ${w.workPermit==null?'selected':''}>未設定</option><option value="true" ${w.workPermit===true?'selected':''}>許可あり</option><option value="false" ${w.workPermit===false?'selected':''}>なし</option></select></div>
+        <div class="fgc"><label class="form-lbl">資格外活動許可 期限</label><input type="date" class="form-inp" id="ewpexp" value="${wpexp}"></div></div>
       <div class="fg2"><div class="fgc"><label class="form-lbl">入国日</label><input type="date" class="form-inp" id="eentry" value="${edt}"></div>
         <div class="fgc"><label class="form-lbl">契約終了日</label><input type="date" class="form-inp" id="ecend" value="${cend}"></div></div>
       <div class="fg1"><label class="form-lbl">保険</label><input class="form-inp" id="eins" value="${w.insurance||''}"></div>
@@ -1656,6 +1659,10 @@ function saveW(id){
   w.passport=v('epass')||w.passport;w.passportExpire=d2s('epexp')||w.passportExpire;
   w.entryDate=d2s('eentry')||w.entryDate;w.contractEnd=d2s('ecend')||w.contractEnd;
   w.insurance=v('eins')||w.insurance;
+  // 資格外活動許可（未設定=null / true / false）
+  const wpRaw=v('ewp');
+  w.workPermit = wpRaw==='true' ? true : wpRaw==='false' ? false : null;
+  w.workPermitExpire=d2s('ewpexp');
   w.init=w.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
   closeModal();renderWL();openWD(w);
   // Persist to DB
@@ -1664,6 +1671,7 @@ function saveW(id){
     address:w.address,emergency_contact:w.emergencyContact,nationality:w.nationality,visa_type:w.visaType,
     residence_card:w.residenceCard,residence_expire:w.residenceExpire,passport_number:w.passport,
     passport_expire:w.passportExpire,entry_date:w.entryDate,contract_end:w.contractEnd,insurance:w.insurance,
+    work_permit:w.workPermit,work_permit_expire:w.workPermitExpire||null,
     _method:'PUT'
   })}).catch(()=>{});
   toast('保存完了',w.name+' を更新しました');

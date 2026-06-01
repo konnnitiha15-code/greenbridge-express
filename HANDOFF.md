@@ -513,7 +513,10 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - フロント: 新規ページ `visa`（サイドバー nav-visa、給与管理の次）。統計バー・検索・状態フィルタ・「🔔 期限通知を送信」ボタン・各行から実習生詳細へ。loadVisa/renderVisaTable/runVisaNotify
     - mapWorker に workPermit/workPermitExpire 追加。WORKER_EXT_FIELDS で workers CRUD 拡張（boolean は false を保持）
     - ローカル検証済: 一覧取得・期限レベル判定(urgent15日/ok200日)・近い順ソート・通知生成・同日重複防止を確認
-    - ※資格外活動許可の入力UIは実習生編集フォーム未対応（表示は対応済み）。次の改修候補
+47. **在留管理の仕上げ**：実習生編集フォームに資格外活動許可の入力欄（許可有無セレクト + 期限）を追加
+    - app.js openEditW/saveW に ewp/ewpexp を追加。work_permit は boolean保持（未設定null/true/false）
+    - routes/workers.js の POST /:id を JSON fetch 対応（saveWはJSONで叩く）+ 014カラム欠如フォールバック + buildPayload に work_permit/work_permit_expire 追加
+    - ローカル検証済: work_permit=true+期限保存 → 在留ビューに warn(残45日) で反映、null戻しも確認
 
 ---
 
