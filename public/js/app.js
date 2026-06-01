@@ -318,7 +318,7 @@ function SP(id){
     const sid=s.id?s.id.replace('nav-',''):'';
     s.classList.toggle('on',sid===id);
   });
-  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
+  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
@@ -344,6 +344,7 @@ function SP(id){
   if(id==='dict') initDictPage();
   if(id==='visa') loadVisa();
   if(id==='leave'){ loadLeaveRequests(); loadLeaveOverview(); }
+  if(id==='certs') loadCerts();
 }
 
 // ── 通知センター ────────────────────────────────────────────────
@@ -4483,5 +4484,173 @@ async function submitLeaveAdjust(workerId,name){
     if(!json.ok){ toast('エラー',json.error||'調整に失敗しました','r'); return; }
     toast('✓ 調整しました',`残数 ${json.summary?.balance}日`,'g');
     closeModal(); loadLeaveOverview();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 🎓 健康診断・資格管理（Phase6）
+// ════════════════════════════════════════════════════════════════
+let CERTS_ROWS=[];
+let CERT_TYPE_LABELS={health_check:'健康診断',full_harness:'フルハーネス',sling:'玉掛け',forklift:'フォークリフト',skill_training:'技能講習',other:'その他'};
+let CERT_TYPES=['health_check','full_harness','sling','forklift','skill_training','other'];
+const CERT_LEVEL={
+  expired:{label:'期限切れ',bg:'#fee2e2',color:'#991b1b',dot:'❌'},
+  urgent: {label:'30日以内',bg:'#fef3c7',color:'#92400e',dot:'🔴'},
+  warn:   {label:'90日以内',bg:'#fef9c3',color:'#854d0e',dot:'🟡'},
+  ok:     {label:'有効',    bg:'#e6f9f0',color:'#065f46',dot:'🟢'},
+  none:   {label:'期限なし',bg:'#f1f5f9',color:'#64748b',dot:'⚪'},
+};
+
+function _certWarn(show,msg){
+  const w=document.getElementById('certs-warn');
+  if(!w) return;
+  w.style.display=show?'block':'none';
+  if(show) w.textContent=msg||'⚠️ 資格テーブルが未作成です。Supabase で migration 016 を実行してください。';
+}
+
+async function loadCerts(){
+  const box=document.getElementById('certs-table');
+  try{
+    const res=await fetch('/app/api/certs',{credentials:'include'});
+    const ct=res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const json=await res.json();
+    if(!json.ok){
+      if(json.error==='migration_016_required'){ _certWarn(true); if(box) box.innerHTML=''; }
+      return;
+    }
+    _certWarn(false);
+    CERTS_ROWS=json.rows||[];
+    if(json.typeLabels) CERT_TYPE_LABELS=json.typeLabels;
+    if(json.types) CERT_TYPES=json.types;
+    // 種別フィルタを構築（初回のみ）
+    const tf=document.getElementById('certs-type-filter');
+    if(tf && tf.options.length<=1){
+      tf.innerHTML='<option value="">すべての種別</option>'+CERT_TYPES.map(t=>`<option value="${t}">${CERT_TYPE_LABELS[t]||t}</option>`).join('');
+    }
+    renderCertsStats(json.stats||{});
+    renderCertsTable();
+  }catch(e){ console.error('[certs] ',e); }
+}
+
+function renderCertsStats(stats){
+  const box=document.getElementById('certs-stats');
+  if(!box) return;
+  const order=['expired','urgent','warn','ok','none'];
+  box.innerHTML=order.map(k=>{
+    const L=CERT_LEVEL[k];const n=stats[k]||0;
+    return `<div style="flex:1;min-width:100px;background:${L.bg};border-radius:10px;padding:10px 12px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:${L.color}">${n}</div>
+      <div style="font-size:11px;color:${L.color}">${L.dot} ${L.label}</div></div>`;
+  }).join('');
+}
+
+function renderCertsTable(){
+  const box=document.getElementById('certs-table');
+  if(!box) return;
+  const q=(document.getElementById('certs-search')?.value||'').trim().toLowerCase();
+  const tf=document.getElementById('certs-type-filter')?.value||'';
+  const lf=document.getElementById('certs-level-filter')?.value||'';
+  let rows=CERTS_ROWS.filter(r=>{
+    if(q && !((r.worker_name||'').toLowerCase().includes(q)||(r.name||'').toLowerCase().includes(q))) return false;
+    if(tf && r.cert_type!==tf) return false;
+    if(lf && (r.level||'none')!==lf) return false;
+    return true;
+  });
+  if(!rows.length){
+    box.innerHTML=`<div style="padding:24px;text-align:center;color:var(--t3)">${q||tf||lf?'該当する資格がありません':'まだ資格・健診が登録されていません。「＋ 登録」から追加してください。'}</div>`;
+    return;
+  }
+  let html='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="border-bottom:1px solid var(--bd);color:var(--t3);font-size:11.5px;text-align:left">'
+    +'<th style="padding:9px 10px">氏名</th><th style="padding:9px 10px">種別</th><th style="padding:9px 10px">名称</th><th style="padding:9px 10px">取得日</th><th style="padding:9px 10px">有効期限</th><th style="padding:9px 10px"></th></tr></thead><tbody>';
+  rows.forEach(r=>{
+    const L=CERT_LEVEL[r.level||'none'];
+    const expCell = r.expire_date
+      ? `<div style="font-size:12px">${r.expire_date}</div><span class="badge" style="background:${L.bg};color:${L.color};font-size:10px">${L.dot} ${r.level==='expired'?Math.abs(r.days)+'日超過':r.level==='none'?'—':'残'+r.days+'日'}</span>`
+      : '<span style="color:var(--t3)">無期限</span>';
+    html+=`<tr style="border-bottom:1px solid var(--bd)">
+      <td style="padding:9px 10px"><span style="font-weight:600">${_dictEsc(r.worker_name)}</span></td>
+      <td style="padding:9px 10px">${_dictEsc(r.cert_type_label||'')}</td>
+      <td style="padding:9px 10px">${_dictEsc(r.name)}${r.issuer?`<br><span style="font-size:10.5px;color:var(--t3)">${_dictEsc(r.issuer)}</span>`:''}</td>
+      <td style="padding:9px 10px;font-size:12px">${r.issued_date||'—'}</td>
+      <td style="padding:9px 10px">${expCell}</td>
+      <td style="padding:9px 10px;text-align:right;white-space:nowrap">
+        <button class="btn btn-sm" onclick="openCertEdit('${r.id}')">編集</button>
+        <button class="btn btn-sm btn-r" style="margin-left:4px" onclick="deleteCert('${r.id}')">削除</button>
+      </td></tr>`;
+  });
+  html+='</tbody></table>';
+  box.innerHTML=html;
+}
+
+// 登録/編集モーダル（id=null で新規）
+function openCertEdit(id){
+  const c = id ? CERTS_ROWS.find(x=>x.id===id) : null;
+  const wOpts = WORKERS.map(w=>`<option value="${w.id}"${c&&c.worker_id===w.id?' selected':''}>${_dictEsc(w.name)}</option>`).join('');
+  const typeOpts = CERT_TYPES.map(t=>`<option value="${t}"${c&&c.cert_type===t?' selected':''}>${CERT_TYPE_LABELS[t]||t}</option>`).join('');
+  openModal(id?'資格・健診を編集':'資格・健診を登録',
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      <div class="form-row"><label class="form-lbl">対象者 *</label>
+        <select id="cert-worker" class="form-inp" ${id?'disabled style=opacity:.7':''}><option value="">選択してください</option>${wOpts}</select></div>
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">種別 *</label><select id="cert-type" class="form-inp">${typeOpts}</select></div>
+        <div class="form-row"><label class="form-lbl">名称 *</label><input id="cert-name" class="form-inp" value="${c?_dictEsc(c.name):''}" placeholder="例：玉掛け技能講習修了"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">取得日 / 受診日</label><input type="date" id="cert-issued" class="form-inp" value="${c?.issued_date||''}"></div>
+        <div class="form-row"><label class="form-lbl">有効期限（無期限なら空欄）</label><input type="date" id="cert-expire" class="form-inp" value="${c?.expire_date||''}"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">発行/受診機関</label><input id="cert-issuer" class="form-inp" value="${c?_dictEsc(c.issuer):''}"></div>
+        <div class="form-row"><label class="form-lbl">番号</label><input id="cert-no" class="form-inp" value="${c?_dictEsc(c.cert_no):''}"></div>
+      </div>
+      <div class="form-row"><label class="form-lbl">所見・備考</label><input id="cert-note" class="form-inp" value="${c?_dictEsc(c.note):''}"></div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button>
+     <button class="btn btn-g" onclick="saveCert(${id?`'${id}'`:'null'})">保存</button>`);
+}
+
+async function saveCert(id){
+  const v=i=>document.getElementById(i)?.value||'';
+  const body={
+    worker_id: id ? (CERTS_ROWS.find(x=>x.id===id)?.worker_id) : v('cert-worker'),
+    cert_type: v('cert-type'), name: v('cert-name'),
+    issued_date: v('cert-issued'), expire_date: v('cert-expire'),
+    issuer: v('cert-issuer'), cert_no: v('cert-no'), note: v('cert-note'),
+  };
+  if(!body.worker_id){ toast('エラー','対象者を選択してください','r'); return; }
+  if(!body.name.trim()){ toast('エラー','名称を入力してください','r'); return; }
+  try{
+    const url = id ? `/app/api/certs/${id}` : '/app/api/certs';
+    const method = id ? 'PUT' : 'POST';
+    const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error==='migration_016_required'?'資格テーブルが未作成です（migration 016）':json.error||'保存に失敗しました','r'); return; }
+    closeModal();
+    toast('✓ 保存しました','資格・健診を更新しました','g');
+    loadCerts();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function deleteCert(id){
+  if(!confirm('この資格・健診記録を削除しますか？')) return;
+  try{
+    const res=await fetch(`/app/api/certs/${id}`,{method:'DELETE'});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'削除に失敗しました','r'); return; }
+    toast('✓ 削除しました','','g');
+    loadCerts();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function runCertsNotify(){
+  if(!confirm('期限が60日以内（および超過）の資格・健診を管理者へ通知します。よろしいですか？')) return;
+  try{
+    const res=await fetch('/app/api/certs/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days:60})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'通知に失敗しました','r'); return; }
+    const n=(json.created||[]).length;
+    toast('✓ 期限通知',n>0?`${n}件の通知を送信しました`:'通知対象（重複を除く）はありませんでした','g');
+    if(typeof loadDashboardStats==='function') loadDashboardStats();
   }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
 }
