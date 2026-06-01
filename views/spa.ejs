@@ -138,6 +138,10 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><path d="M5.5 8l2 2 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       権限管理
     </div>
+    <div class="sb-item" id="nav-dict" onclick="SP('dict')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 2h7a2 2 0 012 2v10H4a1.5 1.5 0 01-1.5-1.5V3.5A1.5 1.5 0 014 2z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><path d="M6 5.5h4M6 8h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      翻訳辞書
+    </div>
     <div class="sb-sec">設定</div>
     <div class="sb-item" id="nav-settings" onclick="SP('settings')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4l1.4-1.4M11 5l1.4-1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
@@ -932,6 +936,67 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
     </div>
   </div>
 
+  <!-- ─── 翻訳辞書 (DICTIONARY) ──────────────────────────── -->
+  <div class="page" id="page-dict">
+    <div class="pscroll" style="padding:18px 22px;max-width:1100px">
+      <!-- 説明バナー -->
+      <div style="background:var(--gbg);border:1px solid var(--glt);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--t2);line-height:1.7">
+        <b style="color:var(--gn)">🌐 会社辞書</b> を登録すると、チャット・日報・通知の翻訳で<b>最優先</b>で使われます。<br>
+        会社独自の用語（製品名・部署名・略語など）や、機械翻訳が苦手な定型文を登録して翻訳精度を上げましょう。<br>
+        <span style="color:var(--t3)">優先順位：会社辞書 → 業界辞書（共通）→ 翻訳キャッシュ → 翻訳API</span>
+      </div>
+
+      <!-- 警告（migration 011 未適用時に表示） -->
+      <div id="dict-warn" style="display:none;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px"></div>
+
+      <!-- 追加フォーム -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-hdr"><span class="card-title">＋ 用語を登録</span></div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:grid;grid-template-columns:120px 1fr 120px 1fr;gap:10px;align-items:end">
+            <div class="form-row"><label class="form-lbl">原文の言語</label>
+              <select id="dict-src-lang" class="form-inp"></select></div>
+            <div class="form-row"><label class="form-lbl">原文</label>
+              <input id="dict-src-text" class="form-inp" placeholder="例：玉掛け作業"></div>
+            <div class="form-row"><label class="form-lbl">訳文の言語</label>
+              <select id="dict-tgt-lang" class="form-inp"></select></div>
+            <div class="form-row"><label class="form-lbl">訳文</label>
+              <input id="dict-tgt-text" class="form-inp" placeholder="例：Công việc móc cáp"></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:end">
+            <div class="form-row" style="flex:1"><label class="form-lbl">備考（任意）</label>
+              <input id="dict-note" class="form-inp" placeholder="用途・補足など"></div>
+            <button class="btn btn-g" style="white-space:nowrap" onclick="saveDictEntry()">登録</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 会社辞書一覧 -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-hdr">
+          <span class="card-title">会社辞書 <span id="dict-company-count" style="font-size:12px;color:var(--t3);font-weight:400"></span></span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="dict-search" class="form-inp" style="font-size:12px;padding:5px 8px;width:160px" placeholder="検索..." oninput="renderDictCompany()">
+          </div>
+        </div>
+        <div id="dict-company-list" style="overflow-x:auto">
+          <div style="padding:20px;text-align:center;color:var(--t3)">読み込み中...</div>
+        </div>
+      </div>
+
+      <!-- 業界辞書（参照のみ） -->
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">業界辞書（共通・参照のみ） <span id="dict-industry-count" style="font-size:12px;color:var(--t3);font-weight:400"></span></span>
+          <span style="font-size:11px;color:var(--t3)">全社共通の用語集です</span>
+        </div>
+        <div id="dict-industry-list" style="overflow-x:auto">
+          <div style="padding:20px;text-align:center;color:var(--t3)">読み込み中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── SETTINGS ──────────────────────────────────────── -->
   <div class="page" id="page-settings">
     <div class="settings-wrap">
@@ -1030,7 +1095,7 @@ const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260601-attshift"></script>
+<script src="/js/app.js?v=20260601-dict"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {

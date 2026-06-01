@@ -479,6 +479,12 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
 39. **勤怠時刻のJST表示ズレ修正**：`mapAttendance`(spa.js) が UTC文字列を `slice(11,16)` で切り出し9hズレ（09:24→00:24）していたのを `fmtJstHM()`（timeZone:Asia/Tokyo）に修正。勤務時間も実時刻差で算出。編集モーダル(app.js)も clockInStr/JST変換優先に統一
 40. **ワーカーシフトの日付キー正規化**：`workerShifts[String(s.date).slice(0,10)]` にして週またぎ・月またぎでのキー不一致（未マッチ）を解消
 41. **シフト表示方針の明確化**：ワーカーは管理者が確定（DB保存）したシフトのみ表示、未設定日は「未定」。管理者画面の平日=日勤/土日=休みはあくまで画面上の既定でDB未保存
+42. **会社辞書の管理UI（Phase2最優先）**：管理者が `/app` の「翻訳辞書」タブで会社辞書を CRUD できる画面を追加
+    - サーバー: `GET/POST/PUT/DELETE /app/api/dictionaries`（spa.js末尾）。POSTはupsert（onConflict: company_id,source_lang,target_lang,source_text）。業界辞書は参照のみ同梱。011未適用時は503 `migration_011_required`
+    - フロント: 新規ページ `dict`（spa.ejs page-dict + サイドバー nav-dict）/ app.js に initDictPage・loadDictionaries・renderDictCompany/Industry・save/edit/delete
+    - 対応言語 ja/vi/id/tl/zh/my/en。translationService の優先順位（会社辞書→業界辞書→cache→API）にそのまま乗る
+    - ローカル検証済: CRUD・upsert・バリデーション・翻訳APIで via:"company_dict" を確認
+    - マイグレーション不要（011のテーブルを使用）
 
 ---
 

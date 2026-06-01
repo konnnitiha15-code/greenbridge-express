@@ -2215,4 +2215,146 @@ router.get('/api/payslips/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 })
 
+// ════════════════════════════════════════════════════════════════
+// 🌐 翻訳辞書 管理 API（Phase2: 翻訳精度向上）
+//   会社辞書(company_dictionaries) は管理者が CRUD。
+//   業界辞書(industry_dictionaries) は会社横断の共通辞書で参照のみ。
+//   translationService の優先順位: 会社辞書 → 業界辞書 → cache → API
+//   ※ migration 011 未適用環境ではテーブル不在を 503 で明示（画面側で案内）
+// ════════════════════════════════════════════════════════════════
+
+// 対応言語（UIのプルダウンと一致させる）
+const DICT_LANGS = ['ja', 'vi', 'id', 'tl', 'zh', 'my', 'en']
+
+// GET /app/api/dictionaries?source=&target=&q= — 会社辞書一覧（+業界辞書も返す）
+router.get('/api/dictionaries', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.json({ ok: true, company: [], industry: [] })
+
+    const sb = createAdminClient()
+    const { source, target, q } = req.query
+
+    let cq = sb.from('company_dictionaries')
+      .select('id, source_lang, target_lang, source_text, target_text, note, updated_at')
+      .eq('company_id', companyId)
+      .order('updated_at', { ascending: false })
+      .limit(1000)
+    if (source) cq = cq.eq('source_lang', source)
+    if (target) cq = cq.eq('target_lang', target)
+    if (q)      cq = cq.or(`source_text.ilike.%${q}%,target_text.ilike.%${q}%`)
+
+    let { data: company, error } = await cq
+    if (error) {
+      if (isTableMissing(error))
+        return res.status(503).json({ ok: false, error: 'migration_011_required', detail: '翻訳辞書テーブルが未作成です（migration 011 を実行してください）' })
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+
+    // 業界辞書（会社横断・参照のみ）。件数は控えめに。
+    let industry = []
+    try {
+      let iq = sb.from('industry_dictionaries')
+        .select('id, industry, source_lang, target_lang, source_text, target_text')
+        .order('source_text', { ascending: true })
+        .limit(500)
+      if (source) iq = iq.eq('source_lang', source)
+      if (target) iq = iq.eq('target_lang', target)
+      if (q)      iq = iq.or(`source_text.ilike.%${q}%,target_text.ilike.%${q}%`)
+      const { data } = await iq
+      industry = data || []
+    } catch {}
+
+    res.json({ ok: true, company: company || [], industry, langs: DICT_LANGS })
+  } catch (e) {
+    console.error('[dict list]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// 入力バリデーション（辞書1件分）
+function validateDictRow(b) {
+  const source_lang = String(b.source_lang || '').trim()
+  const target_lang = String(b.target_lang || '').trim()
+  const source_text = String(b.source_text || '').trim()
+  const target_text = String(b.target_text || '').trim()
+  const note        = b.note != null ? String(b.note).trim() : null
+  if (!DICT_LANGS.includes(source_lang)) return { error: '原文の言語が不正です' }
+  if (!DICT_LANGS.includes(target_lang)) return { error: '訳文の言語が不正です' }
+  if (source_lang === target_lang)       return { error: '原文と訳文の言語が同じです' }
+  if (!source_text)                      return { error: '原文を入力してください' }
+  if (!target_text)                      return { error: '訳文を入力してください' }
+  if (source_text.length > 500 || target_text.length > 500) return { error: '500文字以内で入力してください' }
+  return { row: { source_lang, target_lang, source_text, target_text, note } }
+}
+
+// POST /app/api/dictionaries — 会社辞書 追加（upsert: 同一 source なら訳を更新）
+router.post('/api/dictionaries', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.status(403).json({ ok: false, error: '会社が未設定です' })
+    const v = validateDictRow(req.body || {})
+    if (v.error) return res.status(400).json({ ok: false, error: v.error })
+
+    const sb = createAdminClient()
+    const { data, error } = await sb.from('company_dictionaries')
+      .upsert({ company_id: companyId, ...v.row },
+              { onConflict: 'company_id,source_lang,target_lang,source_text' })
+      .select('id, source_lang, target_lang, source_text, target_text, note, updated_at')
+      .single()
+    if (error) {
+      if (isTableMissing(error))
+        return res.status(503).json({ ok: false, error: 'migration_011_required' })
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+    res.json({ ok: true, entry: data })
+  } catch (e) {
+    console.error('[dict create]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// PUT /app/api/dictionaries/:id — 会社辞書 更新（訳文・備考のみ。キー項目は不変）
+router.put('/api/dictionaries/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const id = req.params.id
+    if (!isUuid(id)) return res.status(400).json({ ok: false, error: 'id の形式が不正です' })
+    const target_text = String(req.body?.target_text || '').trim()
+    if (!target_text) return res.status(400).json({ ok: false, error: '訳文を入力してください' })
+    if (target_text.length > 500) return res.status(400).json({ ok: false, error: '500文字以内で入力してください' })
+    const note = req.body?.note != null ? String(req.body.note).trim() : null
+
+    const sb = createAdminClient()
+    const { data, error } = await sb.from('company_dictionaries')
+      .update({ target_text, note })
+      .eq('id', id).eq('company_id', companyId)   // 自社のみ
+      .select('id, source_lang, target_lang, source_text, target_text, note, updated_at')
+      .maybeSingle()
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    if (!data) return res.status(404).json({ ok: false, error: 'not_found' })
+    res.json({ ok: true, entry: data })
+  } catch (e) {
+    console.error('[dict update]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// DELETE /app/api/dictionaries/:id — 会社辞書 削除
+router.delete('/api/dictionaries/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const id = req.params.id
+    if (!isUuid(id)) return res.status(400).json({ ok: false, error: 'id の形式が不正です' })
+    const sb = createAdminClient()
+    const { error } = await sb.from('company_dictionaries')
+      .delete().eq('id', id).eq('company_id', companyId)
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('[dict delete]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 module.exports = router

@@ -212,7 +212,7 @@ function SP(id){
     const sid=s.id?s.id.replace('nav-',''):'';
     s.classList.toggle('on',sid===id);
   });
-  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',roles:'権限管理',settings:'設定'};
+  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
@@ -235,6 +235,7 @@ function SP(id){
   if(id==='attend') initAttendPage();
   if(id==='roles') loadRoleUsers();
   if(id==='payroll') initPayrollPage();
+  if(id==='dict') initDictPage();
 }
 
 // ── 通知センター ────────────────────────────────────────────────
@@ -3860,3 +3861,169 @@ setTimeout(()=>{
     if(urgent>0)toast('⏰ 在留期限警告',`${urgent}名の実習生の在留期限が30日以内です`,'a');
   }
 },2500);
+
+// ════════════════════════════════════════════════════════════════
+// 🌐 翻訳辞書 管理（Phase2: 翻訳精度向上）
+// ════════════════════════════════════════════════════════════════
+const DICT_LANG_LABEL = { ja:'日本語', vi:'ベトナム語', id:'インドネシア語', tl:'フィリピン語', zh:'中国語', my:'ミャンマー語', en:'英語' };
+const DICT_LANGS = ['ja','vi','id','tl','zh','my','en'];
+let DICT_COMPANY = [];   // 会社辞書
+let DICT_INDUSTRY = [];  // 業界辞書（参照のみ）
+let _dictInited = false;
+
+function _dictLangOptions(sel){
+  return DICT_LANGS.map(l=>`<option value="${l}"${l===sel?' selected':''}>${DICT_LANG_LABEL[l]||l}</option>`).join('');
+}
+
+async function initDictPage(){
+  // 言語プルダウンを一度だけ構築（既定 ja → vi）
+  if(!_dictInited){
+    const s=document.getElementById('dict-src-lang');
+    const t=document.getElementById('dict-tgt-lang');
+    if(s) s.innerHTML=_dictLangOptions('ja');
+    if(t) t.innerHTML=_dictLangOptions('vi');
+    _dictInited=true;
+  }
+  await loadDictionaries();
+}
+
+async function loadDictionaries(){
+  const warn=document.getElementById('dict-warn');
+  if(warn) warn.style.display='none';
+  try{
+    const res=await fetch('/app/api/dictionaries');
+    const ct=res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')){ console.warn('[dict] non-JSON'); return; }
+    const json=await res.json();
+    if(!json.ok){
+      if(json.error==='migration_011_required' && warn){
+        warn.style.display='block';
+        warn.textContent='⚠️ 翻訳辞書テーブルが未作成です。Supabase で migration 011 を実行してください。';
+      }
+      DICT_COMPANY=[]; DICT_INDUSTRY=[];
+      renderDictCompany(); renderDictIndustry();
+      return;
+    }
+    DICT_COMPANY=json.company||[];
+    DICT_INDUSTRY=json.industry||[];
+    renderDictCompany();
+    renderDictIndustry();
+  }catch(e){
+    console.error('[dict] load error:', e);
+    toast('エラー','辞書の取得に失敗しました','r');
+  }
+}
+
+function _dictEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderDictCompany(){
+  const box=document.getElementById('dict-company-list');
+  const cnt=document.getElementById('dict-company-count');
+  if(!box) return;
+  const q=(document.getElementById('dict-search')?.value||'').trim().toLowerCase();
+  const list=DICT_COMPANY.filter(e=>!q || (e.source_text||'').toLowerCase().includes(q) || (e.target_text||'').toLowerCase().includes(q));
+  if(cnt) cnt.textContent=`(${list.length}件)`;
+  if(!list.length){
+    box.innerHTML=`<div style="padding:24px;text-align:center;color:var(--t3)">${q?'該当する用語がありません':'まだ会社辞書が登録されていません。上のフォームから登録してください。'}</div>`;
+    return;
+  }
+  let html='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="border-bottom:1px solid var(--bd);color:var(--t3);font-size:11.5px;text-align:left">'
+    +'<th style="padding:8px 10px">原文</th><th style="padding:8px 10px">訳文</th><th style="padding:8px 10px">備考</th><th style="padding:8px 10px;text-align:right">操作</th></tr></thead><tbody>';
+  list.forEach(e=>{
+    html+=`<tr style="border-bottom:1px solid var(--bd)">
+      <td style="padding:8px 10px"><span style="font-size:10px;color:var(--t3)">${DICT_LANG_LABEL[e.source_lang]||e.source_lang}</span><br><span style="font-weight:600">${_dictEsc(e.source_text)}</span></td>
+      <td style="padding:8px 10px"><span style="font-size:10px;color:var(--t3)">${DICT_LANG_LABEL[e.target_lang]||e.target_lang}</span><br>${_dictEsc(e.target_text)}</td>
+      <td style="padding:8px 10px;color:var(--t2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_dictEsc(e.note)||'<span style="color:var(--t3)">—</span>'}</td>
+      <td style="padding:8px 10px;text-align:right;white-space:nowrap">
+        <button class="btn btn-sm" onclick="editDictEntry('${e.id}')">編集</button>
+        <button class="btn btn-sm btn-r" style="margin-left:4px" onclick="deleteDictEntry('${e.id}')">削除</button>
+      </td></tr>`;
+  });
+  html+='</tbody></table>';
+  box.innerHTML=html;
+}
+
+function renderDictIndustry(){
+  const box=document.getElementById('dict-industry-list');
+  const cnt=document.getElementById('dict-industry-count');
+  if(!box) return;
+  if(cnt) cnt.textContent=`(${DICT_INDUSTRY.length}件)`;
+  if(!DICT_INDUSTRY.length){
+    box.innerHTML='<div style="padding:24px;text-align:center;color:var(--t3)">業界辞書はまだありません</div>';
+    return;
+  }
+  let html='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="border-bottom:1px solid var(--bd);color:var(--t3);font-size:11.5px;text-align:left">'
+    +'<th style="padding:8px 10px">原文</th><th style="padding:8px 10px">訳文</th><th style="padding:8px 10px">分類</th></tr></thead><tbody>';
+  DICT_INDUSTRY.forEach(e=>{
+    html+=`<tr style="border-bottom:1px solid var(--bd)">
+      <td style="padding:8px 10px"><span style="font-size:10px;color:var(--t3)">${DICT_LANG_LABEL[e.source_lang]||e.source_lang}</span><br><span style="font-weight:600">${_dictEsc(e.source_text)}</span></td>
+      <td style="padding:8px 10px"><span style="font-size:10px;color:var(--t3)">${DICT_LANG_LABEL[e.target_lang]||e.target_lang}</span><br>${_dictEsc(e.target_text)}</td>
+      <td style="padding:8px 10px;color:var(--t2)">${_dictEsc(e.industry||'general')}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  box.innerHTML=html;
+}
+
+async function saveDictEntry(){
+  const body={
+    source_lang: document.getElementById('dict-src-lang')?.value,
+    target_lang: document.getElementById('dict-tgt-lang')?.value,
+    source_text: document.getElementById('dict-src-text')?.value,
+    target_text: document.getElementById('dict-tgt-text')?.value,
+    note:        document.getElementById('dict-note')?.value,
+  };
+  if(!body.source_text?.trim()||!body.target_text?.trim()){ toast('エラー','原文と訳文を入力してください','r'); return; }
+  try{
+    const res=await fetch('/app/api/dictionaries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error==='migration_011_required'?'辞書テーブルが未作成です（migration 011）':json.error||'登録に失敗しました','r'); return; }
+    // 入力欄クリア（言語選択は維持）
+    document.getElementById('dict-src-text').value='';
+    document.getElementById('dict-tgt-text').value='';
+    document.getElementById('dict-note').value='';
+    toast('✓ 登録しました','会社辞書に追加しました','g');
+    await loadDictionaries();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+function editDictEntry(id){
+  const e=DICT_COMPANY.find(x=>x.id===id);
+  if(!e) return;
+  openModal('会社辞書を編集',
+    `<div style="display:flex;flex-direction:column;gap:12px">
+      <div class="form-row"><label class="form-lbl">原文（${DICT_LANG_LABEL[e.source_lang]||e.source_lang}）</label>
+        <input class="form-inp" value="${_dictEsc(e.source_text)}" disabled style="opacity:.7"></div>
+      <div class="form-row"><label class="form-lbl">訳文（${DICT_LANG_LABEL[e.target_lang]||e.target_lang}） *</label>
+        <input id="dict-edit-tgt" class="form-inp" value="${_dictEsc(e.target_text)}"></div>
+      <div class="form-row"><label class="form-lbl">備考</label>
+        <input id="dict-edit-note" class="form-inp" value="${_dictEsc(e.note)}"></div>
+      <div style="font-size:11px;color:var(--t3)">※ 原文・言語の組み合わせは変更できません。変えたい場合は削除して再登録してください。</div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button>
+     <button class="btn btn-g" onclick="saveDictEdit('${id}')">保存</button>`);
+}
+
+async function saveDictEdit(id){
+  const target_text=document.getElementById('dict-edit-tgt')?.value;
+  const note=document.getElementById('dict-edit-note')?.value;
+  if(!target_text?.trim()){ toast('エラー','訳文を入力してください','r'); return; }
+  try{
+    const res=await fetch(`/app/api/dictionaries/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_text,note})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'更新に失敗しました','r'); return; }
+    closeModal();
+    toast('✓ 更新しました','会社辞書を更新しました','g');
+    await loadDictionaries();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function deleteDictEntry(id){
+  if(!confirm('この用語を削除しますか？')) return;
+  try{
+    const res=await fetch(`/app/api/dictionaries/${id}`,{method:'DELETE'});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'削除に失敗しました','r'); return; }
+    toast('✓ 削除しました','','g');
+    await loadDictionaries();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
