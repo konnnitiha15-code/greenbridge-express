@@ -3167,8 +3167,10 @@ function openEditAttend(id){
   const r = ATTEND_DATA.find(x=>x.id===id);
   if(!r) return;
   const wOpts = WORKERS.map(w=>`<option value="${w.id}"${w.id===r.worker_id?' selected':''}>${w.name}</option>`).join('');
-  const ci = r.clock_in  ? String(r.clock_in).slice(11,16)  : '';
-  const co = r.clock_out ? String(r.clock_out).slice(11,16) : '';
+  // サーバーが clockInStr/clockOutStr を JST "HH:MM" で返すのでそれを優先（UTC切り出しの9hズレ防止）
+  const toHM = iso => iso ? new Date(iso).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Tokyo'}) : '';
+  const ci = r.clockInStr  || toHM(r.clock_in);
+  const co = r.clockOutStr || toHM(r.clock_out);
   _showAttendModal('勤怠編集', wOpts, r.work_date, ci, co, r.status, r.memo, id);
 }
 

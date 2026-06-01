@@ -808,16 +808,26 @@ router.put('/api/users/:id/role', requireAuth, async (req, res) => {
 
 // ── Attendance API ────────────────────────────────────────────────────────────
 
+// ISO文字列(timestamptz) → JSTの "HH:MM"。UTC保存・JSTオフセット保存どちらも正しく表示する
+function fmtJstHM(iso) {
+  if (!iso) return null
+  try {
+    return new Date(iso).toLocaleTimeString('ja-JP', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo',
+    })
+  } catch { return null }
+}
+
 // attendance_records 行 → フロント形式
 function mapAttendance(r) {
   const w  = r.workers || {}
-  const ci = r.clock_in  ? String(r.clock_in).slice(11, 16)  : null
-  const co = r.clock_out ? String(r.clock_out).slice(11, 16) : null
+  // ★ UTC文字列をそのまま切り出すと9hズレる → JSTへ変換して表示
+  const ci = fmtJstHM(r.clock_in)
+  const co = fmtJstHM(r.clock_out)
+  // 勤務時間は ISO の実時刻差から算出（TZ非依存で正確）
   let workMins = null
-  if (ci && co) {
-    const [ch, cm] = ci.split(':').map(Number)
-    const [oh, om] = co.split(':').map(Number)
-    workMins = (oh * 60 + om) - (ch * 60 + cm)
+  if (r.clock_in && r.clock_out) {
+    workMins = Math.round((new Date(r.clock_out) - new Date(r.clock_in)) / 60000)
     if (workMins < 0) workMins += 24 * 60   // 日跨ぎ対応
   }
   return {

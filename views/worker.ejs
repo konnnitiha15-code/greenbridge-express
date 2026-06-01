@@ -3246,7 +3246,8 @@ async function loadWorkerShifts(year, month){
     }
     const json = await res.json();
     if(!json.ok) return;
-    (json.shifts || []).forEach(s => { workerShifts[s.date] = s.shift_type; });
+    // date は 'YYYY-MM-DD'（DATE型）。万一 'YYYY-MM-DDT...' が来てもキーを先頭10文字に正規化
+    (json.shifts || []).forEach(s => { workerShifts[String(s.date).slice(0,10)] = s.shift_type; });
   } catch(e) {
     console.error('[shift] load error:', e);
   }
@@ -3274,6 +3275,7 @@ function updateHomeTodayShift(){
   const now = new Date();
   const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const raw = workerShifts[todayKey];
+  // 管理者が確定（DB保存）したシフトのみ表示。未設定なら「未定」
   if(!raw){ el.textContent = '未定'; return; }
   const type = normalizeShiftType(raw);
   const labelMap = {niku:'日勤',hayaban:'早番',osoi:'遅番',rest:'休み',yukyuu:'有休',absent:'欠勤',tbd:'未定'};
@@ -3316,7 +3318,7 @@ function renderShift(){
   }
 
   data.forEach(d=>{
-    // DBのシフトデータで上書き（なければ未定）
+    // 管理者が確定（DB保存）したシフトのみ表示。未設定日は「未定」
     const dateKey = `${d.year}-${String(d.month).padStart(2,'0')}-${String(d.date).padStart(2,'0')}`;
     const dbType  = workerShifts[dateKey];
     const type    = dbType ? normalizeShiftType(dbType) : 'tbd';

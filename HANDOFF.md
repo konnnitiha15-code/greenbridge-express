@@ -181,7 +181,7 @@ greenbridge-express/
 011 - translation（translation_cache + company/industry_dictionaries）
 ```
 
-001〜010 は **実行済み** ✅／**011 は要実行**（次セッションで Supabase SQL Editor 実行）
+001〜012 は **全て実行済み** ✅（2026-06-01 に 011・012 を Supabase SQL Editor で適用完了）
 
 ### Supabase Storage
 - バケット名: `documents`
@@ -465,7 +465,7 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - ワーカー→管理者: 受信メッセージに「🌐 日本語に翻訳」ボタン（translateIncoming）
     - 翻訳UIが ワーカー側aiTx + 管理者側adminTx の両系統で揃った
 36. **日報・報告画面 監視UI化（012）**
-    - daily_reports拡張 + report_comments + report_status_history（要012実行）
+    - daily_reports拡張 + report_comments + report_status_history（012実行済み✅）
     - status: pending/reviewed/returned の3値、確定時に履歴自動記録
     - 管理者UI: 統計バー / 9種フィルター / リアルタイム検索 / 詳細パネル / 画像モーダル / コメント / 承認履歴 / 未確認優先の自動選択
     - 全API 012未適用でもフォールバック動作（カラム/テーブル欠如を吸収）
@@ -473,6 +473,12 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - サーバー: from/to/limit パラメータ（worker:200/最大500、admin:300/最大1000）+ report_date DESC優先ソート
     - ワーカー: 期間チップ（今日/今週/今月/すべて）+ 月選択input
     - 管理者: 「今月」フィルタ + 任意月ピッカー（input type=month）+ クリア
+
+### 2026-06-01 セッション（011/012適用 + 勤怠・シフトのバグ修正）
+38. **マイグレーション 011・012 を本番適用**（Supabase SQL Editor）— 翻訳辞書/cache・日報コメント/承認履歴/添付が有効化
+39. **勤怠時刻のJST表示ズレ修正**：`mapAttendance`(spa.js) が UTC文字列を `slice(11,16)` で切り出し9hズレ（09:24→00:24）していたのを `fmtJstHM()`（timeZone:Asia/Tokyo）に修正。勤務時間も実時刻差で算出。編集モーダル(app.js)も clockInStr/JST変換優先に統一
+40. **ワーカーシフトの日付キー正規化**：`workerShifts[String(s.date).slice(0,10)]` にして週またぎ・月またぎでのキー不一致（未マッチ）を解消
+41. **シフト表示方針の明確化**：ワーカーは管理者が確定（DB保存）したシフトのみ表示、未設定日は「未定」。管理者画面の平日=日勤/土日=休みはあくまで画面上の既定でDB未保存
 
 ---
 
@@ -505,14 +511,12 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 
 ---
 
-**最終更新: 2026-05-29**
+**最終更新: 2026-06-01**
 **最終コミット: 9f92f6e (feat: 過去日報の閲覧 — 期間フィルタ + 月選択)**
 
-> ⚠️ **未実行マイグレーション: 012**（日報拡張）— Supabase SQL Editor で要実行。
-> 未適用でも画面は壊れず動作するが、コメント・承認履歴・現場名・添付画像は012実行後に有効。
-
-> ⚠️ **次セッション冒頭の宿題: マイグレーション011 を Supabase SQL Editor で実行**
-> （未実行でも翻訳は MyMemory フォールバックで動くが、辞書・キャッシュは効かない）
+> ✅ **マイグレーション 011・012 は 2026-06-01 に Supabase SQL Editor で適用完了。**
+> 翻訳の辞書・キャッシュ、日報のコメント・承認履歴・現場名・添付画像がすべて有効になった。
+> 未実行マイグレーションは無し（001〜012 全適用済み）。
 
 ---
 
