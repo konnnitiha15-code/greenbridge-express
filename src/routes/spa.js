@@ -2218,6 +2218,72 @@ router.get('/api/payslips/:id', requireAuth, requireAdmin, async (req, res) => {
 })
 
 // ════════════════════════════════════════════════════════════════
+// 🏢 会社情報 API（書類生成の精度向上 / Phase3 補完）
+//   自社の会社情報を admin が取得・更新。013未適用の拡張カラムは
+//   フォールバックで吸収（基本カラムのみ更新）。
+// ════════════════════════════════════════════════════════════════
+
+// 会社情報の基本カラムと拡張カラム（013）
+const COMPANY_BASE_FIELDS = ['name', 'name_kana', 'address', 'phone', 'email']
+const COMPANY_EXT_FIELDS  = ['representative', 'representative_title', 'registration_no', 'fax', 'postal_code']
+
+// GET /app/api/company — 自社の会社情報
+router.get('/api/company', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.json({ ok: true, company: null })
+    const sb = createAdminClient()
+    const { data, error } = await sb.from('companies').select('*').eq('id', companyId).maybeSingle()
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    res.json({ ok: true, company: data || null })
+  } catch (e) {
+    console.error('[company get]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// PUT /app/api/company — 自社の会社情報を更新
+router.put('/api/company', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.status(403).json({ ok: false, error: '会社が未設定です' })
+    const b = req.body || {}
+
+    // 値の整形（基本 + 拡張）。null/空文字は null として保存（"null" 文字列化を防ぐ）
+    const pick = (fields) => {
+      const out = {}
+      for (const f of fields) {
+        if (b[f] !== undefined) {
+          const v = (b[f] === null) ? '' : String(b[f]).trim()
+          out[f] = v || null
+        }
+      }
+      return out
+    }
+    const base = pick(COMPANY_BASE_FIELDS)
+    if (base.name === null) return res.status(400).json({ ok: false, error: '会社名は必須です' })
+
+    const sb = createAdminClient()
+
+    // まず拡張カラム込みで更新を試す → 失敗(013未適用)なら基本カラムのみで再試行
+    const full = { ...base, ...pick(COMPANY_EXT_FIELDS) }
+    let { data, error } = await sb.from('companies').update(full).eq('id', companyId).select('*').maybeSingle()
+    if (error && /column .* does not exist|representative|registration_no|postal_code|fax/i.test(error.message || '')) {
+      ;({ data, error } = await sb.from('companies').update(base).eq('id', companyId).select('*').maybeSingle())
+      if (!error) {
+        return res.json({ ok: true, company: data, warn: 'migration_013_required',
+          detail: '代表者などの拡張項目は migration 013 実行後に保存されます' })
+      }
+    }
+    if (error) return res.status(500).json({ ok: false, error: error.message })
+    res.json({ ok: true, company: data })
+  } catch (e) {
+    console.error('[company put]', e.message)
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ════════════════════════════════════════════════════════════════
 // 🌐 翻訳辞書 管理 API（Phase2: 翻訳精度向上）
 //   会社辞書(company_dictionaries) は管理者が CRUD。
 //   業界辞書(industry_dictionaries) は会社横断の共通辞書で参照のみ。

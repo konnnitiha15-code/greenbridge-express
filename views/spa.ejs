@@ -1004,6 +1004,9 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
       <div class="sn-panel">
         <div class="sn-title">設定</div>
         <div class="sn-item on" id="sni-account" onclick="setST('account')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M1.5 13c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/></svg>アカウント</div>
+        <% if (profile?.role === 'admin') { %>
+        <div class="sn-item" id="sni-company" onclick="setST('company')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="7" height="10" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M9 5h3v7H9M4 4.5h2M4 6.5h2M4 8.5h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>会社情報</div>
+        <% } %>
         <div class="sn-item" id="sni-display" onclick="setST('display')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M4 12h6M7 10v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>言語・表示</div>
         <div class="sn-item" id="sni-notif" onclick="setST('notif')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5A4.5 4.5 0 002.5 6v2.5L1.5 10h11l-1-1.5V6A4.5 4.5 0 007 1.5z" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M5.5 11.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>通知</div>
         <div class="sn-item" id="sni-privacy" onclick="setST('privacy')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L2 3.5v4.5c0 3 2 5 5 5.5 3-.5 5-2.5 5-5.5V3.5L7 1z" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/><path d="M5 7l1.5 1.5L9 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>プライバシー</div>
@@ -1035,6 +1038,45 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
             </div>
           </div>
         </div>
+        <% if (profile?.role === 'admin') { %>
+        <div class="stab" id="stab-company">
+          <div class="ss-section">
+            <div class="ss-hdr"><div class="ss-title">会社情報</div><div class="ss-sub">書類（雇用契約書・労働条件通知書など）に自動反映されます</div></div>
+            <div id="company-warn" style="display:none;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12.5px"></div>
+            <div style="display:flex;flex-direction:column;gap:12px;max-width:620px">
+              <div class="form-row"><label class="form-lbl">会社名 <span style="color:var(--red)">*</span></label>
+                <input id="co-name" class="form-inp" placeholder="例：グリーンブリッジ株式会社"></div>
+              <div class="form-row"><label class="form-lbl">会社名（カナ）</label>
+                <input id="co-name_kana" class="form-inp" placeholder="例：グリーンブリッジカブシキガイシャ"></div>
+              <div style="display:grid;grid-template-columns:140px 1fr;gap:10px">
+                <div class="form-row"><label class="form-lbl">郵便番号</label>
+                  <input id="co-postal_code" class="form-inp" placeholder="123-4567"></div>
+                <div class="form-row"><label class="form-lbl">所在地</label>
+                  <input id="co-address" class="form-inp" placeholder="例：東京都新宿区西新宿1-2-3"></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div class="form-row"><label class="form-lbl">電話番号</label>
+                  <input id="co-phone" class="form-inp" placeholder="03-1234-5678"></div>
+                <div class="form-row"><label class="form-lbl">FAX番号</label>
+                  <input id="co-fax" class="form-inp" placeholder="03-1234-5679"></div>
+              </div>
+              <div class="form-row"><label class="form-lbl">メールアドレス</label>
+                <input id="co-email" class="form-inp" placeholder="info@example.co.jp"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div class="form-row"><label class="form-lbl">代表者 役職</label>
+                  <input id="co-representative_title" class="form-inp" placeholder="代表取締役"></div>
+                <div class="form-row"><label class="form-lbl">代表者 氏名</label>
+                  <input id="co-representative" class="form-inp" placeholder="例：山田 太郎"></div>
+              </div>
+              <div class="form-row"><label class="form-lbl">法人番号 / 許可番号</label>
+                <input id="co-registration_no" class="form-inp" placeholder="任意"></div>
+              <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+                <button class="btn btn-g" onclick="saveCompanyInfo()">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <% } %>
         <div class="stab" id="stab-display">
           <div class="ss-section"><div class="ss-hdr"><div class="ss-title">言語・表示設定</div></div>
             <div class="ss-row"><div class="ss-l"><div class="ss-lbl">デフォルト翻訳言語</div><div class="ss-desc">チャットで最初に選択される言語</div></div><select class="ss-sel"><option>🇻🇳 ベトナム語</option><option>🇮🇩 インドネシア語</option><option>🇵🇭 フィリピン語</option></select></div>
@@ -1096,7 +1138,7 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260601-docs"></script>
+<script src="/js/app.js?v=20260601-coinfo"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {

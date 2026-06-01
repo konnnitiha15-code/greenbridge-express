@@ -79,20 +79,26 @@ const SHIFT_COLOR_MAP={
   rest:{bg:'#f3f4f6',color:'#6b7280',label:'休み'}
 };
 
-// 会社情報（書類フッター用）。GB_COMPANY_INFO が無い場合は会社名のみ
-function _ci(){ return (typeof GB_COMPANY_INFO!=='undefined' && GB_COMPANY_INFO) ? GB_COMPANY_INFO : {}; }
+// 会社情報（書類フッター用）。保存後に更新される window.GB_COMPANY_INFO を優先
+function _ci(){
+  if(typeof window!=='undefined' && window.GB_COMPANY_INFO) return window.GB_COMPANY_INFO;
+  return (typeof GB_COMPANY_INFO!=='undefined' && GB_COMPANY_INFO) ? GB_COMPANY_INFO : {};
+}
 function _coName(){ const c=_ci(); return c.name || (typeof GB_COMPANY!=='undefined'?GB_COMPANY:'（会社名）'); }
 function _today(){ return new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}); }
 function _esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// 代表者の表示（役職 + 氏名）
+function _repName(){ const c=_ci(); return [c.representative_title, c.representative].filter(Boolean).join(' '); }
 // 事業主（会社）情報の署名ブロック
 function _companyBlock(){
   const c=_ci();
+  const addr = (c.postal_code? '〒'+_esc(c.postal_code)+' ':'') + _esc(c.address||'');
   return `<div style="margin-top:24px">
     <table><tr><th colspan="2" style="text-align:center;background:#e6f9f0">使用者（事業主）</th></tr>
     <tr><th style="width:120px">事業所名称</th><td>${_esc(_coName())}</td></tr>
-    ${c.address?`<tr><th>所在地</th><td>${_esc(c.address)}</td></tr>`:''}
+    ${(c.address||c.postal_code)?`<tr><th>所在地</th><td>${addr}</td></tr>`:''}
     ${c.phone?`<tr><th>電話番号</th><td>${_esc(c.phone)}</td></tr>`:''}
-    <tr><th>代表者</th><td>${_esc(c.representative||'')}　　　　　　　㊞</td></tr>
+    <tr><th>代表者</th><td>${_esc(_repName())}　　　　　　　㊞</td></tr>
     </table></div>`;
 }
 // 署名欄（本人）
@@ -185,7 +191,7 @@ ${_companyBlock()}`},
 <div class="section">第6条（その他）</div>
 <p>本契約に定めのない事項は、労働基準法その他関係法令及び甲の就業規則による。</p>
 <table style="margin-top:20px"><tr><th colspan="2" style="text-align:center;background:#e6f9f0">署名</th></tr>
-<tr><th style="width:120px">甲（使用者）</th><td>${_esc(_coName())}　代表者 ${_esc(_ci().representative||'')}　㊞</td></tr>
+<tr><th style="width:120px">甲（使用者）</th><td>${_esc(_coName())}　${_esc(_repName())}　㊞</td></tr>
 <tr><th>乙（労働者）</th><td>${_esc(w.name)}　㊞</td></tr>
 <tr><th>契約日</th><td>${_today()}</td></tr></table>`},
 
@@ -3512,8 +3518,8 @@ async function saveUserRole(userId){
 }
 function openAddRole(){if(!IS_ADMIN){toast('権限エラー','管理者のみ操作できます','r');return;}toast('情報','ロールはシステム固定です（管理者・マネージャー・スタッフ・技能実習生）','b');}
 function openRoleEdit(role){if(!IS_ADMIN){toast('権限エラー','管理者のみ変更できます','r');return;}toast('情報',role+' の権限はシステム固定です','b');}
-const STABS=['account','display','notif','privacy','support','legal'];
-function setST(tab){STABS.forEach(t=>{document.getElementById('stab-'+t)?.classList.toggle('on',t===tab);document.getElementById('sni-'+t)?.classList.toggle('on',t===tab);});}
+const STABS=['account','company','display','notif','privacy','support','legal'];
+function setST(tab){STABS.forEach(t=>{document.getElementById('stab-'+t)?.classList.toggle('on',t===tab);document.getElementById('sni-'+t)?.classList.toggle('on',t===tab);});if(tab==='company')loadCompanyInfo();}
 
 // ── SHARED CHAT HELPERS ───────────────────────────────────────────────────────
 function renderMsgs(containerId,msgs,worker){const a=document.getElementById(containerId);if(!a)return;a.innerHTML='';msgs.forEach(m=>addBub(containerId,m,worker,false));a.scrollTop=a.scrollHeight;}
@@ -4158,5 +4164,48 @@ async function deleteDictEntry(id){
     if(!json.ok){ toast('エラー',json.error||'削除に失敗しました','r'); return; }
     toast('✓ 削除しました','','g');
     await loadDictionaries();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 🏢 会社情報の設定（書類生成の精度向上）
+// ════════════════════════════════════════════════════════════════
+const COMPANY_FIELDS=['name','name_kana','postal_code','address','phone','fax','email','representative_title','representative','registration_no'];
+
+async function loadCompanyInfo(){
+  const warn=document.getElementById('company-warn');
+  if(warn) warn.style.display='none';
+  try{
+    const res=await fetch('/app/api/company',{credentials:'include'});
+    const ct=res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const json=await res.json();
+    if(!json.ok) return;
+    const c=json.company||{};
+    COMPANY_FIELDS.forEach(f=>{ const el=document.getElementById('co-'+f); if(el) el.value=c[f]||''; });
+  }catch(e){ console.error('[company] load error:',e); }
+}
+
+async function saveCompanyInfo(){
+  const body={};
+  COMPANY_FIELDS.forEach(f=>{ const el=document.getElementById('co-'+f); if(el) body[f]=el.value; });
+  if(!body.name||!body.name.trim()){ toast('エラー','会社名を入力してください','r'); return; }
+  try{
+    const res=await fetch('/app/api/company',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'保存に失敗しました','r'); return; }
+    // 拡張カラム未適用（013未実行）の警告
+    const warn=document.getElementById('company-warn');
+    if(json.warn==='migration_013_required' && warn){
+      warn.style.display='block';
+      warn.textContent='⚠️ 基本情報は保存しました。代表者・法人番号などの項目は migration 013 実行後に保存されます。';
+    }else{
+      if(warn) warn.style.display='none';
+      toast('✓ 保存しました','会社情報を更新しました。書類に反映されます','g');
+    }
+    // フォームを保存後の値で再描画 + window.GB_COMPANY_INFO を更新（書類に即反映）
+    const c=json.company||{};
+    COMPANY_FIELDS.forEach(f=>{ const el=document.getElementById('co-'+f); if(el) el.value=c[f]||''; });
+    if(typeof window!=='undefined') window.GB_COMPANY_INFO=c;
   }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
 }
