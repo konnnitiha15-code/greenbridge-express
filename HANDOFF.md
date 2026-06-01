@@ -185,7 +185,7 @@ greenbridge-express/
 015 - paid_leave（leave_ledger 有給台帳 + leave_requests 有給申請 + RLS）
 ```
 
-001〜014 は **実行済み** ✅／**015 は要実行**（有給管理。未実行でも他機能は動作、有給UIは「準備中」表示）
+001〜015 は **全て実行済み** ✅（015 は 2026-06-01 に Supabase SQL Editor で適用完了。有給管理が有効）
 
 ### Supabase Storage
 - バケット名: `documents`
@@ -519,7 +519,7 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - routes/workers.js の POST /:id を JSON fetch 対応（saveWはJSONで叩く）+ 014カラム欠如フォールバック + buildPayload に work_permit/work_permit_expire 追加
     - ローカル検証済: work_permit=true+期限保存 → 在留ビューに warn(残45日) で反映、null戻しも確認
 48. **有給管理（Phase5・自動付与+手動調整 / ワーカー申請→管理者承認 / 残数管理+申請承認）**
-    - マイグレーション **015**（leave_ledger 台帳 + leave_requests 申請 + RLS）。**要実行**（未実行でも他機能は動作・有給UIは「準備中」表示で503フォールバック）
+    - マイグレーション **015**（leave_ledger 台帳 + leave_requests 申請 + RLS）。**2026-06-01 適用済み✅**（未実行時は有給UIが「準備中」表示で503フォールバック）
     - ロジック `src/lib/leave.js`（純粋関数）：statutoryGrantDays(労基法39条 6ヶ月10日〜6.5年20日)、scheduledGrants(入社日から付与スケジュール・失効=付与+2年)、summarize(台帳→残数=付与+調整−消化−失効)、dateRangeDays
     - 管理者API `src/routes/leave.js`（/app/api/leave/* requireAdmin）: overview(全員残数・未同期検知)、:workerId(明細)、:workerId/sync・sync-all(法定付与を台帳へ冪等同期)、:workerId/adjust(手動調整)、requests/list、requests/:id/review(承認時に台帳へuse記録+通知)
     - ワーカーAPI（worker-app.js）: GET /worker/api/leave(残数+履歴)、POST /worker/api/leave/request(残数チェック+pending重複考慮)、request/:id/cancel
