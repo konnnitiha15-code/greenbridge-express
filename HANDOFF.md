@@ -604,7 +604,7 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-06-02**
-**最終コミット: （Phase9 コミット後に更新）**
+**最終コミット: 84e4ea4 (feat(filings): 外国人雇用書類管理 — 在留資格別の入管届出/提出期限/履歴 (Phase9))**
 
 > ✅ **マイグレーション 017・018・019 は 2026-06-02 に Supabase SQL Editor で適用完了。**
 > 017=生活サポート（Phase7）、018=労務手続き（Phase8）、019=雇用書類管理（Phase9）が本番で完全動作。
