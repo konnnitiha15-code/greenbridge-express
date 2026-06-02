@@ -97,6 +97,7 @@ greenbridge-express/
 - ✅ **給与管理（賃金設定・月次自動計算・確定・明細PDF印刷）** ← 010
 - ✅ **労務手続きワークフロー（入社/退社/任意のチェックリスト・進捗管理・自動完了）** ← 018
 - ✅ **雇用書類管理（在留資格別の入管届出・提出期限/履歴・四半期/年次の自動繰り返し・期限通知）** ← 019
+- ✅ **AIアシスタント（内部完結・自然文で在留/資格/届出/有給/人数を横断検索）** ← Phase10（マイグレ不要）
 - ✅ ダッシュボード統計 API
 - ✅ CSV出力（勤怠・シフト・日報・チャット、BOM付UTF-8）
 - ✅ 動画マニュアル（UI のみ、削除候補）
@@ -571,6 +572,13 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - 管理者UI: 新規ページ `filings`（サイドバー nav-filings「雇用書類・届出」+ pending件数バッジ）。統計バー/検索/資格・状態フィルタ/テーブル(期限レベル色)/「＋届出を追加」(資格選択→標準届出テンプレ候補から選択 or 手入力+繰り返し)/「提出を記録」モーダル/「🔔期限通知」
     - ローカル実API検証済（本番Supabase接続）: 019適用前503→適用後 作成(level=expired)/notify(expired1件→同日重複0)/submit(quarterly→次回pending due+3ヶ月自動生成)/一覧(原本submitted+新pending)/クリーンアップ削除 すべて実証
     - キャッシュバスト: spa.ejs `?v=20260602-filings` / sw.js `CACHE_VERSION=gb-v17-filings`
+54. **AIアシスタント（Phase10・内部完結／マイグレ不要）**：自然文で在留期限/資格・健診/届出/有給/人数を横断検索。外部API・キー不要、個人情報を外部送信しない読み取り専用。
+    - ロジック `src/lib/assistant.js`（純粋関数）：parseQuery=キーワードで意図判定(visa/certs/filings/leave/headcount/help)＋期間パーサ(今日/今週/今月/来月/Nヶ月/N日→既定90日・「切れ/超過」でexpired含む)＋有給閾値。EXAMPLESサジェスト
+    - API `src/routes/assistant.js`（/app/api/assistant/* requireAdmin）: `POST /query`→意図別に既存テーブル横断照会し {summary,count,items[{worker_id,name,label,sub,level,tab}]} を返す。期限判定は filings.js の daysUntil/expireLevel、有給は leave.js の summarize を**再利用**。未適用テーブルはデグレード(空＋注記/503にしない)。`GET /examples`
+    - 管理者UI: 新規ページ `ai`（サイドバー nav-ai「AIアシスタント」）。検索入力(Enter送信)＋サジェストチップ＋結果リスト(levelバッジ色)。行クリックで該当ワーカー詳細 or 該当タブへ遷移(aiGoto/SP)
+    - ローカル実API検証済（本番Supabase接続）: 全意図(visa/certs/filings/leave/headcount/help)＋examples を実行。leave=残0日2名・headcount国籍別(イ1/ベ1)など実データ応答。visa採否ロジックも合成日付で実証(残20=urgent採用/残100=除外/超過=採用)。parseQuery単体OK
+    - 将来: LLM provider差し替え(翻訳と同方式 `AI_PROVIDER` env)で自然言語理解を後付け可能
+    - キャッシュバスト: spa.ejs `?v=20260602-ai` / sw.js `CACHE_VERSION=gb-v18-ai`
 
 ---
 
@@ -604,11 +612,12 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-06-02**
-**最終コミット: 84e4ea4 (feat(filings): 外国人雇用書類管理 — 在留資格別の入管届出/提出期限/履歴 (Phase9))**
+**最終コミット: （Phase10 コミット後に更新）**
 
 > ✅ **マイグレーション 017・018・019 は 2026-06-02 に Supabase SQL Editor で適用完了。**
 > 017=生活サポート（Phase7）、018=労務手続き（Phase8）、019=雇用書類管理（Phase9）が本番で完全動作。
-> 未実行マイグレーションは無し（001〜019 全適用済み）。Phase9 はローカル実API検証で作成/期限レベル/提出記録の四半期自動繰り返し/期限通知の同日重複防止/503フォールバックを確認済み。
+> **Phase10（AIアシスタント）は内部完結のためマイグレーション不要。**
+> 未実行マイグレーションは無し（001〜019 全適用済み）。**長期ビジョンの Phase1〜10 が全完了。**
 
 ---
 

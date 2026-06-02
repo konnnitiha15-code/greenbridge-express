@@ -18,6 +18,7 @@ const certRoutes      = require('./routes/certs')
 const lifeRoutes      = require('./routes/life')
 const procedureRoutes = require('./routes/procedures')
 const filingRoutes    = require('./routes/filings')
+const assistantRoutes = require('./routes/assistant')
 
 const app = express()
 
@@ -78,6 +79,7 @@ app.use('/app/api/certs', certRoutes)
 app.use('/app/api/life',  lifeRoutes)
 app.use('/app/api/procedures', procedureRoutes)
 app.use('/app/api/filings', filingRoutes)
+app.use('/app/api/assistant', assistantRoutes)
 
 // ── 起動（ローカル）・エクスポート（Vercel）────────────────────────
 if (require.main === module) {

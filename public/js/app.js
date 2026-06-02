@@ -318,7 +318,7 @@ function SP(id){
     const sid=s.id?s.id.replace('nav-',''):'';
     s.classList.toggle('on',sid===id);
   });
-  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',life:'生活サポート',hr:'労務手続き',filings:'雇用書類・届出',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
+  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',life:'生活サポート',hr:'労務手続き',filings:'雇用書類・届出',ai:'AIアシスタント',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
@@ -348,6 +348,7 @@ function SP(id){
   if(id==='life') loadLife();
   if(id==='hr') loadProcedures();
   if(id==='filings') loadFilings();
+  if(id==='ai') initAiPage();
 }
 
 // ── 通知センター ────────────────────────────────────────────────
@@ -5360,4 +5361,76 @@ async function runFilingsNotify(){
     const n=(json.created||[]).length;
     toast('🔔 期限通知',n?`${n}件の通知を送信しました`:'対象の届出はありませんでした','g');
   }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  AIアシスタント（Phase10・内部完結）
+// ════════════════════════════════════════════════════════════════
+const AI_LEVEL={ expired:{cls:'br',ico:'❌'}, urgent:{cls:'ba',ico:'🔴'}, warn:{cls:'bb',ico:'🟡'}, ok:{cls:'bg',ico:'🟢'} };
+let AI_INIT=false;
+
+async function initAiPage(){
+  if(AI_INIT) return;
+  AI_INIT=true;
+  let examples=['来月 在留期限が切れる従業員','資格・健診の期限が近い人','未提出の届出','有給が残り5日以下の人','特定技能は何人'];
+  try{ const r=await fetch('/app/api/assistant/examples',{credentials:'include'}); const j=await r.json(); if(j.ok&&j.examples) examples=j.examples; }catch{}
+  const box=document.getElementById('ai-chips');
+  if(box) box.innerHTML=examples.map(q=>`<button class="btn btn-sm" style="font-size:12px" onclick="aiSuggest(this.dataset.q)" data-q="${_dictEsc(q)}">${_dictEsc(q)}</button>`).join('');
+}
+
+function aiSuggest(q){
+  const inp=document.getElementById('ai-input');
+  if(inp) inp.value=q;
+  askAi();
+}
+
+async function askAi(){
+  const inp=document.getElementById('ai-input');
+  const q=(inp?.value||'').trim();
+  const box=document.getElementById('ai-result');
+  if(!q){ if(inp) inp.focus(); return; }
+  if(box) box.innerHTML='<div style="padding:24px;text-align:center;color:var(--t3)">考えています...</div>';
+  try{
+    const res=await fetch('/app/api/assistant/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q})});
+    const json=await res.json();
+    if(!json.ok){ if(box) box.innerHTML=`<div style="padding:20px;text-align:center;color:var(--t3)">${json.error||'うまく回答できませんでした'}</div>`; return; }
+    renderAiResult(json);
+  }catch(e){ if(box) box.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3)">通信エラー</div>'; }
+}
+
+function renderAiResult(json){
+  const box=document.getElementById('ai-result');
+  if(!box) return;
+  // help: 例示
+  if(json.intent==='help'){
+    const ex=(json.examples||[]).map(q=>`<button class="btn btn-sm" style="font-size:12px;margin:3px" onclick="aiSuggest(this.dataset.q)" data-q="${_dictEsc(q)}">${_dictEsc(q)}</button>`).join('');
+    box.innerHTML=`<div class="card"><div style="padding:16px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:8px">🤖 ${_dictEsc(json.summary)}</div>
+      <div>${ex}</div></div></div>`;
+    return;
+  }
+  const items=json.items||[];
+  const rows=items.map(it=>{
+    const lv=it.level?AI_LEVEL[it.level]:null;
+    const badge=lv?`<span class="badge ${lv.cls}" style="font-size:9.5px;flex-shrink:0">${lv.ico}</span>`:'';
+    const click=it.worker_id?`onclick="aiGoto('${it.worker_id}','${it.tab}')"`:`onclick="SP('${it.tab}')"`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--bd);cursor:pointer" ${click}>
+      ${badge}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${_dictEsc(it.label)}</div>
+        <div style="font-size:11.5px;color:var(--t3);margin-top:2px">${_dictEsc(it.sub)}</div>
+      </div>
+      <span style="font-size:11px;color:var(--t3);flex-shrink:0">›</span>
+    </div>`;
+  }).join('');
+  const note=json.note?`<div style="font-size:12px;color:#92400e;background:#fef3c7;border-radius:8px;padding:8px 12px;margin:10px 0">${_dictEsc(json.note)}</div>`:'';
+  box.innerHTML=`<div style="font-size:14px;font-weight:600;margin-bottom:10px">🤖 ${_dictEsc(json.summary)}</div>${note}
+    ${items.length?`<div class="card"><div>${rows}</div></div>`:'<div style="padding:18px;text-align:center;color:var(--t3)">該当はありませんでした ✅</div>'}`;
+}
+
+function aiGoto(workerId,tab){
+  // ワーカー詳細を開ける場合は実習生詳細へ、無ければ該当タブへ
+  const w=(typeof WORKERS!=='undefined'?WORKERS:[]).find(x=>x.id===workerId);
+  if(w && typeof openWD==='function'){ SP('workers'); openWD(w); }
+  else SP(tab||'workers');
 }
