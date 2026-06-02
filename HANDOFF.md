@@ -594,7 +594,7 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-06-02**
-**最終コミット: （Phase8 コミット後に更新）**
+**最終コミット: c1482fd (feat(hr): 労務手続きワークフロー — 入社/退社チェックリスト (Phase8))**
 
 > ✅ **マイグレーション 017・018 は 2026-06-02 に Supabase SQL Editor で適用完了。**
 > 017=生活サポート（Phase7）、018=労務手続きワークフロー（Phase8）が本番で完全動作。
