@@ -106,18 +106,10 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
       書類・翻訳管理
     </div>
     <div class="sb-sec">現場管理</div>
-    <div class="sb-item" id="nav-tasks" onclick="SP('tasks')">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="12" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5 6l1.5 1.5L9 4M5 10l1.5 1.5L9 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      タスク管理
-    </div>
     <div class="sb-item" id="nav-gchat" onclick="SP('gchat')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3a1.5 1.5 0 011.5-1.5h6A1.5 1.5 0 0111 3v5a1.5 1.5 0 01-1.5 1.5H7L5 12V9.5H3.5A1.5 1.5 0 012 8V3z" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M9 7h1.5A1.5 1.5 0 0112 8.5v3L10.5 13V11H9" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>
       グループチャット
       <span class="sb-bdg g" id="gchat-bdg" style="display:none">0</span>
-    </div>
-    <div class="sb-item" id="nav-videos" onclick="SP('videos')">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M11 6.5l4-2v7l-4-2V6.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="none"/><path d="M4 8l2.5 1.5L4 11V8z" fill="currentColor" opacity=".7"/></svg>
-      動画マニュアル
     </div>
     <div class="sb-item" id="nav-nippo" onclick="SP('nippo')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5 5h6M5 8h5M5 11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="12" cy="12" r="3.5" fill="var(--gn)"/><path d="M10.5 12l1 1 2-2" stroke="#fff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -541,43 +533,6 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
     </div>
   </div>
 
-  <!-- ─── TASKS (KANBAN) ────────────────────────────────── -->
-  <div class="page" id="page-tasks">
-    <div class="kanban-wrap">
-      <div class="kanban-side">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-          <div style="font-size:14px;font-weight:700;color:var(--tx)">タスク管理</div>
-          <button class="btn btn-g btn-sm" id="add-task-btn" onclick="openAddTask()">+ 追加</button>
-        </div>
-
-        <!-- 期間フィルタ -->
-        <div style="display:flex;gap:5px;margin-bottom:4px">
-          <button class="btn btn-xs" style="flex:1;justify-content:center" onclick="setTaskMode('all')">すべて</button>
-          <button class="btn btn-xs" style="flex:1;justify-content:center" onclick="setTaskMode('month')">月別</button>
-        </div>
-
-        <!-- 月ナビ -->
-        <div id="task-month-nav" style="display:flex;align-items:center;gap:4px">
-          <button class="btn btn-xs" style="padding:4px 8px" onclick="taskPrevMonth()">←</button>
-          <div id="task-month-title" style="flex:1;text-align:center;font-size:12.5px;font-weight:700">すべてのタスク</div>
-          <button class="btn btn-xs" style="padding:4px 8px" onclick="taskNextMonth()">→</button>
-        </div>
-
-        <!-- 完了率 -->
-        <div style="border-top:1px solid var(--bd);padding-top:10px;margin-top:4px">
-          <div style="font-size:11.5px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-bottom:6px">完了率</div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="flex:1;height:6px;background:var(--s2);border-radius:99px;overflow:hidden">
-              <div id="task-progress-bar" style="width:0%;height:100%;background:var(--gn);border-radius:99px;transition:width .3s"></div>
-            </div>
-            <span id="task-progress-pct" style="font-size:12.5px;font-weight:600">0%</span>
-          </div>
-        </div>
-      </div>
-      <div class="kanban-board" id="kanban-board"></div>
-    </div>
-  </div>
-
   <!-- ─── GROUP CHAT ────────────────────────────────────── -->
   <div class="page" id="page-gchat">
     <div class="two-panel">
@@ -623,30 +578,6 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
     </div>
   </div>
 
-  <!-- ─── VIDEOS ────────────────────────────────────────── -->
-  <div class="page" id="page-videos">
-    <div class="two-panel">
-      <div class="left-panel" style="width:300px">
-        <div class="panel-hdr">
-          <span class="panel-title">動画マニュアル</span>
-          <button class="btn btn-g btn-sm" id="upload-video-btn" onclick="openUploadVideo()">+ 追加</button>
-        </div>
-        <div class="panel-filters" id="v-cats">
-          <div class="fc on" onclick="filterVideos('all',this)">すべて</div>
-          <div class="fc" onclick="filterVideos('safety',this)">安全</div>
-          <div class="fc" onclick="filterVideos('work',this)">作業</div>
-          <div class="fc" onclick="filterVideos('training',this)">研修</div>
-        </div>
-        <div class="panel-list" id="v-list"></div>
-      </div>
-      <div class="right-panel" style="padding:0" id="vd-panel">
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--t3);background:var(--bg)">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect x="4" y="8" width="30" height="22" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M34 19l10-5v20l-10-5V19z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><path d="M13 16l10 5-10 5v-10z" fill="currentColor" opacity=".4"/></svg>
-          <div style="font-size:16px;font-weight:700">動画を選んでください</div>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- ─── NIPPO ─────────────────────────────────────────── -->
   <div class="page" id="page-nippo">
@@ -1363,7 +1294,7 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260602-ai"></script>
+<script src="/js/app.js?v=20260602-cleanup"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {

@@ -4,7 +4,7 @@
 // WORKERS, DOCS, GB_USER are injected by the server in <script> tags above this file
 
 let IS_ADMIN = (typeof GB_USER !== 'undefined' && GB_USER?.role === 'admin');
-let AW=null, AWD=null, AD=null, AG=null, AV=null, AN=null, wFilter='all';
+let AW=null, AWD=null, AD=null, AG=null, AN=null, wFilter='all';
 let currentDoc=null, docEditing=false, translating=false;
 
 // ── チャット履歴（Supabase messages テーブルから取得・localStorage廃止） ──────
@@ -18,16 +18,6 @@ let _chatLastTs    = {};  // worker.id → 最後に取得したメッセージ�
 let _rtMsgSub      = null;  // Realtime購読
 let _rtShiftsSub   = null;
 let _rtGroupSub    = null;
-
-// ── グループ (localStorage永続化) ──────────────────────────────────────────
-
-const TASKS=[
-  {id:'t1',title:'新人研修資料の翻訳',priority:'high',due:'2025/01/15',status:'todo',assignees:[{init:'NG',bg:'#d1fae5',tc:'#065f46'}]},
-  {id:'t2',title:'安全教育テスト実施',priority:'medium',due:'2025/01/20',status:'progress',assignees:[{init:'SA',bg:'#dbeafe',tc:'#1e40af'},{init:'MR',bg:'#fee2e2',tc:'#991b1b'}]},
-  {id:'t3',title:'勤怠データ確認',priority:'low',due:'2025/01/10',status:'review',assignees:[{init:'WA',bg:'#fef3c7',tc:'#92400e'}]},
-  {id:'t4',title:'ビザ更新手続き確認',priority:'high',due:'2025/02/01',status:'todo',assignees:[]},
-  {id:'t5',title:'宿舎点検',priority:'medium',due:'2025/01/25',status:'done',assignees:[]},
-];
 
 // グループ：DBから取得（localStorage廃止）
 let GROUPS = [];
@@ -56,12 +46,6 @@ async function loadGroups(){
     }));
   }catch(e){ console.warn('[groups] load error:', e); }
 }
-
-const VIDEOS=[
-  {id:'v1',title:'溶接作業 安全確認手順',cat:'safety',dur:'8:24',views:45,langs:['ja','vi'],emoji:'🔧',desc:'溶接作業前に必ず確認してください。'},
-  {id:'v2',title:'緊急時対応フロー',cat:'safety',dur:'5:32',views:52,langs:['ja','vi','id','tl'],emoji:'🚨',desc:'緊急事態発生時の対応手順を説明します。'},
-  {id:'v3',title:'入社オリエンテーション',cat:'training',dur:'15:00',views:30,langs:['ja','vi','id','tl','my'],emoji:'📚',desc:'会社のルールと基本情報を説明します。'},
-];
 
 let NIPPOS = []; // Supabase daily_reports テーブルから取得
 
@@ -318,7 +302,7 @@ function SP(id){
     const sid=s.id?s.id.replace('nav-',''):'';
     s.classList.toggle('on',sid===id);
   });
-  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',life:'生活サポート',hr:'労務手続き',filings:'雇用書類・届出',ai:'AIアシスタント',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
+  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',gchat:'グループチャット',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',life:'生活サポート',hr:'労務手続き',filings:'雇用書類・届出',ai:'AIアシスタント',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
@@ -328,9 +312,7 @@ function SP(id){
     if(AW && AW.authUserId) _loadChatHistory(AW).then(()=>renderMessages());
   }
   if(id==='gchat') renderGCL();
-  if(id==='videos') renderVL();
   if(id==='nippo'){ AN=null; loadAndRenderNPL(); }  // タブを開くたびに未確認優先で自動選択
-  if(id==='tasks') renderKanban();
   if(id==='home'){
     refreshHomeKPIs();
     loadAttendStats();        // 勤怠統計も最新化
@@ -2206,102 +2188,6 @@ function viewWorkerDoc(workerId,idx){const w=WORKERS.find(x=>x.id===workerId);co
 function downloadWorkerDoc(workerId,idx){const w=WORKERS.find(x=>x.id===workerId);const doc=w?.workerDocs?.[idx];if(!doc)return;generatePDF(doc.html,doc.fileName);}
 function deleteWorkerDoc(workerId,idx){if(!IS_ADMIN){toast('権限エラー','管理者のみ削除できます','r');return;}const w=WORKERS.find(x=>x.id===workerId);if(!w?.workerDocs?.[idx])return;const docName=w.workerDocs[idx].name;openModal('書類を削除',`<div style="font-size:14px">「${docName}」を削除しますか？</div>`,`<button class="btn" onclick="closeModal()">キャンセル</button><button class="btn btn-r" onclick="const w=WORKERS.find(x=>x.id==='${workerId}');w.workerDocs.splice(${idx},1);closeModal();openWD(w);toast('削除完了','書類を削除しました')">削除する</button>`);}
 
-// ── KANBAN ────────────────────────────────────────────────────────────────────
-let TASK_YEAR = new Date().getFullYear();
-let TASK_MONTH = new Date().getMonth()+1;
-let TASK_MODE = 'all'; // 'all' | 'month'
-
-function taskPrevMonth(){ if(--TASK_MONTH<1){TASK_MONTH=12;TASK_YEAR--;} renderKanban(); }
-function taskNextMonth(){ if(++TASK_MONTH>12){TASK_MONTH=1;TASK_YEAR++;} renderKanban(); }
-function setTaskMode(m){ TASK_MODE=m; renderKanban(); }
-
-function updateTaskProgress(){
-  const total = TASKS.length;
-  const done  = TASKS.filter(t=>t.status==='done').length;
-  const pct   = total ? Math.round(done/total*100) : 0;
-  const bar   = document.getElementById('task-progress-bar');
-  const lbl   = document.getElementById('task-progress-pct');
-  if(bar) bar.style.width = pct+'%';
-  if(lbl) lbl.textContent = pct+'%';
-}
-
-function renderKanban(){
-  const cols=['todo','progress','review','done'];
-  const labels={todo:'📋 未着手',progress:'🔵 進行中',review:'🟡 レビュー',done:'✅ 完了'};
-  const borders={todo:'#e53e3e',progress:'#2563eb',review:'#d97706',done:'#059669'};
-  const _kb=document.getElementById('kanban-board');if(!_kb)return;
-
-  // 月フィルタ更新
-  const mTitle=document.getElementById('task-month-title');
-  if(mTitle) mTitle.textContent=TASK_MODE==='all'?'すべてのタスク':`${TASK_YEAR}年${TASK_MONTH}月`;
-  const mNav=document.getElementById('task-month-nav');
-  if(mNav) mNav.style.opacity=TASK_MODE==='all'?'0.3':'1';
-
-  // フィルタリング
-  let visibleTasks=TASKS;
-  if(TASK_MODE==='month'){
-    visibleTasks=TASKS.filter(t=>{
-      if(!t.due||t.due==='-') return true;
-      const d=new Date(String(t.due).replace(/\//g,'-'));
-      return !isNaN(d)&&d.getFullYear()===TASK_YEAR&&d.getMonth()+1===TASK_MONTH;
-    });
-  }
-
-  _kb.innerHTML=cols.map(col=>{
-    const tasks=visibleTasks.filter(t=>t.status===col);
-    return `<div class="k-col"><div class="k-col-hdr" style="border-left-color:${borders[col]}">${labels[col]}<span class="badge bgray">${tasks.length}</span></div>
-    <div class="k-col-body">${tasks.length?tasks.map(t=>`<div class="k-card" onclick="openTaskDetail('${t.id}')">
-      <div class="k-card-title">${t.title}</div>
-      <div class="k-card-meta"><span class="badge ${t.priority==='high'?'br':t.priority==='medium'?'ba':'bgray'}" style="font-size:10px">${t.priority==='high'?'高優先':t.priority==='medium'?'中優先':'低優先'}</span><span style="font-size:11px;color:var(--t3)">${t.due||'-'}締切</span></div>
-      <div class="k-avs">${(t.assignees||[]).map(a=>`<div class="k-av" style="background:${a.bg};color:${a.tc}">${a.init}</div>`).join('')}</div>
-    </div>`).join(''):'<div style="padding:16px;text-align:center;color:var(--t3);font-size:12.5px">タスクなし</div>'}</div></div>`;
-  }).join('');
-  updateTaskProgress();
-}
-
-function openAddTask(){if(!IS_ADMIN){toast('権限エラー','管理者・リーダーのみ追加できます','r');return;}openModal('タスクを追加',`<div class="form-row"><label class="form-lbl">タスク名</label><input class="form-inp" id="tn" placeholder="例: 安全マニュアルを更新する"></div><div class="form-row"><label class="form-lbl">優先度</label><select class="form-inp" id="tp"><option value="high">高優先</option><option value="medium">中優先</option><option value="low">低優先</option></select></div><div class="form-row"><label class="form-lbl">期限</label><input type="date" class="form-inp" id="td"></div>`,`<button class="btn" onclick="closeModal()">キャンセル</button><button class="btn btn-g" onclick="addTask()">追加</button>`);}
-function addTask(){const title=document.getElementById('tn')?.value?.trim();if(!title){toast('エラー','タスク名を入力してください','r');return;}TASKS.push({id:'t'+Date.now(),title,priority:document.getElementById('tp')?.value||'medium',due:document.getElementById('td')?.value||'-',status:'todo',assignees:[]});closeModal();renderKanban();toast('追加完了',title+' を追加しました');}
-function openTaskDetail(id){
-  const t=TASKS.find(x=>x.id===id);if(!t)return;
-  openModal(t.title,
-    `<div class="form-row"><label class="form-lbl">ステータス</label>
-      <select class="form-inp" id="ts-status">
-        <option value="todo"     ${t.status==='todo'    ?'selected':''}>📋 未着手</option>
-        <option value="progress" ${t.status==='progress'?'selected':''}>🔵 進行中</option>
-        <option value="review"   ${t.status==='review'  ?'selected':''}>🟡 レビュー</option>
-        <option value="done"     ${t.status==='done'    ?'selected':''}>✅ 完了</option>
-      </select>
-    </div>
-    <div class="form-row"><label class="form-lbl">優先度</label>
-      <select class="form-inp" id="ts-priority">
-        <option value="high"   ${t.priority==='high'  ?'selected':''}>高優先</option>
-        <option value="medium" ${t.priority==='medium'?'selected':''}>中優先</option>
-        <option value="low"    ${t.priority==='low'   ?'selected':''}>低優先</option>
-      </select>
-    </div>`,
-    `<button class="btn btn-r btn-sm" onclick="deleteTask('${id}')">削除</button>
-     <button class="btn" onclick="closeModal()">閉じる</button>
-     <button class="btn btn-g" onclick="saveTaskStatus('${id}')">更新</button>`
-  );
-}
-function saveTaskStatus(id){
-  const t=TASKS.find(x=>x.id===id);
-  if(!t) return;
-  t.status   = document.getElementById('ts-status')?.value   || t.status;
-  t.priority = document.getElementById('ts-priority')?.value || t.priority;
-  closeModal();
-  renderKanban(); // updateTaskProgress() は renderKanban 内で呼ばれる
-  toast('更新完了','ステータスを更新しました');
-}
-function deleteTask(id){
-  const idx=TASKS.findIndex(x=>x.id===id);
-  if(idx===-1) return;
-  TASKS.splice(idx,1);
-  closeModal();
-  renderKanban();
-  toast('削除','タスクを削除しました','a');
-}
-
 // ── GROUP CHAT ────────────────────────────────────────────────────────────────
 async function renderGCL(){
   // タブを開くたびに最新取得
@@ -2566,38 +2452,6 @@ async function deleteGroup(){
     toast('削除','グループを削除しました','a');
   }catch(e){ toast('エラー','ネットワークエラー','r'); }
 }
-
-// ── VIDEOS ────────────────────────────────────────────────────────────────────
-function renderVL(cat){
-  const el=document.getElementById('v-list');if(!el)return;el.innerHTML='';
-  VIDEOS.filter(v=>!cat||cat==='all'||v.cat===cat).forEach(v=>{
-    const d=document.createElement('div');d.className='v-item'+(AV?.id===v.id?' on':'');d.onclick=()=>openVideo(v);
-    d.innerHTML=`<div class="v-thumb"><span style="font-size:22px">${v.emoji||'🎬'}</span><div class="v-play"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polygon points="3,2 13,7 3,12" fill="white"/></svg></div><div class="v-dur">${v.dur}</div></div>
-    <div class="v-meta"><div class="v-title">${v.title}</div><div class="v-info">${(v.langs||[]).map(l=>({vi:'🇻🇳',id:'🇮🇩',tl:'🇵🇭',my:'🇲🇲',ja:'🇯🇵'}[l]||l)).join('')} · ${v.dur}</div></div>`;
-    el.appendChild(d);
-  });
-}
-
-function filterVideos(cat,el){document.querySelectorAll('#v-cats .fc').forEach(c=>c.classList.remove('on'));el.classList.add('on');renderVL(cat);}
-
-function openVideo(v){
-  AV=v;renderVL();
-  const panel=document.getElementById('vd-panel');
-  panel.innerHTML=`<div style="flex:1;overflow-y:auto;padding:16px;background:var(--bg)">
-    <div class="vd-player" onclick="toast('再生','動画プレーヤーに連携します','b')">
-      <div style="position:absolute;font-size:60px;opacity:.3">${v.emoji||'🎬'}</div>
-      <div class="vd-play"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><polygon points="6,4 20,11 6,18" fill="white"/></svg></div>
-      <div style="position:absolute;bottom:10px;right:14px;color:rgba(255,255,255,.7);font-size:13px">${v.dur}</div>
-    </div>
-    <div class="card" style="margin-bottom:12px"><div class="card-hdr"><span class="card-title">${v.title}</span></div>
-      <div style="padding:12px 14px;font-size:13.5px;color:var(--t2);line-height:1.7">${v.desc||''}</div>
-      <div style="padding:8px 14px 12px;display:flex;gap:8px;flex-wrap:wrap">${(v.langs||[]).map(l=>`<span class="badge bgray">${{vi:'🇻🇳 ベトナム語',id:'🇮🇩 インドネシア語',tl:'🇵🇭 フィリピン語',my:'🇲🇲 ミャンマー語',ja:'🇯🇵 日本語'}[l]||l}</span>`).join('')}</div>
-    </div>
-  </div>`;
-}
-
-function openUploadVideo(){if(!IS_ADMIN){toast('権限エラー','管理者のみ動画を追加できます','r');return;}openModal('動画を追加',`<div class="form-row"><label class="form-lbl">タイトル *</label><input class="form-inp" id="vt" placeholder="例：溶接作業 安全確認手順"></div><div class="form-row"><label class="form-lbl">カテゴリ</label><select class="form-inp" id="vc"><option value="safety">安全</option><option value="work">作業</option><option value="training">研修</option></select></div>`,`<button class="btn" onclick="closeModal()">キャンセル</button><button class="btn btn-g" onclick="uploadVideo()">追加する</button>`);}
-function uploadVideo(){const title=document.getElementById('vt')?.value?.trim();if(!title){toast('エラー','タイトルを入力してください','r');return;}VIDEOS.push({id:'v'+Date.now(),title,emoji:'🎬',cat:document.getElementById('vc')?.value||'work',dur:'--:--',langs:['ja'],desc:'',views:0});closeModal();renderVL();toast('追加完了',title+' を追加しました');}
 
 // ── NIPPO ─────────────────────────────────────────────────────────────────────
 // DB から日報を取得して描画

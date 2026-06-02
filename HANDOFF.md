@@ -100,8 +100,7 @@ greenbridge-express/
 - ✅ **AIアシスタント（内部完結・自然文で在留/資格/届出/有給/人数を横断検索）** ← Phase10（マイグレ不要）
 - ✅ ダッシュボード統計 API
 - ✅ CSV出力（勤怠・シフト・日報・チャット、BOM付UTF-8）
-- ✅ 動画マニュアル（UI のみ、削除候補）
-- ✅ タスク管理（Kanban、削除候補）
+- ~~動画マニュアル / タスク管理（Kanban）~~ → **2026-06-02 削除**（DB非保存のモック・Phase8と重複のため）
 
 ### ワーカー側（/worker）
 - ✅ ホーム（クイックアクション、今日のシフト）
@@ -584,6 +583,11 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - providers/anthropic.js・openai.js（fetch直叩き・依存追加なし・キー無しでthrow）。**LLMへ送るのは質問文のみ(NLU=意図抽出)、従業員データは送信しない**設計
     - .env.example に AI_PROVIDER / ANTHROPIC_API_KEY / OPENAI_API_KEY 追記。レスポンスに via を付与
     - ローカル検証: 既定=via:internal、`AI_PROVIDER=anthropic`キー無し=via:internal-fallbackで正常回答を確認。フロント変更なし（キャッシュ据置）
+56. **不要機能の整理（削除）**：DB非保存のモック2機能を撤去。
+    - **動画マニュアル(videos)**: 永続化なし・サーバルートなし・実体なしのUIモックだった → サイドバー/ページ/`VIDEOS`配列/renderVL等を削除
+    - **タスク管理(Kanban/tasks)**: 永続化なし・Phase8労務手続きと重複 → サイドバー/ページ/`TASKS`配列/renderKanban等を削除
+    - 削除範囲: spa.ejs(nav-tasks/nav-videos/page-tasks/page-videos)、app.js(SP分岐・titles・配列・関数群・未使用AV変数)。**DB/サーバルートは不変**でリスク小
+    - 検証: SPA描画200・残存参照0・主要タブ健在・AIアシスタント動作を確認。キャッシュバスト spa.ejs `?v=20260602-cleanup` / sw.js `gb-v19-cleanup`
 
 ---
 
