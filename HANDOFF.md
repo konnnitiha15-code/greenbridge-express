@@ -579,6 +579,11 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - ローカル実API検証済（本番Supabase接続）: 全意図(visa/certs/filings/leave/headcount/help)＋examples を実行。leave=残0日2名・headcount国籍別(イ1/ベ1)など実データ応答。visa採否ロジックも合成日付で実証(残20=urgent採用/残100=除外/超過=採用)。parseQuery単体OK
     - 将来: LLM provider差し替え(翻訳と同方式 `AI_PROVIDER` env)で自然言語理解を後付け可能
     - キャッシュバスト: spa.ejs `?v=20260602-ai` / sw.js `CACHE_VERSION=gb-v18-ai`
+55. **AIアシスタントの LLM provider 差し替え対応**：`src/lib/assistant.js` を `src/lib/assistant/`(index.js + providers/) に再編。翻訳サービスと同方式の provider 差し替え。
+    - `AI_PROVIDER=internal|anthropic|openai`（既定 internal=ルールベース・外部API不要）。`resolveIntent(q)` が provider優先→失敗/キー無しで**ルールベースへ自動フォールバック**(via=internal-fallback)
+    - providers/anthropic.js・openai.js（fetch直叩き・依存追加なし・キー無しでthrow）。**LLMへ送るのは質問文のみ(NLU=意図抽出)、従業員データは送信しない**設計
+    - .env.example に AI_PROVIDER / ANTHROPIC_API_KEY / OPENAI_API_KEY 追記。レスポンスに via を付与
+    - ローカル検証: 既定=via:internal、`AI_PROVIDER=anthropic`キー無し=via:internal-fallbackで正常回答を確認。フロント変更なし（キャッシュ据置）
 
 ---
 

@@ -183,13 +183,13 @@ async function queryHeadcount(sb, companyId, p) {
 router.post('/query', async (req, res) => {
   try {
     const companyId = req.profile?.company_id
-    const p = assistant.parseQuery(req.body?.q || '')
+    const p = await assistant.resolveIntent(req.body?.q || '')
 
     if (p.intent === 'help' || !companyId) {
       return res.json({
         ok: true, intent: 'help', intent_label: 'ヘルプ',
         summary: '「在留期限・資格/健診・届出・有給・人数」について質問できます。例：',
-        count: 0, items: [], examples: assistant.EXAMPLES, tab: null,
+        count: 0, items: [], examples: assistant.EXAMPLES, tab: null, via: p.via,
       })
     }
 
@@ -220,7 +220,7 @@ router.post('/query', async (req, res) => {
       } else if (p.intent === 'headcount') {
         const r = await queryHeadcount(sb, companyId, p)
         items = r.items; summary = r.summary
-        return res.json({ ok: true, intent: p.intent, intent_label: p.intent_label, summary, count: r.count, items, tab })
+        return res.json({ ok: true, intent: p.intent, intent_label: p.intent_label, summary, count: r.count, items, tab, via: p.via })
       }
     } catch (e) {
       // 未適用テーブル等はデグレード（空＋注記）
@@ -233,7 +233,7 @@ router.post('/query', async (req, res) => {
       }
     }
 
-    res.json({ ok: true, intent: p.intent, intent_label: p.intent_label, summary, count: items.length, items, tab, note })
+    res.json({ ok: true, intent: p.intent, intent_label: p.intent_label, summary, count: items.length, items, tab, note, via: p.via })
   } catch (e) {
     console.error('[assistant query]', e.message)
     res.status(500).json({ ok: false, error: e.message })
