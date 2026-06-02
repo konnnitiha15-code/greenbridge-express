@@ -318,7 +318,7 @@ function SP(id){
     const sid=s.id?s.id.replace('nav-',''):'';
     s.classList.toggle('on',sid===id);
   });
-  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',life:'生活サポート',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
+  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',life:'生活サポート',hr:'労務手続き',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
@@ -346,6 +346,7 @@ function SP(id){
   if(id==='leave'){ loadLeaveRequests(); loadLeaveOverview(); }
   if(id==='certs') loadCerts();
   if(id==='life') loadLife();
+  if(id==='hr') loadProcedures();
 }
 
 // ── 通知センター ────────────────────────────────────────────────
@@ -4766,5 +4767,334 @@ async function deleteLife(id){
     const json=await res.json();
     if(!json.ok){ toast('エラー',json.error||'削除に失敗しました','r'); return; }
     toast('✓ 削除しました','','g'); loadLife();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  労務手続きワークフロー（Phase8）
+// ════════════════════════════════════════════════════════════════
+let HR_ROWS=[];      // 一覧
+let HR_CUR=null;     // 現在開いている手続きID
+const HR_KIND={ onboarding:{label:'入社手続き',icon:'📥'}, offboarding:{label:'退社手続き',icon:'📤'}, other:{label:'その他手続き',icon:'📋'} };
+const HR_PSTATUS={ open:{label:'進行中',cls:'bb'}, done:{label:'完了',cls:'bg'}, canceled:{label:'中止',cls:'br'} };
+const HR_TSTATUS={ todo:{label:'未着手',icon:'⬜',cls:''}, doing:{label:'対応中',icon:'🔵',cls:'bb'}, done:{label:'完了',icon:'✅',cls:'bg'}, skip:{label:'対象外',icon:'⏭️',cls:''} };
+const HR_TORDER=['todo','doing','done','skip'];
+
+function _hrWarn(show,msg){
+  const w=document.getElementById('hr-warn');
+  if(!w) return;
+  w.style.display=show?'block':'none';
+  if(show) w.innerHTML=msg||'⚠️ 労務手続きテーブルが未作成です。マイグレーション <b>018</b> を Supabase で実行してください（実行までは「準備中」表示）。';
+}
+
+async function loadProcedures(){
+  const box=document.getElementById('hr-list');
+  const status=document.getElementById('hr-status-filter')?.value||'';
+  const kind=document.getElementById('hr-kind-filter')?.value||'';
+  try{
+    const qs=new URLSearchParams();
+    if(status) qs.set('status',status);
+    if(kind) qs.set('kind',kind);
+    const res=await fetch('/app/api/procedures'+(qs.toString()?'?'+qs:''),{credentials:'include'});
+    const ct=res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const json=await res.json();
+    if(!json.ok){
+      if(json.error==='migration_018_required'){ _hrWarn(true); if(box) box.innerHTML='<div style="padding:24px;text-align:center;color:var(--t3)">準備中</div>'; }
+      return;
+    }
+    _hrWarn(false);
+    HR_ROWS=json.rows||[];
+    _hrBadge(json.open_count||0);
+    renderProcedureList();
+  }catch(e){ console.error('[hr] ',e); }
+}
+
+function _hrBadge(n){
+  const b=document.getElementById('hr-bdg');
+  if(!b) return;
+  if(n>0){ b.textContent=n; b.style.display=''; } else { b.style.display='none'; }
+}
+
+function renderProcedureList(){
+  const box=document.getElementById('hr-list');
+  if(!box) return;
+  if(!HR_ROWS.length){
+    box.innerHTML='<div style="padding:24px;text-align:center;color:var(--t3)">該当する手続きはありません。<br>「＋ 手続きを開始」から作成してください。</div>';
+    return;
+  }
+  box.innerHTML=HR_ROWS.map(p=>{
+    const k=HR_KIND[p.kind]||HR_KIND.other;
+    const st=HR_PSTATUS[p.status]||HR_PSTATUS.open;
+    const wname=p.workers?.name||'(不明)';
+    const pg=p.progress||{total:0,closed:0,pct:0};
+    const due=p.due_date?`<span style="color:var(--t3)">期限 ${String(p.due_date).slice(0,10)}</span>`:'';
+    const sel=HR_CUR===p.id;
+    return `<div class="pitem${sel?' on':''}" style="display:block;padding:12px 14px;border-bottom:1px solid var(--bd);cursor:pointer" onclick="openProcedure('${p.id}')">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:16px">${k.icon}</span>
+        <span style="font-weight:700;font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_dictEsc(wname)}</span>
+        <span class="badge ${st.cls}" style="font-size:9.5px">${st.label}</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--t3);margin-top:3px">${k.label} ${due}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:7px">
+        <div style="flex:1;height:6px;background:var(--bd);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${pg.pct}%;background:var(--gn)"></div>
+        </div>
+        <span style="font-size:10.5px;color:var(--t3);white-space:nowrap">${pg.closed}/${pg.total}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function openProcedure(id){
+  HR_CUR=id;
+  renderProcedureList();
+  const box=document.getElementById('hr-detail');
+  if(box) box.innerHTML='<div style="padding:40px;text-align:center;color:var(--t3)">読み込み中...</div>';
+  try{
+    const res=await fetch(`/app/api/procedures/${id}`,{credentials:'include'});
+    const json=await res.json();
+    if(!json.ok){ if(box) box.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)">${json.error||'読み込みに失敗しました'}</div>`; return; }
+    renderProcedureDetail(json.procedure,json.tasks||[],json.progress||{});
+  }catch(e){ if(box) box.innerHTML='<div style="padding:40px;text-align:center;color:var(--t3)">通信エラー</div>'; }
+}
+
+function renderProcedureDetail(p,tasks,pg){
+  const box=document.getElementById('hr-detail');
+  if(!box) return;
+  const k=HR_KIND[p.kind]||HR_KIND.other;
+  const st=HR_PSTATUS[p.status]||HR_PSTATUS.open;
+  const wname=p.workers?.name||'(不明)';
+  const rows=tasks.map(t=>{
+    const ts=HR_TSTATUS[t.status]||HR_TSTATUS.todo;
+    const cat=t.category?`<span class="badge" style="font-size:9.5px;background:var(--gbg);color:var(--t2)">${_dictEsc(t.category)}</span>`:'';
+    const meta=[t.assignee&&('👤 '+_dictEsc(t.assignee)),t.due_date&&('📅 '+String(t.due_date).slice(0,10))].filter(Boolean).join(' · ');
+    const note=t.note?`<div style="font-size:11.5px;color:var(--t3);margin-top:3px;white-space:pre-wrap">${_dictEsc(t.note)}</div>`:'';
+    const doneStyle=(t.status==='done'||t.status==='skip')?'opacity:.6':'';
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 4px;border-bottom:1px solid var(--bd);${doneStyle}">
+      <button class="btn btn-sm" title="状態を切替（未着手→対応中→完了→対象外）" style="flex-shrink:0;padding:3px 7px" onclick="cycleTaskStatus('${t.id}','${t.status}')">${ts.icon}</button>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;${t.status==='done'?'text-decoration:line-through':''}">${_dictEsc(t.label)} ${cat}</div>
+        ${meta?`<div style="font-size:11.5px;color:var(--t3);margin-top:3px">${meta}</div>`:''}
+        ${note}
+      </div>
+      <span class="badge ${ts.cls}" style="font-size:9.5px;flex-shrink:0">${ts.label}</span>
+      <div style="flex-shrink:0;white-space:nowrap">
+        <button class="btn btn-sm" style="padding:2px 6px" onclick="openTaskEdit('${t.id}')" title="編集">✎</button>
+        <button class="btn btn-sm btn-r" style="padding:2px 6px" onclick="deleteProcedureTask('${t.id}')" title="削除">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+  box.innerHTML=`<div style="padding:18px 22px;max-width:760px">
+    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px">
+      <span style="font-size:24px">${k.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:18px;font-weight:700">${_dictEsc(p.title)}</div>
+        <div style="font-size:13px;color:var(--t3);margin-top:2px">${_dictEsc(wname)} ・ ${k.label} ${p.due_date?'・ 期限 '+String(p.due_date).slice(0,10):''}</div>
+      </div>
+      <span class="badge ${st.cls}" style="font-size:11px">${st.label}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin:14px 0">
+      <div style="flex:1;height:8px;background:var(--bd);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${pg.pct||0}%;background:var(--gn)"></div>
+      </div>
+      <span style="font-size:12px;color:var(--t2);white-space:nowrap">${pg.closed||0}/${pg.total||0} 完了 (${pg.pct||0}%)</span>
+    </div>
+    ${p.note?`<div style="background:var(--gbg);border:1px solid var(--glt);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--t2);white-space:pre-wrap;margin-bottom:14px">📝 ${_dictEsc(p.note)}</div>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn btn-sm btn-g" onclick="openAddTask('${p.id}')">＋ タスクを追加</button>
+      <div style="flex:1"></div>
+      ${p.status!=='done'?`<button class="btn btn-sm" onclick="setProcedureStatus('${p.id}','done')">✅ 完了にする</button>`:`<button class="btn btn-sm" onclick="setProcedureStatus('${p.id}','open')">↩ 進行中に戻す</button>`}
+      ${p.status!=='canceled'?`<button class="btn btn-sm" onclick="setProcedureStatus('${p.id}','canceled')">中止</button>`:''}
+      <button class="btn btn-sm" onclick="openProcedureMeta('${p.id}')" title="期限・メモを編集">✎ 編集</button>
+      <button class="btn btn-sm btn-r" onclick="deleteProcedure('${p.id}')">🗑 削除</button>
+    </div>
+    <div class="card"><div style="padding:6px 16px">
+      <div style="font-size:13px;font-weight:700;padding:8px 0;color:var(--t2)">チェックリスト</div>
+      ${rows||'<div style="padding:18px 0;text-align:center;color:var(--t3)">タスクがありません。「＋ タスクを追加」で追加してください。</div>'}
+    </div></div>
+  </div>`;
+}
+
+function cycleTaskStatus(taskId,cur){
+  const idx=HR_TORDER.indexOf(cur);
+  const next=HR_TORDER[(idx+1)%HR_TORDER.length];
+  _updateTask(taskId,{status:next});
+}
+
+async function _updateTask(taskId,patch){
+  try{
+    const res=await fetch(`/app/api/procedures/tasks/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'更新に失敗しました','r'); return; }
+    if(json.auto_completed) toast('🎉 手続き完了','全タスクが完了しました','g');
+    if(HR_CUR) await openProcedure(HR_CUR);
+    loadProcedures();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+function openTaskEdit(taskId){
+  let t=null;
+  // 現在の詳細から探す（再取得不要・最新はサーバ反映済み）
+  fetch(`/app/api/procedures/${HR_CUR}`,{credentials:'include'}).then(r=>r.json()).then(j=>{
+    if(!j.ok) return;
+    t=(j.tasks||[]).find(x=>x.id===taskId);
+    if(!t) return;
+    openModal('タスクを編集',
+      `<div style="display:flex;flex-direction:column;gap:10px">
+        <div class="form-row"><label class="form-lbl">タスク名 *</label><input id="hr-t-label" class="form-inp" value="${_dictEsc(t.label)}"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-row"><label class="form-lbl">担当者</label><input id="hr-t-assignee" class="form-inp" value="${_dictEsc(t.assignee)}" placeholder="担当者名"></div>
+          <div class="form-row"><label class="form-lbl">期限</label><input id="hr-t-due" type="date" class="form-inp" value="${t.due_date?String(t.due_date).slice(0,10):''}"></div>
+        </div>
+        <div class="form-row"><label class="form-lbl">メモ</label><textarea id="hr-t-note" class="form-inp" rows="3">${_dictEsc(t.note)}</textarea></div>
+      </div>`,
+      `<button class="btn" onclick="closeModal()">キャンセル</button>
+       <button class="btn btn-g" onclick="saveTaskEdit('${taskId}')">保存</button>`);
+  });
+}
+
+function saveTaskEdit(taskId){
+  const v=i=>document.getElementById(i)?.value||'';
+  const label=v('hr-t-label').trim();
+  if(!label){ toast('エラー','タスク名を入力してください','r'); return; }
+  closeModal();
+  _updateTask(taskId,{label,assignee:v('hr-t-assignee'),due_date:v('hr-t-due'),note:v('hr-t-note')});
+}
+
+async function deleteProcedureTask(taskId){
+  if(!confirm('このタスクを削除しますか？')) return;
+  try{
+    const res=await fetch(`/app/api/procedures/tasks/${taskId}`,{method:'DELETE'});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'削除に失敗しました','r'); return; }
+    if(HR_CUR) await openProcedure(HR_CUR);
+    loadProcedures();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+function openAddTask(procId){
+  openModal('タスクを追加',
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      <div class="form-row"><label class="form-lbl">タスク名 *</label><input id="hr-add-label" class="form-inp" placeholder="例：住民票の提出依頼"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">分類</label><input id="hr-add-cat" class="form-inp" placeholder="契約/在留/社保 等"></div>
+        <div class="form-row"><label class="form-lbl">担当者</label><input id="hr-add-assignee" class="form-inp"></div>
+        <div class="form-row"><label class="form-lbl">期限</label><input id="hr-add-due" type="date" class="form-inp"></div>
+      </div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button>
+     <button class="btn btn-g" onclick="submitAddTask('${procId}')">追加</button>`);
+}
+
+async function submitAddTask(procId){
+  const v=i=>document.getElementById(i)?.value||'';
+  const label=v('hr-add-label').trim();
+  if(!label){ toast('エラー','タスク名を入力してください','r'); return; }
+  try{
+    const res=await fetch(`/app/api/procedures/${procId}/tasks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,category:v('hr-add-cat'),assignee:v('hr-add-assignee'),due_date:v('hr-add-due')})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'追加に失敗しました','r'); return; }
+    closeModal(); toast('✓ 追加しました','','g');
+    if(HR_CUR) await openProcedure(HR_CUR);
+    loadProcedures();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+function openCreateProcedure(){
+  const active=(typeof WORKERS!=='undefined'?WORKERS:[]).filter(w=>w.status!=='retired');
+  if(!active.length){ toast('注意','先に実習生を登録してください','b'); return; }
+  const wopts=active.map(w=>`<option value="${w.id}">${_dictEsc(w.name)}</option>`).join('');
+  openModal('手続きを開始',
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      <div class="form-row"><label class="form-lbl">対象の実習生 *</label><select id="hr-c-worker" class="form-inp">${wopts}</select></div>
+      <div class="form-row"><label class="form-lbl">手続きの種別 *</label>
+        <select id="hr-c-kind" class="form-inp" onchange="_hrKindHint()">
+          <option value="onboarding">📥 入社手続き（標準チェックリスト）</option>
+          <option value="offboarding">📤 退社手続き（標準チェックリスト）</option>
+          <option value="other">📋 その他（空のチェックリスト）</option>
+        </select></div>
+      <div id="hr-c-hint" style="font-size:12px;color:var(--t3);background:var(--gbg);border-radius:8px;padding:8px 12px">入社手続きの標準ステップ（雇用契約・社保・在留確認 等）が自動で作成されます。後から個別に編集できます。</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">タイトル（任意）</label><input id="hr-c-title" class="form-inp" placeholder="未入力で種別名"></div>
+        <div class="form-row"><label class="form-lbl">完了期限（任意）</label><input id="hr-c-due" type="date" class="form-inp"></div>
+      </div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button>
+     <button class="btn btn-g" onclick="submitCreateProcedure()">作成</button>`);
+}
+
+function _hrKindHint(){
+  const k=document.getElementById('hr-c-kind')?.value;
+  const h=document.getElementById('hr-c-hint');
+  if(!h) return;
+  h.textContent = k==='onboarding' ? '入社手続きの標準ステップ（雇用契約・社保・在留確認 等）が自動で作成されます。後から個別に編集できます。'
+    : k==='offboarding' ? '退社手続きの標準ステップ（離職票・社保喪失・精算 等）が自動で作成されます。後から個別に編集できます。'
+    : '空のチェックリストで開始します。「＋ タスクを追加」で項目を作成してください。';
+}
+
+async function submitCreateProcedure(){
+  const v=i=>document.getElementById(i)?.value||'';
+  const worker_id=v('hr-c-worker');
+  if(!worker_id){ toast('エラー','実習生を選択してください','r'); return; }
+  try{
+    const res=await fetch('/app/api/procedures',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker_id,kind:v('hr-c-kind'),title:v('hr-c-title'),due_date:v('hr-c-due')})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error==='migration_018_required'?'テーブル未作成（migration 018 を実行してください）':json.error||'作成に失敗しました','r'); return; }
+    closeModal(); toast('✓ 手続きを作成しました',`${json.task_count||0}件のタスクを生成`,'g');
+    await loadProcedures();
+    openProcedure(json.id);
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+function openProcedureMeta(id){
+  const p=HR_ROWS.find(x=>x.id===id)||{};
+  openModal('手続きを編集',
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      <div class="form-row"><label class="form-lbl">タイトル *</label><input id="hr-m-title" class="form-inp" value="${_dictEsc(p.title)}"></div>
+      <div class="form-row"><label class="form-lbl">完了期限</label><input id="hr-m-due" type="date" class="form-inp" value="${p.due_date?String(p.due_date).slice(0,10):''}"></div>
+      <div class="form-row"><label class="form-lbl">メモ</label><textarea id="hr-m-note" class="form-inp" rows="3">${_dictEsc(p.note)}</textarea></div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button>
+     <button class="btn btn-g" onclick="saveProcedureMeta('${id}')">保存</button>`);
+}
+
+async function saveProcedureMeta(id){
+  const v=i=>document.getElementById(i)?.value||'';
+  const title=v('hr-m-title').trim();
+  if(!title){ toast('エラー','タイトルを入力してください','r'); return; }
+  try{
+    const res=await fetch(`/app/api/procedures/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,due_date:v('hr-m-due'),note:v('hr-m-note')})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'保存に失敗しました','r'); return; }
+    closeModal(); toast('✓ 保存しました','','g');
+    if(HR_CUR) await openProcedure(HR_CUR);
+    loadProcedures();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function setProcedureStatus(id,status){
+  if(status==='canceled' && !confirm('この手続きを中止しますか？')) return;
+  try{
+    const res=await fetch(`/app/api/procedures/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'更新に失敗しました','r'); return; }
+    if(HR_CUR) await openProcedure(HR_CUR);
+    loadProcedures();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function deleteProcedure(id){
+  if(!confirm('この手続きを削除しますか？（タスクもすべて削除されます）')) return;
+  try{
+    const res=await fetch(`/app/api/procedures/${id}`,{method:'DELETE'});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'削除に失敗しました','r'); return; }
+    HR_CUR=null;
+    toast('✓ 削除しました','','g');
+    const box=document.getElementById('hr-detail');
+    if(box) box.innerHTML='<div style="padding:60px 24px;text-align:center;color:var(--t3)"><div style="font-size:40px;margin-bottom:12px">📋</div>左の一覧から手続きを選択してください。</div>';
+    loadProcedures();
   }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
 }

@@ -152,6 +152,11 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 14s5-3.5 5-7.5A5 5 0 008 1.5a5 5 0 00-5 5C3 10.5 8 14 8 14z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><circle cx="8" cy="6.5" r="1.8" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
       生活サポート
     </div>
+    <div class="sb-item" id="nav-hr" onclick="SP('hr')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4.5 2.5h5l2 2v9H4.5a1 1 0 01-1-1V3.5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><path d="M6 7l1.2 1.2L9.5 6M6 10h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      労務手続き
+      <span class="sb-bdg" id="hr-bdg" style="display:none">0</span>
+    </div>
     <div class="sb-item" id="nav-roles" onclick="SP('roles')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><path d="M5.5 8l2 2 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       権限管理
@@ -992,6 +997,41 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
     </div>
   </div>
 
+  <!-- ─── 労務手続き (HR) ──────────────────────────────── -->
+  <div class="page" id="page-hr">
+    <div style="display:flex;height:100%;overflow:hidden">
+      <!-- 左: 手続き一覧 -->
+      <div style="width:400px;flex-shrink:0;border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden">
+        <div id="hr-warn" style="display:none;background:#fef3c7;border-bottom:1px solid #fcd34d;color:#92400e;padding:10px 14px;font-size:12.5px"></div>
+        <div style="padding:12px 14px;border-bottom:1px solid var(--bd)">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <select id="hr-status-filter" class="form-inp" style="flex:1;font-size:12.5px;padding:5px 8px" onchange="loadProcedures()">
+              <option value="open">進行中</option>
+              <option value="done">完了</option>
+              <option value="canceled">中止</option>
+              <option value="">すべて</option>
+            </select>
+            <select id="hr-kind-filter" class="form-inp" style="flex:1;font-size:12.5px;padding:5px 8px" onchange="loadProcedures()">
+              <option value="">全種別</option>
+              <option value="onboarding">入社手続き</option>
+              <option value="offboarding">退社手続き</option>
+              <option value="other">その他</option>
+            </select>
+          </div>
+          <button class="btn btn-sm btn-g" style="width:100%" onclick="openCreateProcedure()">＋ 手続きを開始</button>
+        </div>
+        <div id="hr-list" style="flex:1;overflow-y:auto"><div style="padding:24px;text-align:center;color:var(--t3)">読み込み中...</div></div>
+      </div>
+      <!-- 右: 手続き詳細 -->
+      <div id="hr-detail" style="flex:1;overflow-y:auto;background:var(--bg)">
+        <div style="padding:60px 24px;text-align:center;color:var(--t3)">
+          <div style="font-size:40px;margin-bottom:12px">📋</div>
+          左の一覧から手続きを選択してください。<br>新しい手続きは「＋ 手続きを開始」から作成できます。
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── ROLES ─────────────────────────────────────────── -->
   <div class="page" id="page-roles">
     <div style="flex:1;overflow-y:auto;padding:20px;background:var(--bg)">
@@ -1262,7 +1302,7 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260601-life"></script>
+<script src="/js/app.js?v=20260602-hr"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {

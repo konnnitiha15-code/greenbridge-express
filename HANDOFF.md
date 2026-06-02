@@ -95,6 +95,7 @@ greenbridge-express/
 - ✅ 書類管理（Supabase Storage、24h署名URL）
 - ✅ 通知センター（🔔モーダル + 未読バッジ）+ Web Push
 - ✅ **給与管理（賃金設定・月次自動計算・確定・明細PDF印刷）** ← 010
+- ✅ **労務手続きワークフロー（入社/退社/任意のチェックリスト・進捗管理・自動完了）** ← 018
 - ✅ ダッシュボード統計 API
 - ✅ CSV出力（勤怠・シフト・日報・チャット、BOM付UTF-8）
 - ✅ 動画マニュアル（UI のみ、削除候補）
@@ -164,6 +165,9 @@ greenbridge-express/
 | translation_cache | 翻訳キャッシュ（API結果再利用） |
 | company_dictionaries | 会社辞書（翻訳・最優先） |
 | industry_dictionaries | 業界辞書（翻訳・会社横断） |
+| life_support | 生活サポート情報（病院/市役所/ゴミ出し等・多言語） |
+| hr_procedures | 労務手続きインスタンス（入社/退社/任意） |
+| hr_procedure_tasks | 手続き内タスク（チェックリスト） |
 
 ### マイグレーション履歴
 
@@ -185,9 +189,10 @@ greenbridge-express/
 015 - paid_leave（leave_ledger 有給台帳 + leave_requests 有給申請 + RLS）
 016 - certifications（worker_certifications 健康診断・資格台帳 + RLS）
 017 - life_support（生活サポート情報 + RLS + 標準ガイド初期データ）
+018 - hr_procedures（労務手続きワークフロー: hr_procedures + hr_procedure_tasks + RLS + touchトリガ）
 ```
 
-001〜017 は **全実行済み** ✅（017=生活サポートを 2026-06-02 に適用。未実行マイグレーションは無し）
+001〜018 は **全実行済み** ✅（017=生活サポート / 018=労務手続きワークフローを 2026-06-02 に適用。未実行マイグレーションは無し）
 
 ### Supabase Storage
 - バケット名: `documents`
@@ -548,6 +553,15 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
 51. **マイグレーション 017 を本番適用**（Supabase SQL Editor）— life_support テーブル + RLS + 全国共通標準ガイド6件が有効化。これで Phase1〜7 がすべて本番で完全動作。未実行マイグレーションは無し。
     - ローカル実API検証済（本番Supabaseに接続）: 管理者 `GET /app/api/life`=200・標準ガイド6件（503「準備中」を脱却）、ワーカー `GET /worker/api/life`=200・6件、管理者 `POST→DELETE`=company_id自動付与・RLS正常
 
+### 2026-06-02 セッション（Phase8 — 労務手続きワークフロー）
+52. **労務手続きワークフロー（Phase8・018）**：入社/退社/任意の定型手続きをチェックリスト＋進捗管理化。管理者のみ・コード固定テンプレート・手動作成。
+    - マイグレーション **018**（hr_procedures + hr_procedure_tasks + RLS my_company_id/my_role + touchトリガ + CASCADE）。**2026-06-02 適用済み✅**
+    - ロジック `src/lib/procedures.js`（純粋関数）：TEMPLATES(入社11ステップ/退社8ステップ)・buildTasks(kind)・progress(done+skipを完了扱い・allClosed)
+    - API `src/routes/procedures.js`（/app/api/procedures/* requireAdmin）: 一覧(フィルタ status/kind/worker_id + 各行に progress)、詳細(+tasks)、作成(テンプレからタスク一括生成)、PUT/DELETE、タスク追加 `POST /:id/tasks`、タスク更新 `PUT /tasks/:taskId`(**全タスクdone/skipで親を自動done、巻き戻しで自動open**)、タスク削除。018未適用は503 `migration_018_required`
+    - 管理者UI: 新規ページ `hr`（サイドバー nav-hr「労務手続き」+ open件数バッジ hr-bdg）。左=一覧(進捗バー)/右=詳細パネル。タスクの状態をクリックで todo→doing→done→skip 循環、担当/期限/メモ編集、タスク追加削除、手続き完了/中止/削除、「＋手続きを開始」モーダル(ワーカー選択+種別)
+    - ローカル実API検証済（本番Supabase接続）: 018適用前503フォールバック→適用後 作成(入社11タスク生成)/詳細/全タスクdoneで auto_completed=true・親done・100%/巻き戻しで親open復帰/任意タスク追加(sort_order採番)/削除でタスクCASCADE(残0件) すべて実証
+    - キャッシュバスト: spa.ejs `?v=20260602-hr` / sw.js `CACHE_VERSION=gb-v16-hr`
+
 ---
 
 ## 🚀 新セッションでの始め方
@@ -580,11 +594,11 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-06-02**
-**最終コミット: a68b1e7 (feat(life): 外国人生活サポート — 多言語生活情報 (Phase7))**
+**最終コミット: （Phase8 コミット後に更新）**
 
-> ✅ **マイグレーション 017 は 2026-06-02 に Supabase SQL Editor で適用完了。**
-> 生活サポート（life_support）テーブル・RLS・全国共通の標準ガイド6件が有効になり、Phase7 が本番で完全動作。
-> 未実行マイグレーションは無し（001〜017 全適用済み）。ローカル実API検証で管理者/ワーカー両側の一覧取得・管理者CRUD・RLSを確認済み。
+> ✅ **マイグレーション 017・018 は 2026-06-02 に Supabase SQL Editor で適用完了。**
+> 017=生活サポート（Phase7）、018=労務手続きワークフロー（Phase8）が本番で完全動作。
+> 未実行マイグレーションは無し（001〜018 全適用済み）。Phase8 はローカル実API検証で作成/自動完了/巻き戻し/CASCADE削除/503フォールバックを確認済み。
 
 ---
 

@@ -16,6 +16,7 @@ const translateRoutes = require('./routes/translate')
 const leaveRoutes     = require('./routes/leave')
 const certRoutes      = require('./routes/certs')
 const lifeRoutes      = require('./routes/life')
+const procedureRoutes = require('./routes/procedures')
 
 const app = express()
 
@@ -74,6 +75,7 @@ app.use('/api',       translateRoutes)
 app.use('/app/api/leave', leaveRoutes)
 app.use('/app/api/certs', certRoutes)
 app.use('/app/api/life',  lifeRoutes)
+app.use('/app/api/procedures', procedureRoutes)
 
 // ── 起動（ローカル）・エクスポート（Vercel）────────────────────────
 if (require.main === module) {
