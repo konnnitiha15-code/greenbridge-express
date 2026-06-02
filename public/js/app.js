@@ -318,7 +318,7 @@ function SP(id){
     const sid=s.id?s.id.replace('nav-',''):'';
     s.classList.toggle('on',sid===id);
   });
-  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',life:'生活サポート',hr:'労務手続き',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
+  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',life:'生活サポート',hr:'労務手続き',filings:'雇用書類・届出',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
@@ -347,6 +347,7 @@ function SP(id){
   if(id==='certs') loadCerts();
   if(id==='life') loadLife();
   if(id==='hr') loadProcedures();
+  if(id==='filings') loadFilings();
 }
 
 // ── 通知センター ────────────────────────────────────────────────
@@ -5096,5 +5097,267 @@ async function deleteProcedure(id){
     const box=document.getElementById('hr-detail');
     if(box) box.innerHTML='<div style="padding:60px 24px;text-align:center;color:var(--t3)"><div style="font-size:40px;margin-bottom:12px">📋</div>左の一覧から手続きを選択してください。</div>';
     loadProcedures();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  外国人雇用書類・届出管理（Phase9）
+// ════════════════════════════════════════════════════════════════
+let FILINGS_ROWS=[];
+const FIL_CAT={ technical_intern:'技能実習', specified_skilled:'特定技能', engineer:'技人国', common:'共通', other:'その他' };
+const FIL_STATUS={ pending:{label:'未提出',cls:'bb'}, submitted:{label:'提出済',cls:'bg'}, not_required:{label:'対象外',cls:''} };
+const FIL_LEVEL={ expired:{label:'期限切れ',cls:'br',ico:'❌'}, urgent:{label:'30日以内',cls:'ba',ico:'🔴'}, warn:{label:'90日以内',cls:'bb',ico:'🟡'}, ok:{label:'余裕あり',cls:'bg',ico:'🟢'} };
+const FIL_RECUR={ none:'なし', quarterly:'四半期ごと', yearly:'年次' };
+let FIL_TEMPLATES=null;  // テンプレートキャッシュ
+
+function _filWarn(show,msg){
+  const w=document.getElementById('filings-warn');
+  if(!w) return;
+  w.style.display=show?'block':'none';
+  if(show) w.innerHTML=msg||'⚠️ 雇用書類テーブルが未作成です。マイグレーション <b>019</b> を Supabase で実行してください（実行までは「準備中」表示）。';
+}
+
+async function loadFilings(){
+  const box=document.getElementById('filings-table');
+  try{
+    if(!FIL_TEMPLATES){
+      try{ const tr=await fetch('/app/api/filings/templates',{credentials:'include'}); const tj=await tr.json(); if(tj.ok) FIL_TEMPLATES=tj; }catch{}
+    }
+    const res=await fetch('/app/api/filings',{credentials:'include'});
+    const ct=res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const json=await res.json();
+    if(!json.ok){
+      if(json.error==='migration_019_required'){ _filWarn(true); if(box) box.innerHTML='<div style="padding:24px;text-align:center;color:var(--t3)">準備中</div>'; }
+      return;
+    }
+    _filWarn(false);
+    FILINGS_ROWS=json.rows||[];
+    _filBadge(json.open_count||0);
+    renderFilingsStats(json.stats||{});
+    renderFilingsTable();
+  }catch(e){ console.error('[filings] ',e); }
+}
+
+function _filBadge(n){
+  const b=document.getElementById('filings-bdg');
+  if(!b) return;
+  if(n>0){ b.textContent=n; b.style.display=''; } else { b.style.display='none'; }
+}
+
+function renderFilingsStats(s){
+  const box=document.getElementById('filings-stats');
+  if(!box) return;
+  const cell=(label,val,color)=>`<div style="flex:1;min-width:96px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px">
+    <div style="font-size:20px;font-weight:700;color:${color}">${val||0}</div><div style="font-size:11px;color:var(--t3)">${label}</div></div>`;
+  box.innerHTML=
+    cell('❌ 期限切れ',s.expired,'#dc2626')+
+    cell('🔴 30日以内',s.urgent,'#ea580c')+
+    cell('🟡 90日以内',s.warn,'#ca8a04')+
+    cell('🟢 余裕あり',s.ok,'#16a34a')+
+    cell('✅ 提出済',s.submitted,'var(--t2)');
+}
+
+function renderFilingsTable(){
+  const box=document.getElementById('filings-table');
+  if(!box) return;
+  const q=(document.getElementById('filings-search')?.value||'').toLowerCase();
+  const cf=document.getElementById('filings-cat-filter')?.value||'';
+  const sf=document.getElementById('filings-status-filter')?.value||'';
+  let rows=FILINGS_ROWS.filter(r=>{
+    if(cf&&r.visa_category!==cf) return false;
+    if(sf&&r.status!==sf) return false;
+    if(q){ const wn=(r.workers?.name||'').toLowerCase(); if(!wn.includes(q)&&!(r.title||'').toLowerCase().includes(q)&&!(r.filing_type||'').toLowerCase().includes(q)) return false; }
+    return true;
+  });
+  if(!rows.length){ box.innerHTML='<div style="padding:24px;text-align:center;color:var(--t3)">該当する届出はありません。「＋ 届出を追加」から登録してください。</div>'; return; }
+  const head=`<tr style="text-align:left;font-size:11.5px;color:var(--t3);border-bottom:1px solid var(--bd)">
+    <th style="padding:8px 10px">実習生</th><th style="padding:8px 10px">在留資格</th><th style="padding:8px 10px">届出名</th>
+    <th style="padding:8px 10px">提出期限</th><th style="padding:8px 10px">状態</th><th style="padding:8px 10px">提出先</th><th style="padding:8px 10px;text-align:right">操作</th></tr>`;
+  const body=rows.map(r=>{
+    const st=FIL_STATUS[r.status]||FIL_STATUS.pending;
+    const wn=r.workers?.name||'(不明)';
+    let dueCell='—';
+    if(r.due_date){
+      if(r.status==='pending'&&r.level){ const lv=FIL_LEVEL[r.level]; dueCell=`${r.due_date} <span class="badge ${lv.cls}" style="font-size:9px">${lv.ico}${r.days<0?'超過':'残'+r.days+'日'}</span>`; }
+      else dueCell=r.due_date;
+    }
+    const recur=(r.recurrence&&r.recurrence!=='none')?` <span style="font-size:9.5px;color:var(--t3)">🔁${FIL_RECUR[r.recurrence]}</span>`:'';
+    const submitBtn=r.status!=='submitted'?`<button class="btn btn-sm btn-g" style="padding:3px 7px" onclick="openFilingSubmit('${r.id}')">提出を記録</button>`:'';
+    return `<tr style="font-size:13px;border-bottom:1px solid var(--bd)">
+      <td style="padding:9px 10px;font-weight:600">${_dictEsc(wn)}</td>
+      <td style="padding:9px 10px">${FIL_CAT[r.visa_category]||r.visa_category}</td>
+      <td style="padding:9px 10px">${_dictEsc(r.title)}${recur}</td>
+      <td style="padding:9px 10px;white-space:nowrap">${dueCell}</td>
+      <td style="padding:9px 10px"><span class="badge ${st.cls}" style="font-size:9.5px">${st.label}</span>${r.status==='submitted'&&r.submitted_date?`<div style="font-size:10px;color:var(--t3)">${r.submitted_date}${r.reference_no?' / No.'+_dictEsc(r.reference_no):''}</div>`:''}</td>
+      <td style="padding:9px 10px;font-size:12px;color:var(--t2)">${_dictEsc(r.submitted_to)}</td>
+      <td style="padding:9px 10px;text-align:right;white-space:nowrap">${submitBtn}
+        <button class="btn btn-sm" style="padding:3px 6px" onclick="openFilingEdit('${r.id}')">✎</button>
+        <button class="btn btn-sm btn-r" style="padding:3px 6px" onclick="deleteFiling('${r.id}')">🗑</button></td>
+    </tr>`;
+  }).join('');
+  box.innerHTML=`<table style="width:100%;border-collapse:collapse"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function _filWorkerOpts(sel){
+  const active=(typeof WORKERS!=='undefined'?WORKERS:[]).filter(w=>w.status!=='retired');
+  return active.map(w=>`<option value="${w.id}"${sel===w.id?' selected':''}>${_dictEsc(w.name)}</option>`).join('');
+}
+
+function openFilingCreate(){
+  const active=(typeof WORKERS!=='undefined'?WORKERS:[]).filter(w=>w.status!=='retired');
+  if(!active.length){ toast('注意','先に実習生を登録してください','b'); return; }
+  openModal('届出を追加',
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">対象の実習生 *</label><select id="fil-c-worker" class="form-inp">${_filWorkerOpts()}</select></div>
+        <div class="form-row"><label class="form-lbl">在留資格 *</label>
+          <select id="fil-c-cat" class="form-inp" onchange="_filFillTemplates()">
+            <option value="specified_skilled">特定技能</option>
+            <option value="technical_intern">技能実習</option>
+            <option value="engineer">技人国</option>
+            <option value="common">共通</option>
+            <option value="other">その他</option>
+          </select></div>
+      </div>
+      <div class="form-row"><label class="form-lbl">標準届出から選択（任意）</label>
+        <select id="fil-c-tpl" class="form-inp" onchange="_filApplyTemplate()"><option value="">— 手入力する —</option></select></div>
+      <div class="form-row"><label class="form-lbl">届出名 *</label><input id="fil-c-type" class="form-inp" placeholder="例：受入れ状況に係る届出（定期）"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">提出期限</label><input id="fil-c-due" type="date" class="form-inp"></div>
+        <div class="form-row"><label class="form-lbl">繰り返し</label>
+          <select id="fil-c-recur" class="form-inp"><option value="none">なし</option><option value="quarterly">四半期ごと</option><option value="yearly">年次</option></select></div>
+        <div class="form-row"><label class="form-lbl">提出先</label><input id="fil-c-to" class="form-inp" placeholder="出入国在留管理庁 等"></div>
+      </div>
+      <div class="form-row"><label class="form-lbl">メモ</label><textarea id="fil-c-note" class="form-inp" rows="2"></textarea></div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button>
+     <button class="btn btn-g" onclick="submitFilingCreate()">作成</button>`);
+  _filFillTemplates();
+}
+
+function _filFillTemplates(){
+  const cat=document.getElementById('fil-c-cat')?.value;
+  const sel=document.getElementById('fil-c-tpl');
+  if(!sel||!FIL_TEMPLATES) return;
+  const tpls=(FIL_TEMPLATES.templates&&FIL_TEMPLATES.templates[cat])||[];
+  sel.innerHTML='<option value="">— 手入力する —</option>'+tpls.map((t,i)=>`<option value="${i}">${_dictEsc(t.filing_type)}</option>`).join('');
+}
+
+function _filApplyTemplate(){
+  const cat=document.getElementById('fil-c-cat')?.value;
+  const idx=document.getElementById('fil-c-tpl')?.value;
+  if(idx===''||!FIL_TEMPLATES) return;
+  const t=((FIL_TEMPLATES.templates&&FIL_TEMPLATES.templates[cat])||[])[+idx];
+  if(!t) return;
+  const set=(i,v)=>{ const el=document.getElementById(i); if(el) el.value=v; };
+  set('fil-c-type',t.filing_type||'');
+  set('fil-c-recur',t.recurrence||'none');
+  set('fil-c-to',t.submitted_to||'');
+  set('fil-c-note',t.note||'');
+}
+
+async function submitFilingCreate(){
+  const v=i=>document.getElementById(i)?.value||'';
+  const worker_id=v('fil-c-worker');
+  const filing_type=v('fil-c-type').trim();
+  if(!worker_id){ toast('エラー','実習生を選択してください','r'); return; }
+  if(!filing_type){ toast('エラー','届出名を入力してください','r'); return; }
+  try{
+    const res=await fetch('/app/api/filings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      worker_id,visa_category:v('fil-c-cat'),filing_type,due_date:v('fil-c-due'),recurrence:v('fil-c-recur'),submitted_to:v('fil-c-to'),note:v('fil-c-note')})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error==='migration_019_required'?'テーブル未作成（migration 019 を実行してください）':json.error||'作成に失敗しました','r'); return; }
+    closeModal(); toast('✓ 届出を追加しました','','g'); loadFilings();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+function openFilingEdit(id){
+  const r=FILINGS_ROWS.find(x=>x.id===id);
+  if(!r) return;
+  openModal('届出を編集',
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      <div class="form-row"><label class="form-lbl">届出名 *</label><input id="fil-e-type" class="form-inp" value="${_dictEsc(r.title)}"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">在留資格</label>
+          <select id="fil-e-cat" class="form-inp">${['technical_intern','specified_skilled','engineer','common','other'].map(c=>`<option value="${c}"${r.visa_category===c?' selected':''}>${FIL_CAT[c]}</option>`).join('')}</select></div>
+        <div class="form-row"><label class="form-lbl">状態</label>
+          <select id="fil-e-status" class="form-inp">${['pending','submitted','not_required'].map(s=>`<option value="${s}"${r.status===s?' selected':''}>${FIL_STATUS[s].label}</option>`).join('')}</select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">提出期限</label><input id="fil-e-due" type="date" class="form-inp" value="${r.due_date||''}"></div>
+        <div class="form-row"><label class="form-lbl">繰り返し</label>
+          <select id="fil-e-recur" class="form-inp">${['none','quarterly','yearly'].map(rc=>`<option value="${rc}"${r.recurrence===rc?' selected':''}>${FIL_RECUR[rc]}</option>`).join('')}</select></div>
+        <div class="form-row"><label class="form-lbl">提出先</label><input id="fil-e-to" class="form-inp" value="${_dictEsc(r.submitted_to)}"></div>
+      </div>
+      <div class="form-row"><label class="form-lbl">メモ</label><textarea id="fil-e-note" class="form-inp" rows="2">${_dictEsc(r.note)}</textarea></div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button>
+     <button class="btn btn-g" onclick="saveFilingEdit('${id}')">保存</button>`);
+}
+
+async function saveFilingEdit(id){
+  const v=i=>document.getElementById(i)?.value||'';
+  const title=v('fil-e-type').trim();
+  if(!title){ toast('エラー','届出名を入力してください','r'); return; }
+  try{
+    const res=await fetch(`/app/api/filings/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      title,filing_type:title,visa_category:v('fil-e-cat'),status:v('fil-e-status'),due_date:v('fil-e-due'),recurrence:v('fil-e-recur'),submitted_to:v('fil-e-to'),note:v('fil-e-note')})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'保存に失敗しました','r'); return; }
+    closeModal(); toast('✓ 保存しました','','g'); loadFilings();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+function openFilingSubmit(id){
+  const r=FILINGS_ROWS.find(x=>x.id===id)||{};
+  const today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Tokyo'});
+  const recurNote=(r.recurrence&&r.recurrence!=='none')?`<div style="font-size:12px;color:var(--t3);background:var(--gbg);border-radius:8px;padding:8px 12px">🔁 この届出は「${FIL_RECUR[r.recurrence]}」です。提出を記録すると次回分が自動で作成されます。</div>`:'';
+  openModal('提出を記録',
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;color:var(--t2)">${_dictEsc(r.title)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">提出日 *</label><input id="fil-s-date" type="date" class="form-inp" value="${today}"></div>
+        <div class="form-row"><label class="form-lbl">整理番号</label><input id="fil-s-ref" class="form-inp" placeholder="受付番号など"></div>
+      </div>
+      <div class="form-row"><label class="form-lbl">提出先</label><input id="fil-s-to" class="form-inp" value="${_dictEsc(r.submitted_to)}"></div>
+      ${recurNote}
+    </div>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button>
+     <button class="btn btn-g" onclick="submitFilingSubmit('${id}')">提出を記録</button>`);
+}
+
+async function submitFilingSubmit(id){
+  const v=i=>document.getElementById(i)?.value||'';
+  try{
+    const res=await fetch(`/app/api/filings/${id}/submit`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      submitted_date:v('fil-s-date'),reference_no:v('fil-s-ref'),submitted_to:v('fil-s-to')})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'記録に失敗しました','r'); return; }
+    closeModal();
+    if(json.auto_created) toast('✓ 提出を記録しました',`次回分（期限 ${json.auto_created.due_date}）を自動作成しました`,'g');
+    else toast('✓ 提出を記録しました','','g');
+    loadFilings();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function deleteFiling(id){
+  if(!confirm('この届出を削除しますか？')) return;
+  try{
+    const res=await fetch(`/app/api/filings/${id}`,{method:'DELETE'});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'削除に失敗しました','r'); return; }
+    toast('✓ 削除しました','','g'); loadFilings();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function runFilingsNotify(){
+  if(!confirm('期限が近い/超過の届出について、管理者へ通知を送信しますか？')) return;
+  try{
+    const res=await fetch('/app/api/filings/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days:60})});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'通知に失敗しました','r'); return; }
+    const n=(json.created||[]).length;
+    toast('🔔 期限通知',n?`${n}件の通知を送信しました`:'対象の届出はありませんでした','g');
   }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
 }

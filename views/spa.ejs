@@ -157,6 +157,11 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
       労務手続き
       <span class="sb-bdg" id="hr-bdg" style="display:none">0</span>
     </div>
+    <div class="sb-item" id="nav-filings" onclick="SP('filings')">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 1.5h6l3.5 3.5v9.5H3.5A1.5 1.5 0 012 13V3a1.5 1.5 0 011-1.5z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><path d="M9 1.5V5h3.5M5 8.5h6M5 11h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      雇用書類・届出
+      <span class="sb-bdg" id="filings-bdg" style="display:none">0</span>
+    </div>
     <div class="sb-item" id="nav-roles" onclick="SP('roles')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><path d="M5.5 8l2 2 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       権限管理
@@ -1032,6 +1037,41 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
     </div>
   </div>
 
+  <!-- ─── 雇用書類・届出 (FILINGS) ──────────────────────── -->
+  <div class="page" id="page-filings">
+    <div class="pscroll" style="padding:18px 22px">
+      <div id="filings-warn" style="display:none;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px"></div>
+      <div style="background:var(--gbg);border:1px solid var(--glt);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--t2);line-height:1.7">
+        📑 在留資格に応じて入管・行政へ提出する<b>定型届出</b>（特定技能の四半期定期届出・技能実習の実施状況報告・技人国の受入れ届出など）の<b>提出期限と履歴</b>を管理します。<br>
+        <span style="color:var(--t3)">定期届出は「提出を記録」すると次回分が自動で作成されます。提出した書類のファイルは「書類管理」へ保管してください。</span>
+      </div>
+      <!-- 統計バー -->
+      <div id="filings-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+      <!-- ツールバー -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <input id="filings-search" class="form-inp" style="width:200px;font-size:13px" placeholder="氏名・届出名で検索..." oninput="renderFilingsTable()">
+        <select id="filings-cat-filter" class="form-inp" style="width:140px;font-size:13px" onchange="renderFilingsTable()">
+          <option value="">すべての資格</option>
+          <option value="technical_intern">技能実習</option>
+          <option value="specified_skilled">特定技能</option>
+          <option value="engineer">技人国</option>
+          <option value="common">共通</option>
+          <option value="other">その他</option>
+        </select>
+        <select id="filings-status-filter" class="form-inp" style="width:150px;font-size:13px" onchange="renderFilingsTable()">
+          <option value="">すべての状態</option>
+          <option value="pending">未提出</option>
+          <option value="submitted">提出済</option>
+          <option value="not_required">対象外</option>
+        </select>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm btn-g" onclick="openFilingCreate()">＋ 届出を追加</button>
+        <button class="btn btn-sm" onclick="runFilingsNotify()" title="期限が近い届出を管理者へ通知">🔔 期限通知</button>
+      </div>
+      <div class="card"><div id="filings-table" style="overflow-x:auto"><div style="padding:24px;text-align:center;color:var(--t3)">読み込み中...</div></div></div>
+    </div>
+  </div>
+
   <!-- ─── ROLES ─────────────────────────────────────────── -->
   <div class="page" id="page-roles">
     <div style="flex:1;overflow-y:auto;padding:20px;background:var(--bg)">
@@ -1302,7 +1342,7 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260602-hr"></script>
+<script src="/js/app.js?v=20260602-filings"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {

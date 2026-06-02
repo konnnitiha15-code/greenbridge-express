@@ -96,6 +96,7 @@ greenbridge-express/
 - ✅ 通知センター（🔔モーダル + 未読バッジ）+ Web Push
 - ✅ **給与管理（賃金設定・月次自動計算・確定・明細PDF印刷）** ← 010
 - ✅ **労務手続きワークフロー（入社/退社/任意のチェックリスト・進捗管理・自動完了）** ← 018
+- ✅ **雇用書類管理（在留資格別の入管届出・提出期限/履歴・四半期/年次の自動繰り返し・期限通知）** ← 019
 - ✅ ダッシュボード統計 API
 - ✅ CSV出力（勤怠・シフト・日報・チャット、BOM付UTF-8）
 - ✅ 動画マニュアル（UI のみ、削除候補）
@@ -168,6 +169,7 @@ greenbridge-express/
 | life_support | 生活サポート情報（病院/市役所/ゴミ出し等・多言語） |
 | hr_procedures | 労務手続きインスタンス（入社/退社/任意） |
 | hr_procedure_tasks | 手続き内タスク（チェックリスト） |
+| employment_filings | 在留資格別の入管・行政届出（提出期限/履歴/繰り返し） |
 
 ### マイグレーション履歴
 
@@ -190,9 +192,10 @@ greenbridge-express/
 016 - certifications（worker_certifications 健康診断・資格台帳 + RLS）
 017 - life_support（生活サポート情報 + RLS + 標準ガイド初期データ）
 018 - hr_procedures（労務手続きワークフロー: hr_procedures + hr_procedure_tasks + RLS + touchトリガ）
+019 - employment_filings（雇用書類管理: 在留資格別届出 + 提出期限/履歴/繰り返し + RLS + touchトリガ）
 ```
 
-001〜018 は **全実行済み** ✅（017=生活サポート / 018=労務手続きワークフローを 2026-06-02 に適用。未実行マイグレーションは無し）
+001〜019 は **全実行済み** ✅（017=生活サポート / 018=労務手続き / 019=雇用書類管理を 2026-06-02 に適用。未実行マイグレーションは無し）
 
 ### Supabase Storage
 - バケット名: `documents`
@@ -561,6 +564,13 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - 管理者UI: 新規ページ `hr`（サイドバー nav-hr「労務手続き」+ open件数バッジ hr-bdg）。左=一覧(進捗バー)/右=詳細パネル。タスクの状態をクリックで todo→doing→done→skip 循環、担当/期限/メモ編集、タスク追加削除、手続き完了/中止/削除、「＋手続きを開始」モーダル(ワーカー選択+種別)
     - ローカル実API検証済（本番Supabase接続）: 018適用前503フォールバック→適用後 作成(入社11タスク生成)/詳細/全タスクdoneで auto_completed=true・親done・100%/巻き戻しで親open復帰/任意タスク追加(sort_order採番)/削除でタスクCASCADE(残0件) すべて実証
     - キャッシュバスト: spa.ejs `?v=20260602-hr` / sw.js `CACHE_VERSION=gb-v16-hr`
+53. **雇用書類管理（Phase9・019）**：在留資格に応じた入管・行政への定型届出を 提出期限/履歴/繰り返し で管理。既存の書類管理(保管)・在留管理(期限監視)・労務手続き(社内CL)と差別化。管理者のみ。
+    - マイグレーション **019**（employment_filings + RLS my_company_id/my_role + touchトリガ + worker CASCADE）。**2026-06-02 適用済み✅**
+    - ロジック `src/lib/filings.js`（純粋関数）：VISA_CATEGORIES(技能実習/特定技能/技人国/共通/その他)・FILING_TEMPLATES(資格別標準届出)・daysUntil/expireLevel(JST・visaと統一)・nextDueDate(quarterly=+3ヶ月/yearly=+12ヶ月・月末クランプ)・buildFromTemplate
+    - API `src/routes/filings.js`（/app/api/filings/* requireAdmin）: 一覧(status/visa_category/worker_idフィルタ・pendingにlevel付与・期限近い順・統計・open_count)、`GET /templates`、詳細(+提出履歴)、POST作成、PUT更新、`POST /:id/submit`(提出記録→**recurrence≠noneで次回pendingを自動生成**)、DELETE、`POST /notify`(期限近い/超過のpendingを管理者へ通知・同日重複防止・Push・title【届出】)。019未適用は503 `migration_019_required`
+    - 管理者UI: 新規ページ `filings`（サイドバー nav-filings「雇用書類・届出」+ pending件数バッジ）。統計バー/検索/資格・状態フィルタ/テーブル(期限レベル色)/「＋届出を追加」(資格選択→標準届出テンプレ候補から選択 or 手入力+繰り返し)/「提出を記録」モーダル/「🔔期限通知」
+    - ローカル実API検証済（本番Supabase接続）: 019適用前503→適用後 作成(level=expired)/notify(expired1件→同日重複0)/submit(quarterly→次回pending due+3ヶ月自動生成)/一覧(原本submitted+新pending)/クリーンアップ削除 すべて実証
+    - キャッシュバスト: spa.ejs `?v=20260602-filings` / sw.js `CACHE_VERSION=gb-v17-filings`
 
 ---
 
@@ -594,11 +604,11 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-06-02**
-**最終コミット: c1482fd (feat(hr): 労務手続きワークフロー — 入社/退社チェックリスト (Phase8))**
+**最終コミット: （Phase9 コミット後に更新）**
 
-> ✅ **マイグレーション 017・018 は 2026-06-02 に Supabase SQL Editor で適用完了。**
-> 017=生活サポート（Phase7）、018=労務手続きワークフロー（Phase8）が本番で完全動作。
-> 未実行マイグレーションは無し（001〜018 全適用済み）。Phase8 はローカル実API検証で作成/自動完了/巻き戻し/CASCADE削除/503フォールバックを確認済み。
+> ✅ **マイグレーション 017・018・019 は 2026-06-02 に Supabase SQL Editor で適用完了。**
+> 017=生活サポート（Phase7）、018=労務手続き（Phase8）、019=雇用書類管理（Phase9）が本番で完全動作。
+> 未実行マイグレーションは無し（001〜019 全適用済み）。Phase9 はローカル実API検証で作成/期限レベル/提出記録の四半期自動繰り返し/期限通知の同日重複防止/503フォールバックを確認済み。
 
 ---
 
