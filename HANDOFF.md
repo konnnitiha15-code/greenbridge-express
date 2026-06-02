@@ -631,7 +631,7 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-06-02**
-**最終コミット: （tenure多言語化コミット後に更新）**
+**最終コミット: 387bc5e (fix(i18n): 在籍年数「N年目」等のデータ系単位を多言語化)**
 
 > ✅ **マイグレーション 017・018・019 は 2026-06-02 に Supabase SQL Editor で適用完了。**
 > 017=生活サポート（Phase7）、018=労務手続き（Phase8）、019=雇用書類管理（Phase9）が本番で完全動作。
