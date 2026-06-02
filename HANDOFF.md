@@ -612,7 +612,7 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-06-02**
-**最終コミット: （Phase10 コミット後に更新）**
+**最終コミット: f4ade23 (feat(assistant): AIアシスタント — 内部完結の自然言語横断検索 (Phase10))**
 
 > ✅ **マイグレーション 017・018・019 は 2026-06-02 に Supabase SQL Editor で適用完了。**
 > 017=生活サポート（Phase7）、018=労務手続き（Phase8）、019=雇用書類管理（Phase9）が本番で完全動作。
