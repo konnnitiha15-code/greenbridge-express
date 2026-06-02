@@ -1798,6 +1798,7 @@ const LS={
     stManager:'Người phụ trách',
     stTenure:'Thời gian làm việc',
     stTenureVal:'Năm 1 (Tháng 4/2024〜)',
+    tenureFmt:'Năm thứ {n}',
     langChangedMsg:'Đã đổi ngôn ngữ',
     shiftNiku:'Ca ngày',
     shiftHayaban:'Ca sáng',
@@ -1876,6 +1877,7 @@ lLabel:'ベトナム語'},
     stManager:'Penanggung jawab',
     stTenure:'Lama kerja',
     stTenureVal:'Tahun ke-1 (April 2024〜)',
+    tenureFmt:'Tahun ke-{n}',
     langChangedMsg:'Bahasa telah diubah',
     shiftNiku:'Shift siang',
     shiftHayaban:'Shift pagi',
@@ -1954,6 +1956,7 @@ lLabel:'インドネシア語'},
     stManager:'Tagapamahala',
     stTenure:'Tagal ng trabaho',
     stTenureVal:'Taon 1 (Abril 2024〜)',
+    tenureFmt:'Ika-{n} taon',
     langChangedMsg:'Nabago ang wika',
     shiftNiku:'Araw shift',
     shiftHayaban:'Umaga shift',
@@ -2032,6 +2035,7 @@ lLabel:'フィリピン語'},
     stManager:'负责人',
     stTenure:'入职时间',
     stTenureVal:'第1年（2024年4月〜）',
+    tenureFmt:'第{n}年',
     langChangedMsg:'语言已更改',
     shiftNiku:'白班',
     shiftHayaban:'早班',
@@ -2110,6 +2114,7 @@ lLabel:'中国語'},
     stManager:'တာဝန်ခံ',
     stTenure:'အလုပ်ကြာချိန်',
     stTenureVal:'1နှစ်（2024ဧပြီ〜）',
+    tenureFmt:'{n}နှစ်မြောက်',
     langChangedMsg:'ဘာသာစကား ပြောင်းပြီ',
     shiftNiku:'နေ့ဆိုင်း',
     shiftHayaban:'နံနက်ဆိုင်း',
@@ -2188,6 +2193,7 @@ lLabel:'ミャンマー語'},
     stManager:'担当者',
     stTenure:'在籍期間',
     stTenureVal:'1年目（2024年4月〜）',
+    tenureFmt:'{n}年目',
     langChangedMsg:'言語を変更しました',
     shiftNiku:'日勤',
     shiftHayaban:'早番',
@@ -2224,7 +2230,7 @@ lLabel:'日本語'},
     shiftPending:'កំពុងពិចារណា',shiftApproved:'បានអនុម័ត',
     stPushNotif:'ការជូនដំណឹង',stSosAlways:'តែងតែ',stAppName:'App',stAIEngine:'AI',
     stHelp:'ជំនួយ',stHelpBtn:'បើក',stName:'ឈ្មោះ',stCompany:'ក្រុមហ៊ុន',stManager:'អ្នកទទួល',
-    stTenure:'ពេលវេលា',stTenureVal:'ឆ្នាំទី 1',langChangedMsg:'ភាសាត្រូវបានផ្លាស់ប្ដូរ',
+    stTenure:'ពេលវេលា',stTenureVal:'ឆ្នាំទី 1',tenureFmt:'ឆ្នាំទី {n}',langChangedMsg:'ភាសាត្រូវបានផ្លាស់ប្ដូរ',
     qYoroshiku:'សូម',qKakunin:'បានពិនិត្យ',qArigato:'អរគុណ',qWakari:'យល់ហើយ',qOtsukare:'អរគុណ',
     cInp:'វាយសារ...',tInp:'សរសេរ...',lLabel:'ខ្មែរ'},
 };
@@ -2394,7 +2400,7 @@ function applyL(code) {
   s('st-help-lbl',   L.stHelp);       s('st-help-btn',   L.stHelpBtn);
   s('st-name-lbl',   L.stName);       s('st-company-lbl',L.stCompany);
   s('st-manager-lbl',L.stManager);    s('st-tenure-lbl', L.stTenure);
-  s('st-tenure-val', L.stTenureVal);
+  // st-tenure-val は実データ由来のため renderWorkerProfile() が現在言語で再描画する
 
   // ── 打刻カード
   s('cw-in-lbl',  L.clockIn  || '出勤');
@@ -2416,6 +2422,8 @@ function applyL(code) {
   // 言語切替時にシフトラベル（日勤/早番/休み/有休/欠勤/未定）を母国語へ即反映
   if(typeof updateHomeTodayShift==='function') updateHomeTodayShift();
   if(typeof renderShift==='function') renderShift();
+  // 言語切替時にプロフィール（職種・在籍年数「N年目」等）も母国語へ再描画
+  if(typeof renderWorkerProfile==='function') renderWorkerProfile();
 }
 
 function setLang(el,code,flag,name){
@@ -4049,30 +4057,39 @@ document.querySelectorAll('.lang-opt').forEach(o=>{
 });
 
 // ── サーバーデータをUIに反映 ─────────────────────────────────────────────────
+// 在籍年数（整数・最小1）。calcYear の数値版。
+function tenureYears(dateStr){
+  if(!dateStr) return 1;
+  const y = new Date().getFullYear() - new Date(dateStr).getFullYear();
+  return y > 0 ? y : 1;
+}
+// 言語依存のプロフィール表示（職種・在籍年数）を現在の言語で描画。applyL からも呼ぶ。
+function renderWorkerProfile(){
+  const sd = window.SERVER_DATA || {}; const sw = sd.worker || {};
+  if(!sw.name) return;
+  const L = LS[LANG]||LS.vi;
+  const tenure = (L.tenureFmt||'{n}年目').replace('{n}', tenureYears(sw.entryDate));
+  const sub  = [sw.name, sw.jobTitle, tenure].filter(Boolean).join(' · ');
+  const psub = [sw.jobTitle, tenure, sw.department].filter(Boolean).join(' · ');
+  const heroSub = document.getElementById('w-hero-sub'); if(heroSub) heroSub.textContent = sub;
+  const pwsub   = document.getElementById('w-psub');     if(pwsub)   pwsub.textContent   = psub;
+  const ste     = document.getElementById('st-tenure-val');
+  if(ste) ste.textContent = tenure + (sw.entryDate ? '（'+sw.entryDate.slice(0,7).replace('-','/')+'〜）' : '');
+}
+
 (function applyServerData(){
   if(!_sw.name) return;
-
-  // 在籍年数を計算
-  function calcYear(dateStr){
-    if(!dateStr) return '';
-    const y = new Date().getFullYear() - new Date(dateStr).getFullYear();
-    return y > 0 ? y+'年目' : '1年目';
-  }
-  const year = calcYear(_sw.entryDate);
-  const sub  = [_sw.name, _sw.jobTitle, year].filter(Boolean).join(' · ');
-  const psub = [_sw.jobTitle, year, _sw.department].filter(Boolean).join(' · ');
   const init = (_sw.name.trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('')).toUpperCase() || '?';
 
-  // Hero
-  const heroSub = document.getElementById('w-hero-sub');
-  if(heroSub) heroSub.textContent = sub;
+  // 言語依存の表示（職種・在籍年数）は renderWorkerProfile に集約（言語切替でも再描画）
+  renderWorkerProfile();
+
   const hgreet = document.getElementById('h-greet');
   if(hgreet) hgreet.textContent = (LS[savedLang]||LS.vi).greet + ', ' + (_sw.name.split(' ')[0] || '') + ' さん';
 
-  // Settings profile header
+  // Settings profile header（言語非依存）
   const pav   = document.getElementById('w-pav');   if(pav)  pav.textContent  = init;
   const pname = document.getElementById('w-pname'); if(pname) pname.textContent = _sw.name;
-  const pwsub = document.getElementById('w-psub');  if(pwsub) pwsub.textContent = psub;
 
   // Settings account rows
   const stn = document.getElementById('w-st-name');    if(stn) stn.textContent = _sw.name;
@@ -4088,8 +4105,6 @@ document.querySelectorAll('.lang-opt').forEach(o=>{
   const sosName = document.getElementById('sos-contact-name');  if(sosName) sosName.textContent = supervisorName + '（担当者）';
   // 各言語のchatNameも実担当者名で上書き
   Object.keys(LS).forEach(lang => { if(LS[lang]) LS[lang].chatName = supervisorName; });
-  const ste = document.getElementById('st-tenure-val');
-  if(ste && year) ste.textContent = year + (_sw.entryDate ? '（'+_sw.entryDate.slice(0,7).replace('-','年')+'月〜）' : '');
 })();
 
 updateProg();loadAndRenderShift();

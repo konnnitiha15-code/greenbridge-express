@@ -591,7 +591,13 @@ applyL() で更新される ID は付与済み。**2026-06-02 にシフトラベ
     - `views/worker.ejs` の LS辞書（7言語 vi/id/tl/zh/my/km/ja）に `shiftYukyuu`(有休)/`shiftAbsent`(欠勤)/`shiftTbd`(未定) を追加（既存 shiftNiku/Hayaban/Osoi/Rest に並べて）
     - `updateHomeTodayShift()`（ホームの今日のシフト）と `renderShift()` のラベルを LS から引くよう統一（従来は有休/欠勤/未定が日本語固定）。`applyL()` 末尾で言語切替時に両関数を再実行し即反映
     - 検証: 各キー7言語存在・シフト関数のJPハードコード解消・ワーカー画面描画200。キャッシュ sw.js `gb-v20-i18n`
-    - ※ 管理者ホームKPIは既にv3監視UIに整理済みのため**現状維持**（「12枚KPI」問題は解消済み）。データ系の「N年目」等の単位多言語化は別途必要時に
+    - ※ 管理者ホームKPIは既にv3監視UIに整理済みのため**現状維持**（「12枚KPI」問題は解消済み）
+58. **多言語UI整理 第2弾（在籍年数「N年目」等のデータ系単位）**：ワーカーのプロフィール表示を言語追従に。
+    - LS辞書（7言語）に `tenureFmt`（{n}プレースホルダ。ja:`{n}年目` / vi:`Năm thứ {n}` / zh:`第{n}年` 等）を追加
+    - `applyServerData` IIFE の言語依存部を**ハイブリッド関数 `renderWorkerProfile()`** に抽出。hero-sub・psub・st-tenure-val を現在言語+実データで描画。`tenureYears()` で在籍年数を算出、在籍開始は中立表記 `YYYY/MM〜`
+    - `applyL()` から `renderWorkerProfile()` を呼び**言語切替で即再描画**（従来 applyL が st-tenure-val を静的プレースホルダで上書きしていた問題も解消）
+    - **ブラウザ実機検証（Preview MCP）**: worker01ログイン→vi:`Năm thứ 1`/ja:`1年目`/zh:`第1年`/my:`1နှစ်မြောက်` と切替追従・コンソールエラー無しを確認
+    - キャッシュ sw.js `gb-v21-i18n2`。※職種・部署・氏名は実データのため日本語のまま（単位ではないので対象外）
 
 ---
 
@@ -625,7 +631,7 @@ C:\Users\mayniti\Downloads\greenbridge-express\HANDOFF.md を読んで、続き�
 ---
 
 **最終更新: 2026-06-02**
-**最終コミット: 1cdb3b3 (fix(i18n): ワーカーのシフトラベルを多言語化（有休/欠勤/未定）)**
+**最終コミット: （tenure多言語化コミット後に更新）**
 
 > ✅ **マイグレーション 017・018・019 は 2026-06-02 に Supabase SQL Editor で適用完了。**
 > 017=生活サポート（Phase7）、018=労務手続き（Phase8）、019=雇用書類管理（Phase9）が本番で完全動作。
