@@ -186,7 +186,7 @@ greenbridge-express/
 016 - certifications（worker_certifications 健康診断・資格台帳 + RLS）
 ```
 
-001〜015 は **実行済み** ✅／**016 は要実行**（資格・健診管理。未実行でも他機能は動作、資格UIは「準備中」表示）
+001〜016 は **全て実行済み** ✅（016 は 2026-06-01 に Supabase SQL Editor で適用完了。資格・健診管理が有効）
 
 ### Supabase Storage
 - バケット名: `documents`
@@ -529,7 +529,7 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - ローカル検証済: leaveLib単体(付与21日/集計/法定日数)、015未適用時の全API 503フォールバック・認証401。本質CRUDは015適用後に本番検証
     - 残数算出は台帳集計方式(payslip思想)。半休0.5対応
 49. **健康診断・資格管理（Phase6）**：健診/フルハーネス/玉掛け/フォークリフト/技能講習等の有効期限を一元管理
-    - マイグレーション **016**（worker_certifications テーブル + RLS + updated_atトリガ）。**要実行**（未実行でも他機能は動作・資格UIは「準備中」503フォールバック）
+    - マイグレーション **016**（worker_certifications テーブル + RLS + updated_atトリガ）。**2026-06-01 適用済み✅**（未実行時は資格UIが「準備中」503フォールバック）
     - cert_type: health_check/full_harness/sling/forklift/skill_training/other。1ワーカー複数レコード(子CRUD)
     - サーバー `src/routes/certs.js`（/app/api/certs/* requireAdmin）: 一覧(期限近い順+統計)、POST/PUT/DELETE、notify(閾値60日・期限近い資格を管理者へ notifications+Push・同日重複防止)
     - 期限レベル expired/urgent(≤30)/warn(≤90)/ok を JST基準で判定（在留管理と同方式）
