@@ -318,7 +318,7 @@ function SP(id){
     const sid=s.id?s.id.replace('nav-',''):'';
     s.classList.toggle('on',sid===id);
   });
-  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
+  const titles={home:'ホーム',chat:'チャット',workers:'実習生管理',docs:'書類・翻訳管理',tasks:'タスク管理',gchat:'グループチャット',videos:'動画マニュアル',nippo:'日報・報告',shift:'シフト管理',attend:'勤怠管理',payroll:'給与管理',visa:'在留管理',leave:'有給管理',certs:'資格・健診',life:'生活サポート',roles:'権限管理',dict:'翻訳辞書',settings:'設定'};
   const tb=document.getElementById('tb-title');if(tb)tb.textContent=titles[id]||id;
   if(id==='workers') renderWL();
   if(id==='docs'){initDocFilters();renderDL();renderDocPanel();}
@@ -345,6 +345,7 @@ function SP(id){
   if(id==='visa') loadVisa();
   if(id==='leave'){ loadLeaveRequests(); loadLeaveOverview(); }
   if(id==='certs') loadCerts();
+  if(id==='life') loadLife();
 }
 
 // ── 通知センター ────────────────────────────────────────────────
@@ -4652,5 +4653,118 @@ async function runCertsNotify(){
     const n=(json.created||[]).length;
     toast('✓ 期限通知',n>0?`${n}件の通知を送信しました`:'通知対象（重複を除く）はありませんでした','g');
     if(typeof loadDashboardStats==='function') loadDashboardStats();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 🌏 生活サポート（Phase7・管理者側）
+// ════════════════════════════════════════════════════════════════
+let LIFE_ROWS=[];
+const LIFE_CAT={
+  hospital:{label:'病院',icon:'🏥'},cityhall:{label:'市役所',icon:'🏛'},garbage:{label:'ゴミ出し',icon:'🗑'},
+  bank:{label:'銀行',icon:'🏦'},mobile:{label:'携帯',icon:'📱'},faq:{label:'FAQ',icon:'❓'},other:{label:'その他',icon:'📌'},
+};
+const LIFE_CATS=['hospital','cityhall','garbage','bank','mobile','faq','other'];
+
+function _lifeWarn(show,msg){
+  const w=document.getElementById('life-warn');
+  if(!w) return;
+  w.style.display=show?'block':'none';
+  if(show) w.textContent=msg||'⚠️ 生活サポートテーブルが未作成です。Supabase で migration 017 を実行してください。';
+}
+
+async function loadLife(){
+  const box=document.getElementById('life-list');
+  try{
+    const res=await fetch('/app/api/life',{credentials:'include'});
+    const ct=res.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const json=await res.json();
+    if(!json.ok){
+      if(json.error==='migration_017_required'){ _lifeWarn(true); if(box) box.innerHTML=''; }
+      return;
+    }
+    _lifeWarn(false);
+    LIFE_ROWS=json.rows||[];
+    const cf=document.getElementById('life-cat-filter');
+    if(cf && cf.options.length<=1){
+      cf.innerHTML='<option value="">すべてのカテゴリ</option>'+LIFE_CATS.map(c=>`<option value="${c}">${LIFE_CAT[c].icon} ${LIFE_CAT[c].label}</option>`).join('');
+    }
+    renderLifeList();
+  }catch(e){ console.error('[life] ',e); }
+}
+
+function renderLifeList(){
+  const box=document.getElementById('life-list');
+  if(!box) return;
+  const cf=document.getElementById('life-cat-filter')?.value||'';
+  let rows=LIFE_ROWS.filter(r=>!cf||r.category===cf);
+  if(!rows.length){
+    box.innerHTML=`<div style="padding:24px;text-align:center;color:var(--t3)">${cf?'このカテゴリの情報はありません':'まだ生活情報が登録されていません。「＋ 情報を登録」から追加してください。'}</div>`;
+    return;
+  }
+  box.innerHTML=rows.map(r=>{
+    const cat=LIFE_CAT[r.category]||LIFE_CAT.other;
+    const std=r.is_standard;
+    const meta=[r.address&&('📍 '+_dictEsc(r.address)),r.phone&&('☎ '+_dictEsc(r.phone))].filter(Boolean).join(' · ');
+    const actions=std
+      ? '<span class="badge bb" style="font-size:10px">標準</span>'
+      : `<button class="btn btn-sm" onclick="openLifeEdit('${r.id}')">編集</button><button class="btn btn-sm btn-r" style="margin-left:4px" onclick="deleteLife('${r.id}')">削除</button>`;
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:13px 16px">
+        <div style="font-size:22px;flex-shrink:0">${cat.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px">${_dictEsc(r.title)} <span style="font-size:11px;color:var(--t3);font-weight:400">${cat.label}</span></div>
+          <div style="font-size:13px;color:var(--t2);margin-top:4px;white-space:pre-wrap;line-height:1.6">${_dictEsc(r.body)}</div>
+          ${meta?`<div style="font-size:11.5px;color:var(--t3);margin-top:6px">${meta}</div>`:''}
+        </div>
+        <div style="white-space:nowrap;flex-shrink:0">${actions}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openLifeEdit(id){
+  const r = id ? LIFE_ROWS.find(x=>x.id===id) : null;
+  const catOpts=LIFE_CATS.map(c=>`<option value="${c}"${r&&r.category===c?' selected':''}>${LIFE_CAT[c].icon} ${LIFE_CAT[c].label}</option>`).join('');
+  openModal(id?'生活情報を編集':'生活情報を登録',
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">カテゴリ *</label><select id="life-cat" class="form-inp">${catOpts}</select></div>
+        <div class="form-row"><label class="form-lbl">タイトル *</label><input id="life-title" class="form-inp" value="${r?_dictEsc(r.title):''}" placeholder="例：〇〇総合病院（内科）"></div>
+      </div>
+      <div class="form-row"><label class="form-lbl">本文 *（日本語。ワーカーは母国語に翻訳して読めます）</label>
+        <textarea id="life-body" class="form-inp" rows="5" placeholder="案内・手順・注意事項など">${r?_dictEsc(r.body):''}</textarea></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-row"><label class="form-lbl">住所</label><input id="life-address" class="form-inp" value="${r?_dictEsc(r.address):''}"></div>
+        <div class="form-row"><label class="form-lbl">電話</label><input id="life-phone" class="form-inp" value="${r?_dictEsc(r.phone):''}"></div>
+      </div>
+      <div class="form-row"><label class="form-lbl">地図リンク（任意）</label><input id="life-map" class="form-inp" value="${r?_dictEsc(r.map_url):''}" placeholder="https://maps.google.com/..."></div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">キャンセル</button>
+     <button class="btn btn-g" onclick="saveLife(${id?`'${id}'`:'null'})">保存</button>`);
+}
+
+async function saveLife(id){
+  const v=i=>document.getElementById(i)?.value||'';
+  const body={category:v('life-cat'),title:v('life-title'),body:v('life-body'),address:v('life-address'),phone:v('life-phone'),map_url:v('life-map')};
+  if(!body.title.trim()){ toast('エラー','タイトルを入力してください','r'); return; }
+  if(!body.body.trim()){ toast('エラー','本文を入力してください','r'); return; }
+  try{
+    const url=id?`/app/api/life/${id}`:'/app/api/life';
+    const res=await fetch(url,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error==='migration_017_required'?'テーブル未作成（migration 017）':json.error||'保存に失敗しました','r'); return; }
+    closeModal(); toast('✓ 保存しました','生活情報を更新しました','g'); loadLife();
+  }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+async function deleteLife(id){
+  if(!confirm('この生活情報を削除しますか？')) return;
+  try{
+    const res=await fetch(`/app/api/life/${id}`,{method:'DELETE'});
+    const json=await res.json();
+    if(!json.ok){ toast('エラー',json.error||'削除に失敗しました','r'); return; }
+    toast('✓ 削除しました','','g'); loadLife();
   }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
 }

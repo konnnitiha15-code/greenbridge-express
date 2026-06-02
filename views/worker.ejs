@@ -852,6 +852,10 @@ input,textarea,select,button{font-family:inherit}
         <div class="qa-ico" style="background:#eff6ff"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 2.5c2.8 3.4 4.8 6 4.8 9.5a4.8 4.8 0 11-9.6 0c0-3.5 2-6.1 4.8-9.5z" stroke="#2563eb" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg></div>
         <span class="qa-lbl" id="h-leave-l">有給</span>
       </div>
+      <div class="qa-item" onclick="go('s-life')">
+        <div class="qa-ico" style="background:#fff7ed"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 19s7-5 7-10.5A7 7 0 0011 2a7 7 0 00-7 6.5C4 14 11 19 11 19z" stroke="#ea580c" stroke-width="1.7" fill="none" stroke-linejoin="round"/><circle cx="11" cy="8.5" r="2.5" stroke="#ea580c" stroke-width="1.6" fill="none"/></svg></div>
+        <span class="qa-lbl" id="h-life-l">生活サポート</span>
+      </div>
       <div class="qa-item" onclick="go('s-settings')">
         <div class="qa-ico" style="background:#f6f7fa"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3" stroke="#64748b" stroke-width="1.7" fill="none"/><path d="M11 2.5v3M11 16.5v3M2.5 11h3M16.5 11h3M5.6 5.6l2 2M14.4 14.4l2 2M5.6 16.4l2-2M14.4 7.6l2-2" stroke="#64748b" stroke-width="1.6" stroke-linecap="round"/></svg></div>
         <span class="qa-lbl" id="nl-settings-qa">設定</span>
@@ -1239,6 +1243,18 @@ input,textarea,select,button{font-family:inherit}
       <div class="card-hdr"><span class="card-title" id="lv-history-l">申請履歴</span></div>
       <div id="lv-history"><div style="padding:18px;text-align:center;color:var(--t3);font-size:13px">読み込み中...</div></div>
     </div>
+  </div>
+</div>
+
+<!-- LIFE（生活サポート）-->
+<div class="scr" id="s-life">
+  <div class="pg-top">
+    <div><div class="pg-title" id="life-title-l">生活サポート</div><div class="pg-sub" id="life-sub-l">日本での生活情報</div></div>
+  </div>
+  <div class="scroll pb" style="padding:13px">
+    <!-- カテゴリチップ -->
+    <div id="life-chips" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none"></div>
+    <div id="life-w-list"><div style="text-align:center;color:var(--t3);padding:30px 0;font-size:13px">読み込み中...</div></div>
   </div>
 </div>
 
@@ -2425,8 +2441,8 @@ function autoSz(el){
   el.style.height=Math.min(el.scrollHeight,120)+'px';
 }
 
-const SCRS=['s-home','s-chat','s-tpl','s-docs','s-videos','s-nippo','s-shift','s-sos','s-settings','s-payslip','s-leave'];
-const NMAP={'s-home':'n-home','s-chat':'n-chat','s-tpl':'n-tpl','s-docs':'n-docs','s-videos':null,'s-nippo':null,'s-shift':'n-shift','s-sos':null,'s-settings':'n-settings','s-payslip':null,'s-leave':null};
+const SCRS=['s-home','s-chat','s-tpl','s-docs','s-videos','s-nippo','s-shift','s-sos','s-settings','s-payslip','s-leave','s-life'];
+const NMAP={'s-home':'n-home','s-chat':'n-chat','s-tpl':'n-tpl','s-docs':'n-docs','s-videos':null,'s-nippo':null,'s-shift':'n-shift','s-sos':null,'s-settings':'n-settings','s-payslip':null,'s-leave':null,'s-life':null};
 
 function go(id){
   SCRS.forEach(s=>document.getElementById(s)?.classList.toggle('on',s===id));
@@ -2480,6 +2496,9 @@ function go(id){
   }
   if(id==='s-leave'){
     if(typeof loadLeave==='function') loadLeave();
+  }
+  if(id==='s-life'){
+    if(typeof loadLifeW==='function') loadLifeW();
   }
   if(id==='s-payslip'){
     if(typeof loadPayslips==='function') loadPayslips();
@@ -2600,6 +2619,70 @@ async function cancelLeave(id){
     toast('取り消しました','','g');
     loadLeave();
   }catch(e){ toast('エラー','通信エラー: '+e.message,'r'); }
+}
+
+// ── 生活サポート（ワーカー側・閲覧 + ワンタップ翻訳）──────────
+let LIFE_W_ROWS=[];
+let LIFE_W_CAT='';
+const LIFE_W_CATS={hospital:['🏥','病院'],cityhall:['🏛','市役所'],garbage:['🗑','ゴミ出し'],bank:['🏦','銀行'],mobile:['📱','携帯'],faq:['❓','FAQ'],other:['📌','その他']};
+function _lifeEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function loadLifeW(){
+  const box=document.getElementById('life-w-list');
+  try{
+    const r=await fetch('/worker/api/life',{credentials:'include'});
+    const ct=r.headers.get('content-type')||'';
+    if(!ct.includes('application/json')) return;
+    const j=await r.json();
+    LIFE_W_ROWS=(j.rows||[]);
+    // カテゴリチップ（存在するカテゴリのみ）
+    const chips=document.getElementById('life-chips');
+    if(chips){
+      const cats=[...new Set(LIFE_W_ROWS.map(x=>x.category))];
+      chips.innerHTML=`<div class="fc${LIFE_W_CAT===''?' on':''}" onclick="setLifeCat('')" style="white-space:nowrap;flex-shrink:0">すべて</div>`
+        + cats.map(c=>{const m=LIFE_W_CATS[c]||['📌',c];return `<div class="fc${LIFE_W_CAT===c?' on':''}" onclick="setLifeCat('${c}')" style="white-space:nowrap;flex-shrink:0">${m[0]} ${m[1]}</div>`;}).join('');
+    }
+    renderLifeW();
+  }catch(e){ console.error('[life-w] ',e); if(box) box.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3);font-size:13px">読み込みに失敗しました</div>'; }
+}
+
+function setLifeCat(c){ LIFE_W_CAT=c; loadLifeW(); }
+
+function renderLifeW(){
+  const box=document.getElementById('life-w-list');
+  if(!box) return;
+  let rows=LIFE_W_ROWS.filter(r=>!LIFE_W_CAT||r.category===LIFE_W_CAT);
+  if(!rows.length){
+    box.innerHTML='<div style="text-align:center;color:var(--t3);padding:30px 12px;font-size:13px">情報がまだありません</div>';
+    return;
+  }
+  box.innerHTML=rows.map((r,i)=>{
+    const m=LIFE_W_CATS[r.category]||['📌',''];
+    const meta=[r.address&&('📍 '+_lifeEsc(r.address)),r.phone&&(`<a href="tel:${_lifeEsc(r.phone)}" style="color:var(--gn)">☎ ${_lifeEsc(r.phone)}</a>`),r.map_url&&(`<a href="${_lifeEsc(r.map_url)}" target="_blank" rel="noopener" style="color:var(--gn)">🗺 地図</a>`)].filter(Boolean).join(' · ');
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="padding:13px 15px">
+        <div style="font-weight:700;font-size:14px">${m[0]} ${_lifeEsc(r.title)}</div>
+        <div id="life-body-${i}" style="font-size:13px;color:var(--t2);margin-top:6px;white-space:pre-wrap;line-height:1.7">${_lifeEsc(r.body)}</div>
+        ${meta?`<div style="font-size:12px;color:var(--t3);margin-top:8px">${meta}</div>`:''}
+        <button class="btn-xs" style="margin-top:8px;border-color:var(--glt);color:var(--gn)" onclick="translateLife(${i})" id="life-tbtn-${i}">🌐 ${(LS[LANG]||LS.vi).lLabel||''}に翻訳</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function translateLife(i){
+  const rows=LIFE_W_ROWS.filter(r=>!LIFE_W_CAT||r.category===LIFE_W_CAT);
+  const r=rows[i]; if(!r) return;
+  const bodyEl=document.getElementById('life-body-'+i);
+  const btn=document.getElementById('life-tbtn-'+i);
+  if(!bodyEl) return;
+  if(LANG==='ja'){ toast('','日本語で表示中です','b'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='🌐 翻訳中...'; }
+  try{
+    const tl=await aiTx(r.body,LANG);
+    bodyEl.textContent=tl;
+    if(btn){ btn.textContent='✓ '+((LS[LANG]||LS.vi).lLabel||'')+'に翻訳済み'; }
+  }catch(e){ if(btn){ btn.disabled=false; btn.textContent='🌐 翻訳'; } }
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────

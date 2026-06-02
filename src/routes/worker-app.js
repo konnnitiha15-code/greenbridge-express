@@ -999,4 +999,28 @@ router.post('/api/leave/request/:id/cancel', requireWorkerAuth, requireWorker, a
   }
 })
 
+// ── 生活サポート API（ワーカー側・閲覧のみ）──────────────────
+// GET /worker/api/life — 自社 + 全社共通の生活情報
+router.get('/api/life', requireWorkerAuth, requireWorker, async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    const sb = adminClient()
+    const { data, error } = await sb.from('life_support')
+      .select('id, company_id, category, title, body, address, phone, map_url, sort_order, is_active')
+      .or(companyId ? `company_id.eq.${companyId},company_id.is.null` : 'company_id.is.null')
+      .eq('is_active', true)
+      .order('category').order('sort_order').order('created_at')
+    if (error) {
+      // 017未適用（テーブル不在）なら空配列でフォールバック（UIは「準備中」表示）
+      const missing = error.code === '42P01' || /life_support|does not exist|schema cache/i.test(error.message || '')
+      if (missing) return res.json({ ok: true, rows: [] })
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+    res.json({ ok: true, rows: data || [] })
+  } catch (e) {
+    console.error('[worker life]', e.message)
+    res.json({ ok: true, rows: [] })
+  }
+})
+
 module.exports = router

@@ -184,9 +184,10 @@ greenbridge-express/
 014 - work_permit（workers に work_permit(資格外活動許可有無) / work_permit_expire 追加）
 015 - paid_leave（leave_ledger 有給台帳 + leave_requests 有給申請 + RLS）
 016 - certifications（worker_certifications 健康診断・資格台帳 + RLS）
+017 - life_support（生活サポート情報 + RLS + 標準ガイド初期データ）
 ```
 
-001〜016 は **全て実行済み** ✅（016 は 2026-06-01 に Supabase SQL Editor で適用完了。資格・健診管理が有効）
+001〜016 は **実行済み** ✅／**017 は要実行**（生活サポート。未実行でも他機能は動作、管理者UIは「準備中」・ワーカーUIは空表示）
 
 ### Supabase Storage
 - バケット名: `documents`
@@ -535,6 +536,13 @@ applyL() で更新される ID は付与済みだが、まだ日本語のまま�
     - 期限レベル expired/urgent(≤30)/warn(≤90)/ok を JST基準で判定（在留管理と同方式）
     - 管理者UI: 新規ページ `certs`(サイドバー nav-certs)。統計バー・検索・種別/状態フィルタ・登録/編集モーダル・削除・期限通知
     - ローカル検証済: 016未適用の GET/POST 503フォールバック・認証401。本質CRUDは016適用後に本番検証
+50. **外国人生活サポート（Phase7）**：病院/市役所/ゴミ出し/銀行/携帯/FAQ の生活情報を多言語提供
+    - マイグレーション **017**（life_support テーブル + RLS + 全国共通標準ガイド初期データ6件）。**要実行**（未実行でも他機能は動作。管理者UIは「準備中」503、ワーカーUIは空配列200で自然に空表示）
+    - company_id=NULL=全社共通の標準ガイド(編集不可)。会社固有情報は管理者が登録。カテゴリ hospital/cityhall/garbage/bank/mobile/faq/other
+    - 管理者API `src/routes/life.js`（/app/api/life/* requireAdmin）: 一覧(自社+全社共通)・POST/PUT/DELETE(自社分のみ)。ワーカーAPI: GET /worker/api/life(自社+共通・is_active・閲覧のみ)
+    - 管理者UI: 新規ページ `life`(カテゴリフィルタ・登録/編集モーダル・標準バッジ)
+    - ワーカーUI: ホームに「生活サポート」クイックアクション + s-life画面(カテゴリチップ・🌐ワンタップ翻訳ボタンで aiTx 経由 母国語表示・電話/地図リンク)
+    - ローカル検証済: 017未適用の admin 503 / worker 200空配列フォールバック・認証401
 
 ---
 
