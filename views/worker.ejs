@@ -784,7 +784,7 @@ input,textarea,select,button{font-family:inherit}
     <div style="margin:12px 13px 4px">
       <div class="card">
         <div class="card-hdr">
-          <span class="card-title">今日の打刻</span>
+          <span class="card-title" id="cw-card-title">今日の打刻</span>
           <span id="cw-date" style="font-size:12px;color:var(--t3)"></span>
         </div>
         <div style="padding:16px 14px;display:flex;flex-direction:column;align-items:center;gap:13px">
@@ -883,16 +883,16 @@ input,textarea,select,button{font-family:inherit}
       <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
         <textarea id="h-nippo-quick" class="finp" rows="3" placeholder="本日の作業内容を入力（母国語OK・AIで日本語に翻訳）" style="font-size:13px"></textarea>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-g" style="flex:1" onclick="submitHomeNippo('daily')">📝 日報を送信</button>
-          <button class="btn" style="background:#fef3c7;color:#92400e;border-color:#fcd34d;flex:1" onclick="submitHomeNippo('hayari')">⚠️ ヒヤリハット</button>
+          <button class="btn btn-g" style="flex:1" id="h-nippo-send-btn" onclick="submitHomeNippo('daily')">📝 日報を送信</button>
+          <button class="btn" style="background:#fef3c7;color:#92400e;border-color:#fcd34d;flex:1" id="h-nippo-hayari-btn" onclick="submitHomeNippo('hayari')">⚠️ ヒヤリハット</button>
         </div>
-        <div style="font-size:11.5px;color:var(--t3);text-align:center">過去の日報は <a href="#" onclick="go('s-nippo');return false;" style="color:var(--gn);font-weight:600">日報タブ</a> で確認できます</div>
+        <div style="font-size:11.5px;color:var(--t3);text-align:center" id="h-nippo-past">過去の日報は <a href="#" onclick="go('s-nippo');return false;" style="color:var(--gn);font-weight:600">日報タブ</a> で確認できます</div>
       </div>
     </div>
 
     <div class="sos-strip" onclick="go('s-sos')">
       <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="12" stroke="rgba(255,255,255,.5)" stroke-width="2" fill="none"/><path d="M14 8v8M14 19.5v.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
-      <div><div class="sos-strip-lbl" id="h-sos-l2">緊急 SOS</div><div class="sos-strip-sub">3秒長押しで担当者に緊急通知</div></div>
+      <div><div class="sos-strip-lbl" id="h-sos-l2">緊急 SOS</div><div class="sos-strip-sub" id="h-sos-sub">3秒長押しで担当者に緊急通知</div></div>
     </div>
   </div>
 </div>
@@ -909,8 +909,8 @@ input,textarea,select,button{font-family:inherit}
   <div class="chat-wall">
     <div class="chat-welcome" id="chat-welcome-pane">
       <svg width="46" height="46" viewBox="0 0 46 46" fill="none"><path d="M5 9a4 4 0 014-4h28a4 4 0 014 4v20a4 4 0 01-4 4H26l-9 7v-7H9a4 4 0 01-4-4V9z" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-      <div class="cw-title">会話を選んでください</div>
-      <div class="cw-sub">担当者またはグループを<br>左のリストから選択</div>
+      <div class="cw-title" id="cw-title-l">会話を選んでください</div>
+      <div class="cw-sub" id="cw-sub-l">担当者またはグループを<br>左のリストから選択</div>
     </div>
     <div class="chat-pane" id="chat-active-pane">
       <div class="chat-hdr">
@@ -2313,8 +2313,31 @@ async function markNotifRead(id){
 }
 
 // ── LANGUAGE ──────────────────────────────────────────────────────────────────
+// ── 補助辞書 LS2: 未対応テキストの後付け（既存 LS は不変・applyL でマージ）──
+const LS2 = {
+  vi:{cwToday:'Chấm công hôm nay',payslipBtn:'Bảng lương',leaveBtn:'Nghỉ phép',lifeBtn:'Hỗ trợ đời sống',lifeSub:'Thông tin sinh hoạt tại Nhật',nippoToday:'Nhật ký hôm nay',nippoSend:'Gửi nhật ký',nippoHayari:'Suýt tai nạn',nippoPlaceholder:'Nhập nội dung công việc hôm nay (tiếng mẹ đẻ OK・AI dịch sang tiếng Nhật)',sosSubHome:'Nhấn giữ 3 giây để báo khẩn cấp cho người phụ trách',chatEmptyTitle:'Vui lòng chọn cuộc trò chuyện',chatEmptySub:'Chọn người phụ trách hoặc nhóm\ntừ danh sách bên trái',payslipTitle:'Bảng lương',payslipSub:'Bạn có thể xem bảng lương đã công bố',psWorkDays:'Số ngày làm',psRegular:'Thường',psOvertime:'Tăng ca',psNight:'Đêm',psBase:'Lương cơ bản',psOtPay:'Phụ cấp tăng ca',psNightPay:'Phụ cấp đêm',psHolidayPay:'Phụ cấp ngày lễ',psGross:'Tổng lương',psDeduction:'Tổng khấu trừ',psNet:'Thực lãnh',psDayUnit:'ngày',psNone:'Chưa có bảng lương được công bố'},
+  id:{cwToday:'Absensi hari ini',payslipBtn:'Slip gaji',leaveBtn:'Cuti',lifeBtn:'Dukungan hidup',lifeSub:'Informasi kehidupan di Jepang',nippoToday:'Laporan hari ini',nippoSend:'Kirim laporan',nippoHayari:'Nyaris celaka',nippoPlaceholder:'Masukkan pekerjaan hari ini (bahasa ibu OK・AI terjemahkan ke bahasa Jepang)',sosSubHome:'Tekan 3 detik untuk notifikasi darurat ke penanggung jawab',chatEmptyTitle:'Silakan pilih percakapan',chatEmptySub:'Pilih penanggung jawab atau grup\ndari daftar di kiri',payslipTitle:'Slip gaji',payslipSub:'Anda dapat melihat slip gaji yang diterbitkan',psWorkDays:'Hari kerja',psRegular:'Normal',psOvertime:'Lembur',psNight:'Malam',psBase:'Gaji pokok',psOtPay:'Tunjangan lembur',psNightPay:'Tunjangan malam',psHolidayPay:'Tunjangan libur',psGross:'Total kotor',psDeduction:'Total potongan',psNet:'Gaji bersih',psDayUnit:'hari',psNone:'Belum ada slip gaji yang diterbitkan'},
+  tl:{cwToday:'Time record ngayon',payslipBtn:'Payslip',leaveBtn:'Bakasyon',lifeBtn:'Suporta sa pamumuhay',lifeSub:'Impormasyon sa pamumuhay sa Japan',nippoToday:'Ulat ngayon',nippoSend:'Ipadala ang ulat',nippoHayari:'Halos aksidente',nippoPlaceholder:'Ilagay ang gawain ngayon (OK ang sariling wika・isasalin ng AI sa Hapon)',sosSubHome:'Pindutin nang 3 segundo para sa emergency sa namamahala',chatEmptyTitle:'Pumili ng usapan',chatEmptySub:'Pumili ng namamahala o grupo\nmula sa listahan sa kaliwa',payslipTitle:'Payslip',payslipSub:'Makikita ang na-publish na payslip',psWorkDays:'Araw ng trabaho',psRegular:'Normal',psOvertime:'Overtime',psNight:'Gabi',psBase:'Batayang sahod',psOtPay:'Bayad sa overtime',psNightPay:'Bayad sa gabi',psHolidayPay:'Bayad sa holiday',psGross:'Kabuuang sahod',psDeduction:'Kabuuang bawas',psNet:'Net na sahod',psDayUnit:'araw',psNone:'Wala pang na-publish na payslip'},
+  zh:{cwToday:'今日打卡',payslipBtn:'工资单',leaveBtn:'带薪假',lifeBtn:'生活支援',lifeSub:'在日本的生活信息',nippoToday:'今日日报',nippoSend:'发送日报',nippoHayari:'惊险事件',nippoPlaceholder:'输入今天的工作内容（可用母语・AI翻译成日语）',sosSubHome:'长按3秒紧急通知负责人',chatEmptyTitle:'请选择对话',chatEmptySub:'从左侧列表选择\n负责人或群组',payslipTitle:'工资单',payslipSub:'可查看已发布的工资单',psWorkDays:'出勤天数',psRegular:'正常',psOvertime:'加班',psNight:'深夜',psBase:'基本工资',psOtPay:'加班费',psNightPay:'深夜津贴',psHolidayPay:'假日津贴',psGross:'总支付',psDeduction:'扣除合计',psNet:'实发工资',psDayUnit:'天',psNone:'暂无已发布的工资单'},
+  my:{cwToday:'ယနေ့ အလုပ်ဝင်ချိန်',payslipBtn:'လစာစလစ်',leaveBtn:'ခွင့်ရက်',lifeBtn:'နေထိုင်မှု ပံ့ပိုးမှု',lifeSub:'ဂျပန်တွင် နေထိုင်မှု အချက်အလက်',nippoToday:'ယနေ့ နေ့စဉ်အစီရင်ခံစာ',nippoSend:'အစီရင်ခံစာ ပို့ရန်',nippoHayari:'အန္တရာယ်နီးစပ်မှု',nippoPlaceholder:'ယနေ့လုပ်ငန်းကို ထည့်ပါ (မိခင်ဘာသာ OK・AI က ဂျပန်လို ဘာသာပြန်ပါမည်)',sosSubHome:'တာဝန်ခံကို အရေးပေါ်အကြောင်းကြားရန် ၃ စက္ကန့် ဖိထားပါ',chatEmptyTitle:'စကားဝိုင်းကို ရွေးပါ',chatEmptySub:'ဘယ်ဘက်စာရင်းမှ တာဝန်ခံ သို့မဟုတ် အဖွဲ့ကို ရွေးပါ',payslipTitle:'လစာစလစ်',payslipSub:'ထုတ်ပြန်ထားသော လစာစလစ်ကို ကြည့်နိုင်သည်',psWorkDays:'အလုပ်ရက်',psRegular:'ပုံမှန်',psOvertime:'အချိန်ပို',psNight:'ညဆိုင်း',psBase:'အခြေခံလစာ',psOtPay:'အချိန်ပိုကြေး',psNightPay:'ညဆိုင်းကြေး',psHolidayPay:'ပိတ်ရက်ကြေး',psGross:'စုစုပေါင်း',psDeduction:'နုတ်ယူစုစုပေါင်း',psNet:'လက်ခံရငွေ',psDayUnit:'ရက်',psNone:'ထုတ်ပြန်ထားသော လစာစလစ် မရှိသေးပါ'},
+  ja:{cwToday:'今日の打刻',payslipBtn:'給与明細',leaveBtn:'有給',lifeBtn:'生活サポート',lifeSub:'日本での生活情報',nippoToday:'今日の日報',nippoSend:'日報を送信',nippoHayari:'ヒヤリハット',nippoPlaceholder:'本日の作業内容を入力（母国語OK・AIで日本語に翻訳）',sosSubHome:'3秒長押しで担当者に緊急通知',chatEmptyTitle:'会話を選んでください',chatEmptySub:'担当者またはグループを\n左のリストから選択',payslipTitle:'給与明細',payslipSub:'公開された明細を確認できます',psWorkDays:'勤務日数',psRegular:'通常',psOvertime:'残業',psNight:'深夜',psBase:'基本給',psOtPay:'残業手当',psNightPay:'深夜手当',psHolidayPay:'休日手当',psGross:'総支給',psDeduction:'控除合計',psNet:'差引支給額',psDayUnit:'日',psNone:'公開された給与明細はまだありません'},
+  km:{cwToday:'ការចុះវត្តមានថ្ងៃនេះ',payslipBtn:'ប័ណ្ណប្រាក់ខែ',leaveBtn:'ការឈប់សម្រាក',lifeBtn:'ជំនួយជីវភាព',lifeSub:'ព័ត៌មានជីវភាពនៅជប៉ុន',nippoToday:'របាយការណ៍ថ្ងៃនេះ',nippoSend:'ផ្ញើរបាយការណ៍',nippoHayari:'ស្ទើរតែគ្រោះថ្នាក់',nippoPlaceholder:'បញ្ចូលការងារថ្ងៃនេះ (ភាសាកំណើតបាន・AI បកប្រែជាភាសាជប៉ុន)',sosSubHome:'ចុចសង្កត់ ៣ វិនាទី ដើម្បីជូនដំណឹងបន្ទាន់ទៅអ្នកទទួលបន្ទុក',chatEmptyTitle:'សូមជ្រើសរើសការសន្ទនា',chatEmptySub:'ជ្រើសរើសអ្នកទទួលបន្ទុក ឬក្រុម\nពីបញ្ជីខាងឆ្វេង',payslipTitle:'ប័ណ្ណប្រាក់ខែ',payslipSub:'អ្នកអាចមើលបញ្ជីប្រាក់ខែដែលបានផ្សាយ',psWorkDays:'ថ្ងៃធ្វើការ',psRegular:'ធម្មតា',psOvertime:'ម៉ោងបន្ថែម',psNight:'យប់',psBase:'ប្រាក់ខែមូលដ្ឋាន',psOtPay:'ប្រាក់ម៉ោងបន្ថែម',psNightPay:'ប្រាក់យប់',psHolidayPay:'ប្រាក់ថ្ងៃឈប់សម្រាក',psGross:'សរុបបើក',psDeduction:'កាត់សរុប',psNet:'ប្រាក់ទទួលសុទ្ធ',psDayUnit:'ថ្ងៃ',psNone:'មិនទាន់មានបញ្ជីប្រាក់ខែដែលផ្សាយទេ'},
+};
+
+// ── 補助辞書 LS3 + ラベル取得ヘルパー（attendance.js 等の別ファイルから window.gbLabel で参照可）
+const LS3 = {
+  vi:{attNotIn:'Chưa vào ca',attWorking:'Đang làm việc',attDone:'Đã tan ca',nippoPastNote:'Nhật ký cũ xem ở [[tab]]',nippoTab:'tab Nhật ký'},
+  id:{attNotIn:'Belum absen masuk',attWorking:'Sedang bekerja',attDone:'Sudah pulang',nippoPastNote:'Laporan lama ada di [[tab]]',nippoTab:'tab Laporan'},
+  tl:{attNotIn:'Hindi pa pumasok',attWorking:'Nagtatrabaho',attDone:'Tapos na ang shift',nippoPastNote:'Lumang ulat sa [[tab]]',nippoTab:'tab ng Ulat'},
+  zh:{attNotIn:'未上班',attWorking:'上班中',attDone:'已下班',nippoPastNote:'过往日报在[[tab]]查看',nippoTab:'日报标签'},
+  my:{attNotIn:'အလုပ်မဝင်ရသေး',attWorking:'အလုပ်ဝင်နေဆဲ',attDone:'အလုပ်ဆင်းပြီး',nippoPastNote:'အရင်အစီရင်ခံစာများကို [[tab]] တွင်',nippoTab:'အစီရင်ခံစာ tab'},
+  ja:{attNotIn:'未出勤',attWorking:'出勤中',attDone:'退勤済み',nippoPastNote:'過去の日報は[[tab]]で確認できます',nippoTab:'日報タブ'},
+  km:{attNotIn:'មិនទាន់ចូលធ្វើការ',attWorking:'កំពុងធ្វើការ',attDone:'ចេញពីការងារ',nippoPastNote:'របាយការណ៍ចាស់នៅ[[tab]]',nippoTab:'ផ្ទាំងរបាយការណ៍'},
+};
+window.gbLabel = function(key, fallback){ try { var d=Object.assign({}, LS[LANG]||LS.vi, LS2[LANG]||LS2.vi, LS3[LANG]||LS3.vi); return d[key]!=null?d[key]:(fallback!=null?fallback:''); } catch(e){ return fallback!=null?fallback:''; } };
+
 function applyL(code) {
-  const L=LS[code]||LS.vi; LANG=code;
+  const L=Object.assign({}, LS[code]||LS.vi, LS2[code]||LS2.vi, LS3[code]||LS3.vi); LANG=code;
   const s=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
   s('h-greet',L.greet+', Giang さん');
   s('h-leave-l',L.leave); s('h-today-shift',L.todayShift);
@@ -2414,6 +2437,26 @@ function applyL(code) {
   s('nl-settings', L.navSettings || L.stTitle     || '設定');
   // ── チャットパネルタイトル
   s('clp-title',   L.navChat     || L.chatName    || 'チャット');
+
+  // ── 追加マッピング（ホーム/チャット/給与/生活の未対応テキスト）
+  s('cw-card-title', L.cwToday);
+  s('h-payslip-l',   L.payslipBtn);
+  s('h-leave-l',     L.leaveBtn);
+  s('h-life-l',      L.lifeBtn);
+  s('h-nippo-today-l', L.nippoToday);
+  s('h-nippo-send-btn',   '📝 ' + L.nippoSend);
+  s('h-nippo-hayari-btn', '⚠️ ' + L.nippoHayari);
+  const _nq=document.getElementById('h-nippo-quick'); if(_nq) _nq.placeholder=L.nippoPlaceholder;
+  s('h-sos-sub', L.sosSubHome);
+  s('cw-title-l', L.chatEmptyTitle);
+  const _cws=document.getElementById('cw-sub-l'); if(_cws) _cws.innerHTML=(L.chatEmptySub||'').replace('\n','<br>');
+  s('ps-title', L.payslipTitle);
+  s('ps-sub',   L.payslipSub);
+  s('life-title-l', L.lifeBtn);
+  s('life-sub-l',   L.lifeSub);
+  const _np=document.getElementById('h-nippo-past'); if(_np) _np.innerHTML=(L.nippoPastNote||'').replace('[[tab]]', '<a href="#" onclick="go(\'s-nippo\');return false;" style="color:var(--gn);font-weight:600">'+(L.nippoTab||'')+'</a>');
+  if(typeof Attendance!=='undefined' && Attendance.refresh) Attendance.refresh();
+  if(typeof loadPayslips==='function' && document.getElementById('s-payslip')?.offsetParent) loadPayslips();
 
   renderTpls();
   Object.keys(docTranslateCache).forEach(k=>delete docTranslateCache[k]);
@@ -2539,14 +2582,15 @@ function _psYen(n){ return '¥' + (Math.round(n||0)).toLocaleString('ja-JP'); }
 async function loadPayslips(){
   const wrap = document.getElementById('payslip-list');
   if(!wrap) return;
-  wrap.innerHTML = '<div style="text-align:center;color:var(--t3);padding:30px 0;font-size:13px">読み込み中...</div>';
+  const L=Object.assign({}, LS[LANG]||LS.vi, LS2[LANG]||LS2.vi, LS3[LANG]||LS3.vi);
+  wrap.innerHTML = '<div style="text-align:center;color:var(--t3);padding:30px 0;font-size:13px">...</div>';
   try{
     const r = await fetch('/worker/api/payslips');
     const j = await r.json();
     if(!j.ok){ wrap.innerHTML = `<div style="padding:20px;color:var(--red)">${j.error||'取得失敗'}</div>`; return; }
     const list = j.payslips || [];
     if(!list.length){
-      wrap.innerHTML = '<div style="text-align:center;color:var(--t3);padding:30px 12px;font-size:13px">公開された給与明細はまだありません</div>';
+      wrap.innerHTML = `<div style="text-align:center;color:var(--t3);padding:30px 12px;font-size:13px">${L.psNone}</div>`;
       return;
     }
     wrap.innerHTML = list.map(p => `
@@ -2557,19 +2601,19 @@ async function loadPayslips(){
         </div>
         <div style="padding:12px 15px">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:12.5px">
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">勤務日数</span><span>${p.work_days}日</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">通常</span><span>${p.regular_hours}h</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">残業</span><span>${p.overtime_hours}h</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">深夜</span><span>${p.night_hours}h</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">基本給</span><span>${_psYen(p.base_pay)}</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">残業手当</span><span>${_psYen(p.overtime_pay)}</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">深夜手当</span><span>${_psYen(p.night_pay)}</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">休日手当</span><span>${_psYen(p.holiday_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">${L.psWorkDays}</span><span>${p.work_days}${L.psDayUnit}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">${L.psRegular}</span><span>${p.regular_hours}h</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">${L.psOvertime}</span><span>${p.overtime_hours}h</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">${L.psNight}</span><span>${p.night_hours}h</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">${L.psBase}</span><span>${_psYen(p.base_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">${L.psOtPay}</span><span>${_psYen(p.overtime_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">${L.psNightPay}</span><span>${_psYen(p.night_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">${L.psHolidayPay}</span><span>${_psYen(p.holiday_pay)}</span></div>
           </div>
           <div style="border-top:1px solid var(--bd);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;gap:6px;font-size:13px">
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t2);font-weight:600">総支給</span><span style="font-weight:700">${_psYen(p.gross_pay)}</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">控除合計</span><span>-${_psYen(p.deduction_total)}</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:var(--gn);font-weight:700">差引支給額</span><span style="color:var(--gn);font-weight:700;font-size:15px">${_psYen(p.net_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t2);font-weight:600">${L.psGross}</span><span style="font-weight:700">${_psYen(p.gross_pay)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">${L.psDeduction}</span><span>-${_psYen(p.deduction_total)}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--gn);font-weight:700">${L.psNet}</span><span style="color:var(--gn);font-weight:700;font-size:15px">${_psYen(p.net_pay)}</span></div>
           </div>
         </div>
       </div>
@@ -2891,14 +2935,14 @@ function getChatListData() {
   const groups = GROUPS.map(g => ({
     id: g.id,
     type: 'group',
-    av: g.ico,
-    avBg: g.bg,
+    av: g.ico || '👥',
+    avBg: g.bg || '#e0e7ff',
     avTc: '#374151',
-    name: g.name,
-    nameShort: g.name.split('—')[0].trim().slice(0,6),
+    name: g.name || 'グループ',
+    nameShort: (g.name || 'グループ').split('—')[0].trim().slice(0,6),
     sub: 'グループ',
     unread: g.unread || 0,
-    prev: g.prev,
+    prev: g.prev || '',
     time: g.time||'',
     isGroup: true,
     group: g,
@@ -2942,7 +2986,7 @@ function renderCLItem(el, item) {
   const avStyle = item.isGroup
     ? `width:40px;height:40px;border-radius:11px;background:${item.avBg};border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0`
     : `width:40px;height:40px;border-radius:50%;background:${item.avBg};border:2px solid var(--bd);color:${item.avTc};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0`;
-  const br='<br>';d.innerHTML=`<div style="${avStyle}">${item.av}</div><div class="cl-item-name">${item.nameShort.replace('\\n',br)}</div>${item.unread?`<div class="cl-item-unread">${item.unread}</div>`:''}`;
+  const br='<br>';d.innerHTML=`<div style="${avStyle}">${item.av||''}</div><div class="cl-item-name">${(item.nameShort||'').replace('\\n',br)}</div>${item.unread?`<div class="cl-item-unread">${item.unread}</div>`:''}`;
   el.appendChild(d);
 }
 

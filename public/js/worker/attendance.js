@@ -51,7 +51,7 @@ const Attendance = (() => {
 
     if (!clockedIn) {
       // 未出勤：出勤ボタン ON / 退勤ボタン OFF
-      if (statusEl) { statusEl.className = 'bdg ba'; statusEl.textContent = '未出勤' }
+      if (statusEl) { statusEl.className = 'bdg ba'; statusEl.textContent = (window.gbLabel ? window.gbLabel('attNotIn','未出勤') : '未出勤') }
       if (inEl)  inEl.textContent  = '--:--'
       if (outEl) outEl.textContent = '--:--'
       btnIn.disabled  = false; btnIn.style.opacity  = '1'
@@ -59,7 +59,7 @@ const Attendance = (() => {
 
     } else if (clockedIn && !clockedOut) {
       // 出勤中：出勤ボタン OFF / 退勤ボタン ON
-      if (statusEl) { statusEl.className = 'bdg bg'; statusEl.textContent = '出勤中' }
+      if (statusEl) { statusEl.className = 'bdg bg'; statusEl.textContent = (window.gbLabel ? window.gbLabel('attWorking','出勤中') : '出勤中') }
       if (inEl)  inEl.textContent  = fmtTime(record.clock_in)
       if (outEl) outEl.textContent = '--:--'
       btnIn.disabled  = true;  btnIn.style.opacity  = '.4'
@@ -67,7 +67,7 @@ const Attendance = (() => {
 
     } else {
       // 退勤済み：両方 OFF
-      if (statusEl) { statusEl.className = 'bdg bb'; statusEl.textContent = '退勤済み' }
+      if (statusEl) { statusEl.className = 'bdg bb'; statusEl.textContent = (window.gbLabel ? window.gbLabel('attDone','退勤済み') : '退勤済み') }
       if (inEl)  inEl.textContent  = fmtTime(record.clock_in)
       if (outEl) outEl.textContent = fmtTime(record.clock_out)
       btnIn.disabled  = true; btnIn.style.opacity  = '.4'
@@ -111,6 +111,7 @@ const Attendance = (() => {
 
   return {
     init:     fetchToday,
+    refresh:  renderUI,
     clockIn:  () => clockRequest('in'),
     clockOut: () => clockRequest('out'),
   }
