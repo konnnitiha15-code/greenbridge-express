@@ -2204,7 +2204,7 @@ lLabel:'ミャンマー語'},
     shiftTbd:'未定',
     docNav:'書類',
 lLabel:'日本語'},
-  km:{greet:'សួស្តី',leave:'ថ្ងៃឈប់សម្រាកដែលនៅសល់',todayShift:'វេនថ្ងៃនេះ',notice:'សេចក្តីជូនដំណឹង',
+  km:{tpls:[{ico:'📅',n:'សុំឈប់សម្រាក',s:'休み申請',k:'leave'},{ico:'🤒',n:'រាយការណ៍ឈឺ',s:'体調不良',k:'sick'},{ico:'⚠️',n:'កំហុសការងារ',s:'作業ミス',k:'mistake'},{ico:'🕐',n:'ម៉ោងបន្ថែម',s:'残業申請',k:'ot'},{ico:'🔧',n:'ម៉ាស៊ីនខូច',s:'設備故障',k:'machine'},{ico:'💬',n:'ប្រឹក្សា',s:'相談',k:'consult'}],greet:'សួស្តី',leave:'ថ្ងៃឈប់សម្រាកដែលនៅសល់',todayShift:'វេនថ្ងៃនេះ',notice:'សេចក្តីជូនដំណឹង',
     tplBtn:'ពាក្យស្នើ',docBtn:'ឯកសារ',sosBtn:'SOS',nippoBtn:'របាយការណ៍',videoBtn:'វីដេអូ',
     tplTitle:'ពាក្យស្នើ',tplSub:'សរសេរដោយភាសាមាតុភូមិ → AI បកប្រែ',tplSend:'ផ្ញើ',detail:'សរសេរលម្អិត',
     docTitle:'ឯកសារ',docSub:'ឯកសារដែលបានបញ្ជាក់ = បៃតង',progL:'វឌ្ឍនភាព',
@@ -2816,7 +2816,7 @@ function renderTpls(){
     leave:'休暇・欠勤の申請',sick:'体調不良の報告',mistake:'作業ミス・ヒヤリハット報告',
     ot:'残業・時間外作業の申請',machine:'設備・機械トラブルの報告',consult:'困りごと・相談'
   };
-  document.getElementById('tgrid').innerHTML=L.tpls.map(t=>`
+  document.getElementById('tgrid').innerHTML=(L.tpls||LS.vi.tpls||[]).map(t=>`
     <div class="tpl-card" onclick="openTpl('${t.k}','${t.n}','${desc[t.k]||''}','${icoBg[t.k]||'#f6f7fa'}','${icoCol[t.k]||'#64748b'}')">
       <div class="tpl-ico" style="background:${icoBg[t.k]||'#f6f7fa'};border-color:${icoCol[t.k]||'#64748b'}33">${t.ico}</div>
       <div style="flex:1;min-width:0">
