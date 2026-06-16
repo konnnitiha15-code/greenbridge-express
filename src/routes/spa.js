@@ -200,11 +200,33 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
       refreshToken:    req.cookies['sb-refresh-token'] || null,
     }
 
-    res.render('spa', { workers, docs, gbUser, companyName, companyInfo, profile: req.profile, user: req.user, realtimeConfig })
+    res.render('spa', { workers, docs, gbUser, companyName, companyInfo, moduleFlags: (companyInfo && companyInfo.module_flags) || {}, profile: req.profile, user: req.user, realtimeConfig })
   } catch (e) {
     console.error('SPA route error:', e)
     res.status(500).send('サーバーエラーが発生しました')
   }
+})
+
+// ── モジュール表示フラグ（会社単位の機能ON/OFF・管理者のみ）─────────────
+const TOGGLEABLE_MODULES = ['chat','docs','gchat','nippo','shift','attend','payroll','visa','leave','certs','life','hr','filings','ai','roles','dict']
+router.put('/api/settings/modules', async (req, res) => {
+  try {
+    const companyId = req.profile?.company_id
+    if (!companyId) return res.status(403).json({ ok: false, error: '会社が未設定です' })
+    if (req.profile?.role !== 'admin') return res.status(403).json({ ok: false, error: '管理者のみ変更できます' })
+    const incoming = (req.body && typeof req.body.module_flags === 'object' && req.body.module_flags) || {}
+    const clean = {}
+    TOGGLEABLE_MODULES.forEach(k => { if (k in incoming) clean[k] = !!incoming[k] })
+    const sb = createAdminClient()
+    const { error } = await sb.from('companies').update({ module_flags: clean }).eq('id', companyId)
+    if (error) {
+      if (/module_flags|does not exist|schema cache/i.test(error.message || '')) {
+        return res.status(503).json({ ok: false, error: 'migration_020_required' })
+      }
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+    res.json({ ok: true, module_flags: clean })
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }) }
 })
 
 // ── Workers API (AJAX用) ─────────────────────────────────

@@ -54,6 +54,7 @@
 const WORKERS     = <%- JSON.stringify(workers) %>;
 const DOCS        = <%- JSON.stringify(docs) %>;
 const GB_USER     = <%- JSON.stringify(gbUser) %>;
+window.MODULE_FLAGS = <%- JSON.stringify(moduleFlags || {}) %>;
 const GB_COMPANY  = <%- JSON.stringify(companyName) %>;
 const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
 </script>
@@ -1163,6 +1164,9 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
         <% if (profile?.role === 'admin') { %>
         <div class="sn-item" id="sni-company" onclick="setST('company')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="7" height="10" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M9 5h3v7H9M4 4.5h2M4 6.5h2M4 8.5h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>会社情報</div>
         <% } %>
+        <% if (profile?.role === 'admin') { %>
+        <div class="sn-item" id="sni-modules" onclick="setST('modules')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/><rect x="8" y="1.5" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/><rect x="1.5" y="8" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/><rect x="8" y="8" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>機能の表示</div>
+        <% } %>
         <div class="sn-item" id="sni-display" onclick="setST('display')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M4 12h6M7 10v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>言語・表示</div>
         <div class="sn-item" id="sni-notif" onclick="setST('notif')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5A4.5 4.5 0 002.5 6v2.5L1.5 10h11l-1-1.5V6A4.5 4.5 0 007 1.5z" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M5.5 11.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>通知</div>
         <div class="sn-item" id="sni-privacy" onclick="setST('privacy')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L2 3.5v4.5c0 3 2 5 5 5.5 3-.5 5-2.5 5-5.5V3.5L7 1z" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/><path d="M5 7l1.5 1.5L9 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>プライバシー</div>
@@ -1195,6 +1199,13 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
           </div>
         </div>
         <% if (profile?.role === 'admin') { %>
+        <div class="stab" id="stab-modules">
+          <div class="ss-section">
+            <div class="ss-hdr"><div class="ss-title">機能の表示（モジュール ON / OFF）</div><div class="ss-sub">使わない機能を隠してサイドバーをシンプルにできます。会社全体に適用されます。</div></div>
+            <div id="mod-toggle-warn" style="display:none;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12.5px"></div>
+            <div id="mod-toggle-list" style="max-width:560px"></div>
+          </div>
+        </div>
         <div class="stab" id="stab-company">
           <div class="ss-section">
             <div class="ss-hdr"><div class="ss-title">会社情報</div><div class="ss-sub">書類（雇用契約書・労働条件通知書など）に自動反映されます</div></div>
@@ -1294,7 +1305,7 @@ const GB_COMPANY_INFO = <%- JSON.stringify(companyInfo || {}) %>;
 <script src="/js/services/storage.js"></script>
 <script src="/js/services/realtime.js"></script>
 <script src="/js/services/push-client.js"></script>
-<script src="/js/app.js?v=20260602-cleanup"></script>
+<script src="/js/app.js?v=20260607-modules"></script>
 <script>
   // PWA + Web Push 初期化（SW登録のみ。購読は設定タブのトグルから明示的に有効化）
   if (window.GBPush) {

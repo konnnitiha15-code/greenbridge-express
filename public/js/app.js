@@ -296,6 +296,7 @@ function toggleSidebar(){
 
 // ── ページ遷移 ──────────────────────────────────────────────────────────────
 function SP(id){
+  if(id&&typeof MODULE_FLAGS!=='undefined'&&MODULE_FLAGS[id]===false){id='home';}
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   const el=document.getElementById('page-'+id);if(el)el.classList.add('on');
   document.querySelectorAll('.sb-item').forEach(s=>{
@@ -1049,6 +1050,12 @@ function openWD(w, forceTab){
           </div>
         </div>
         ${visaWarn}
+        <div class="wd-summary" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          ${isModuleOn('filings')?`<div onclick="SP('filings')" title="雇用書類・届出へ" style="cursor:pointer;flex:1;min-width:104px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px 10px"><div style="font-size:10.5px;color:var(--t3)">📋 未提出の届出</div><div style="font-size:14px;font-weight:700" id="wsum-filings-${w.id}">…</div></div>`:''}
+          ${isModuleOn('leave')?`<div onclick="SP('leave')" title="有給管理へ" style="cursor:pointer;flex:1;min-width:104px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px 10px"><div style="font-size:10.5px;color:var(--t3)">🏖 有給残</div><div style="font-size:14px;font-weight:700" id="wsum-leave-${w.id}">…</div></div>`:''}
+          ${isModuleOn('certs')?`<div onclick="SP('certs')" title="資格・健診へ" style="cursor:pointer;flex:1;min-width:104px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px 10px"><div style="font-size:10.5px;color:var(--t3)">🩺 資格・健診</div><div style="font-size:14px;font-weight:700" id="wsum-certs-${w.id}">…</div></div>`:''}
+          ${isModuleOn('hr')?`<div onclick="SP('hr')" title="労務手続きへ" style="cursor:pointer;flex:1;min-width:104px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px 10px"><div style="font-size:10.5px;color:var(--t3)">🗂 労務手続き</div><div style="font-size:14px;font-weight:700" id="wsum-hr-${w.id}">…</div></div>`:''}
+        </div>
         <div style="display:flex;gap:4px;margin-top:14px;border-bottom:1px solid var(--bd);margin-bottom:-1px">
           <button class="wd-tab ${activeTab==='info'?'on':''}" onclick="switchWDTab('${w.id}','info')">基本情報</button>
           <button class="wd-tab ${activeTab==='visa'?'on':''}" onclick="switchWDTab('${w.id}','visa')">在留情報</button>
@@ -1059,9 +1066,19 @@ function openWD(w, forceTab){
       </div>
       <div style="flex:1;overflow-y:auto;padding:18px 20px;background:var(--bg)">${renderWDTab(w,activeTab)}</div>
     </div>`;
+  if(typeof loadWorkerSummary==='function') loadWorkerSummary(w.id);
 }
 
 function switchWDTab(wid,tab){const w=WORKERS.find(x=>x.id===wid);if(!w)return;w._activeTab=tab;openWD(w);}
+
+// ── ワーカー詳細：関連情報サマリー（届出/有給/資格健診/労務手続きを集約・簡易版）──
+async function loadWorkerSummary(wid){
+  const set=(k,v)=>{const e=document.getElementById('wsum-'+k+'-'+wid);if(e)e.textContent=v;};
+  fetch('/app/api/filings?worker_id='+wid).then(r=>r.json()).then(j=>set('filings', j&&j.ok?((j.open_count||0)+'件'):'—')).catch(()=>set('filings','—'));
+  fetch('/app/api/leave/'+wid).then(r=>r.json()).then(j=>{let v='—';if(j&&j.ok&&j.summary&&j.summary.balance!=null)v=j.summary.balance+'日';set('leave',v);}).catch(()=>set('leave','—'));
+  fetch('/app/api/certs').then(r=>r.json()).then(j=>{let v='—';if(j&&j.ok){const rs=(j.rows||[]).filter(x=>x.worker_id===wid);const near=rs.filter(x=>['expired','urgent','warn'].includes(x.level)).length;v=near?near+'件 要確認':rs.length+'件';}set('certs',v);}).catch(()=>set('certs','—'));
+  fetch('/app/api/procedures?worker_id='+wid+'&status=open').then(r=>r.json()).then(j=>{let v='—';if(j&&j.ok){const n=(j.rows||[]).length;v=n?n+'件 進行中':'なし';}set('hr',v);}).catch(()=>set('hr','—'));
+}
 
 function renderWDInfo(w){
   const row=(lbl,val)=>`<tr><td style="padding:9px 14px;background:#fafbfd;font-weight:600;color:var(--t2);width:35%;border-bottom:1px solid var(--bd)">${lbl}</td><td style="padding:9px 14px;border-bottom:1px solid var(--bd)">${val||'<span style="color:var(--t3)">未設定</span>'}</td></tr>`;
@@ -2336,7 +2353,7 @@ function openManageGroup(){
   const addOpts = nonMembers.map(w => `<option value="${w.id}">${w.flag} ${w.name}</option>`).join('');
   openModal(`👥 メンバー管理 — ${AG.name}`,
     `<div style="margin-bottom:10px">
-       <div style="font-size:12px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-bottom:6px">現在のメンバー (${members.length}名)</div>
+       <div style="font-size:12px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-bottom:6px">現在のメンバー (${memberWorkers.length}名)</div>
        <div id="mgr-member-list">${memberRows||'<div style="padding:8px;color:var(--t3);font-size:13px">メンバーなし</div>'}</div>
      </div>
      ${IS_ADMIN&&nonMembers.length?`<div>
@@ -3387,8 +3404,16 @@ async function saveUserRole(userId){
 }
 function openAddRole(){if(!IS_ADMIN){toast('権限エラー','管理者のみ操作できます','r');return;}toast('情報','ロールはシステム固定です（管理者・マネージャー・スタッフ・技能実習生）','b');}
 function openRoleEdit(role){if(!IS_ADMIN){toast('権限エラー','管理者のみ変更できます','r');return;}toast('情報',role+' の権限はシステム固定です','b');}
-const STABS=['account','company','display','notif','privacy','support','legal'];
-function setST(tab){STABS.forEach(t=>{document.getElementById('stab-'+t)?.classList.toggle('on',t===tab);document.getElementById('sni-'+t)?.classList.toggle('on',t===tab);});if(tab==='company')loadCompanyInfo();}
+const STABS=['account','company','modules','display','notif','privacy','support','legal'];
+function setST(tab){STABS.forEach(t=>{document.getElementById('stab-'+t)?.classList.toggle('on',t===tab);document.getElementById('sni-'+t)?.classList.toggle('on',t===tab);});if(tab==='company')loadCompanyInfo();if(tab==='modules')renderModuleToggles();}
+
+// ── モジュール表示フラグ（会社単位の機能ON/OFF・管理者のみ）──────────────────
+const MODULE_DEFS=[['chat','チャット'],['docs','書類・翻訳管理'],['gchat','グループチャット'],['nippo','日報・報告'],['shift','シフト管理'],['attend','勤怠管理'],['payroll','給与管理'],['visa','在留管理'],['leave','有給管理'],['certs','資格・健診'],['life','生活サポート'],['hr','労務手続き'],['filings','雇用書類・届出'],['ai','AIアシスタント'],['roles','権限管理'],['dict','翻訳辞書']];
+let MODULE_FLAGS=(typeof window!=='undefined'&&window.MODULE_FLAGS)?window.MODULE_FLAGS:{};
+function isModuleOn(id){return MODULE_FLAGS[id]!==false;}  // 既定ON。false のみOFF
+function applyModuleFlags(){MODULE_DEFS.forEach(([id])=>{const n=document.getElementById('nav-'+id);if(n)n.style.display=isModuleOn(id)?'':'none';});}
+function renderModuleToggles(){const el=document.getElementById('mod-toggle-list');if(!el)return;el.innerHTML=MODULE_DEFS.map(([id,label])=>`<div class="ss-row" style="justify-content:space-between"><div class="ss-l"><div class="ss-lbl">${label}</div></div><button class="btn btn-sm ${isModuleOn(id)?'btn-g':''}" style="min-width:84px" onclick="toggleModule('${id}')">${isModuleOn(id)?'表示 ON':'非表示'}</button></div>`).join('');}
+async function toggleModule(id){const next=!isModuleOn(id);const newFlags=Object.assign({},MODULE_FLAGS,{[id]:next});try{const res=await fetch('/app/api/settings/modules',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_flags:newFlags})});const json=await res.json();if(!json.ok){if(json.error==='migration_020_required'){const w=document.getElementById('mod-toggle-warn');if(w){w.style.display='';w.textContent='⚠ この機能にはDBマイグレーション020の適用が必要です。';}return;}return toast('エラー',json.error||'保存に失敗しました','r');}MODULE_FLAGS=json.module_flags||newFlags;if(typeof window!=='undefined')window.MODULE_FLAGS=MODULE_FLAGS;renderModuleToggles();applyModuleFlags();const lbl=(MODULE_DEFS.find(m=>m[0]===id)||[])[1]||id;toast(next?'表示':'非表示',`${lbl}を${next?'ON':'OFF'}にしました`,next?'g':'a');}catch(e){toast('エラー','ネットワークエラー','r');}}
 
 // ── SHARED CHAT HELPERS ───────────────────────────────────────────────────────
 function renderMsgs(containerId,msgs,worker){const a=document.getElementById(containerId);if(!a)return;a.innerHTML='';msgs.forEach(m=>addBub(containerId,m,worker,false));a.scrollTop=a.scrollHeight;}
@@ -3733,6 +3758,7 @@ async function printPayslip(id){
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+if(typeof applyModuleFlags==='function')applyModuleFlags();
 SP('home');
 
 // ── 管理者用 統合メッセージポーリング（Realtime のサイレント失敗対策）
